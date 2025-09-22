@@ -178,3 +178,51 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
   line-height: 1.6;
   opacity: 0.9;
 }
+
+
+/* public/css/app-ui.css 파일 하단에 추가 */
+
+/* [신규] 캐러셀 컨테이너 */
+.carousel-container {
+  position: relative;
+  padding-bottom: 24px; /* 점이 들어갈 공간 확보 */
+}
+
+/* [수정] 스크롤 스냅 기능 */
+.hscroll{
+  display: flex;
+  gap: 16px; /* 카드 사이 간격 */
+  overflow-x: auto;
+  padding: 12px 16px;
+  scroll-snap-type: x mandatory;
+  scroll-padding: 0 16px; /* 카드가 시작/끝에 붙지 않도록 */
+  -ms-overflow-style: none; /* IE, Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.hscroll::-webkit-scrollbar{ display: none; } /* Chrome, Safari */
+
+.h-card {
+  width: calc(100% - 32px); /* 컨테이너 패딩만큼 뺀 너비 */
+  flex-shrink: 0;
+  scroll-snap-align: center; /* 스크롤 시 중앙에 오도록 */
+}
+
+/* [신규] 캐러셀 페이지 표시 점 (Dots) */
+.carousel-dots {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transition: background .3s ease;
+}
+.dot.active {
+  background: rgba(255, 255, 255, 0.8);
+}
