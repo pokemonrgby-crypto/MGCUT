@@ -23,11 +23,23 @@ body{
 @keyframes cardIn{to{transform:translateY(0);opacity:1}}
 .card.pad{padding:18px}
 .card + .card{margin-top:12px}
-.world-card{height:180px; cursor:pointer;}
-.world-card .bg{
-  position:absolute; inset:0; background:#222 center/cover no-repeat;
-  filter:saturate(1.1) contrast(1.05); transition: transform .3s ease;
+.world-card{
+  position: relative;     /* 부모 기준점 지정 */
+  height: 180px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  overflow: hidden;       /* 배경/이펙트 삐져나옴 방지 */
 }
+
+.world-card .bg{
+  position: absolute;
+  inset: 0;
+  background: #222 center/cover no-repeat;
+  filter: saturate(1.1) contrast(1.05);
+  transition: transform .3s ease;
+  pointer-events: none;  /* 클릭 막지 않도록 */
+}
+
 .world-card:hover .bg {transform: scale(1.05);}
 .world-card .grad{
   position:absolute; inset:auto 0 0 0; height:42%; 
