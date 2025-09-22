@@ -38,6 +38,55 @@
           <button id="btn-logout">로그아웃</button>
         </div>
       </div>
+      <!-- 간단 탭 -->
+<nav id="tabs" style="margin:16px 0; display:flex; gap:8px;">
+  <button data-tab="worlds">세계</button>
+  <button data-tab="characters">캐릭터</button>
+  <button data-tab="prompts">프롬프트</button>
+</nav>
+
+<section id="tab-worlds" style="display:none;">
+  <button id="btn-create-world">오늘 세계 만들기</button>
+  <div id="worlds-tip" style="margin-top:8px; opacity:.8;">* 한국시간 자정 기준 하루 1회</div>
+</section>
+
+<section id="tab-characters" style="display:none;">
+  <div>
+    <label>World ID: <input id="char-worldId" placeholder="worldId"/></label>
+  </div>
+  <div>
+    <label>Prompt ID(공개 카드 선택): <input id="char-promptId" placeholder="promptId"/></label>
+    <div style="opacity:.7;">* Prompt ID를 비우고 아래 '직접 프롬프트'를 넣어도 돼 (둘 중 하나만)</div>
+  </div>
+  <div>
+    <label>직접 프롬프트:<br/>
+      <textarea id="char-customPrompt" rows="6" placeholder="직접 쓸 캐릭터 생성 프롬프트"></textarea>
+    </label>
+  </div>
+  <div>
+    <label>사용자 입력(최대 1000자):<br/>
+      <textarea id="char-userInput" rows="6" maxlength="1000"></textarea>
+    </label>
+  </div>
+  <button id="btn-create-character">캐릭터 생성</button>
+</section>
+
+<section id="tab-prompts" style="display:none;">
+  <div style="margin-bottom:8px;">
+    <label>제목: <input id="pr-title" maxlength="80"/></label>
+  </div>
+  <div>
+    <label>내용(프롬프트 텍스트):<br/>
+      <textarea id="pr-content" rows="8"></textarea>
+    </label>
+  </div>
+  <button id="btn-upload-prompt">프롬프트 업로드(하루 1개)</button>
+
+  <hr/>
+  <button id="btn-load-prompts">공개 프롬프트 불러오기</button>
+  <div id="prompts-list" style="margin-top:8px;"></div>
+</section>
+
     </header>
 
     <main>
