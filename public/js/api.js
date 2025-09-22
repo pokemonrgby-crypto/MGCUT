@@ -45,6 +45,14 @@ export const api = {
   listWorlds: () => call('GET', '/api/worlds'),
   updateWorldCover: (id, coverUrl) => call('PATCH', `/api/worlds/${id}/cover`, { coverUrl }),
 
+
+    // [신규] 단일 세계관 정보 가져오기
+  getWorld: (id) => call('GET', `/api/worlds/${id}`),
+  // [신규] 세계관 좋아요 토글
+  likeWorld: (id) => call('POST', `/api/worlds/${id}/like`),
+  // [신규] 내 캐릭터 목록 가져오기
+  getMyCharacters: () => call('GET', '/api/my-characters'),
+
   // characters
   createCharacter: ({ worldId, promptId, customPrompt, userInput }) =>
     call('POST', '/api/characters/create', { worldId, promptId, customPrompt, userInput }),
