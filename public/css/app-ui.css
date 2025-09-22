@@ -234,3 +234,60 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
     display: block;
   }
 }
+
+/* public/css/app-ui.css 파일 하단에 추가 */
+
+/* 상세 페이지 탭 버튼 */
+.detail-tabs-nav {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.tab-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 10px 4px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  border-bottom: 2px solid transparent;
+  transition: all .2s ease;
+}
+.tab-btn.active {
+  color: var(--text);
+  border-bottom-color: var(--acc);
+}
+
+/* 상세 정보 카드 (세력, NPC 등) */
+.info-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.info-card .name {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+.info-card .desc {
+  opacity: 0.8;
+  line-height: 1.6;
+  white-space: pre-wrap; /* 줄바꿈 유지 */
+}
+
+/* 에피소드 리치 텍스트 스타일 */
+.episode-content .narrative {
+  margin: 1em 0;
+  opacity: 0.9;
+  line-height: 1.7;
+}
+.episode-content .dialogue {
+  margin: 1em 0;
+  padding: 12px;
+  background: rgba(0,0,0,0.2);
+  border-left: 3px solid var(--acc2);
+  font-style: italic;
+}
