@@ -1,9 +1,9 @@
 import {
   getAuth,
-  onAuthStateChanged as fbOnAuthStateChanged,
+  onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
-  signOut as fbSignOut,
+  signOut,
 } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js';
 
 // frame.js가 기대하는 auth 래퍼 (onAuthStateChanged/ signOut 등 메서드 보유)
