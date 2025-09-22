@@ -1,5 +1,4 @@
 // functions/lib/prompts.mjs
-// Firestore configs/prompts 문서에서 불러오되, 없으면 기본값 사용
 import admin from 'firebase-admin';
 
 async function tryLoadFromConfigs(key) {
@@ -10,51 +9,74 @@ async function tryLoadFromConfigs(key) {
   } catch { return null; }
 }
 
+// [수정] 월드 생성용 프롬프트 (클라이언트 측에서 사용할 프롬프트의 기반)
 export async function loadWorldSystemPrompt() {
   return (
     (await tryLoadFromConfigs('world_system')) ||
-`당신은 세계관 설계자입니다. 아래 JSON 스키마로만 답하세요(설명 금지).
+`당신은 전문 TRPG 시나리오 작가이자 세계관 설계자입니다.
+사용자의 요청을 기반으로 다음 JSON 스키마에 맞춰 세계관을 상세하게 구체화하여 출력합니다.
+설명이나 코드 펜스 없이 순수한 JSON 객체만 출력해야 합니다.
 
 {
-  "name": "세계 이름",
-  "intro": "짧은 한 문단 소개",
-  "detail": {
-    "lore": "세계의 서사적 배경",
-    "sites": [
-      { "id": "식별자-케밥", "name": "명소 이름", "description": "설명" }
-    ],
-    "orgs": [
-      { "id": "식별자-케밥", "name": "조직 이름", "description": "설명" }
-    ],
-    "npcs": [
-      { "id": "식별자-케밥", "name": "NPC 이름", "role": "역할/설명" }
-    ]
-  }
-}`
-  );
-}
-
-export async function loadCharacterBasePrompt() {
-  return (
-    (await tryLoadFromConfigs('character_base')) ||
-`당신은 캐릭터 생성기입니다. 결과는 아래 JSON만 출력(설명/코드펜스 금지).
-
-{
-  "name": "문자열",
-  "introShort": "짧은 소개",
-  "narratives": [
-    { "title": "긴 서사 제목", "long": "긴 서사 본문", "short": "짧은 요약" }
+  "name": "사용자가 입력한 세계 이름",
+  "introShort": "이 세계관을 한두 문장으로 요약한 짧은 소개.",
+  "introLong": "세계관의 배경, 역사, 핵심 컨셉 등을 설명하는 긴 서사. (최소 500자 이상)",
+  "factions": [
+    { "name": "세력 이름", "description": "해당 세력의 목적, 구성원, 영향력 등을 설명하는 상세한 소개. (약 300자)" }
   ],
-  "abilities": [
-    { "name": "능력 이름", "description": "능력 설명" }
+  "npcs": [
+    { "name": "NPC 이름", "description": "해당 NPC의 역할, 성격, 배경 이야기 등을 설명하는 상세한 소개. (약 300자)" }
   ],
-  "chosen": ["선택한 능력 3개(이름 또는 인덱스)"]
+  "sites": [
+    { "name": "명소 이름", "description": "해당 장소의 지리적 특징, 역사적 의미, 주요 사건 등을 설명." }
+  ],
+  "episodes": [
+    {
+      "title": "에피소드 제목",
+      "content": "이 세계관에서 일어날 법한 특정 사건이나 이야기를 담은 에피소드. 등장인물의 대사는 <대사> 태그로, 상황이나 배경 묘사는 <서술> 태그로 감싸야 합니다. (약 1200자)"
+    }
+  ],
+  "allowPublicContribution": false
 }
 
 규칙:
-- abilities는 정확히 6개
-- chosen은 정확히 3개
-- 세계관 요약 텍스트(worldText)와 사용자 입력(userInput)을 반영
+- factions, npcs, sites, episodes 배열은 최소 2개 이상의 요소를 포함해야 합니다.
+- introLong, factions.description, npcs.description, episodes.content는 풍부한 서사가 느껴지도록 상세하게 작성해야 합니다.
+`
+  );
+}
+
+// [수정] 캐릭터 생성용 프롬프트
+export async function loadCharacterBasePrompt() {
+  return (
+    (await tryLoadFromConfigs('character_base')) ||
+`당신은 캐릭터 생성 AI입니다. 주어진 세계관과 사용자 입력을 바탕으로 다음 JSON 스키마에 맞춰 캐릭터를 생성합니다.
+설명이나 코드 펜스 없이 순수한 JSON 객체만 출력해야 합니다.
+
+{
+  "name": "캐릭터 이름",
+  "introShort": "캐릭터를 한두 문장으로 요약한 짧은 소개.",
+  "narratives": [
+    {
+      "title": "서사 제목 (예: 과거, 목표)",
+      "content": "캐릭터의 배경 이야기를 담은 서사. 등장인물의 대사는 <대사> 태그로, 상황이나 배경 묘사는 <서술> 태그로 감싸야 합니다.",
+      "summary": "서사 내용을 1~2 문장으로 요약한 버전."
+    }
+  ],
+  "abilities": [
+    { "name": "어빌리티 이름", "effect": "어빌리티의 효과와 기능에 대한 설명." }
+  ],
+  "chosen": ["선택한 어빌리티 3개의 이름(문자열)"],
+  "items": [
+    { "name": "아이템 이름", "description": "아이템의 효과나 배경 설명" }
+  ]
+}
+
+규칙:
+- narratives 배열은 최소 1개 이상이어야 합니다.
+- abilities 배열은 정확히 6개여야 합니다.
+- chosen 배열은 abilities 중 3개를 골라 그 이름으로 채워야 합니다.
+- items 배열은 캐릭터가 소지할 만한 아이템 2개를 포함해야 합니다.
 `
   );
 }
