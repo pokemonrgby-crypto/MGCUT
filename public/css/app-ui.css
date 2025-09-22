@@ -1,0 +1,123 @@
+/* ====== 모바일 우선 공통 ====== */
+:root{
+  --bg:#0c0f14; --card:#141922; --muted:#78819a; --text:#e8eefc;
+  --acc:#6aa6ff; --acc2:#a77bff; --ok:#52d29a; --warn:#ffd166; --err:#ff6b6b;
+  --radius:18px; --shadow:0 6px 24px rgba(0,0,0,.35);
+  --maxw: 480px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:linear-gradient(180deg,#0b0f16,#111522 40%,#0b0f16);
+  color:var(--text); font:14px/1.45 ui-sans-serif,system-ui,Apple SD Gothic Neo,Malgun Gothic,Segoe UI,Roboto;
+}
+
+/* 중앙 컨테이너 */
+.app-wrap{min-height:100%; display:flex; flex-direction:column; align-items:center;}
+.app-center{width:100%; max-width:var(--maxw); padding-bottom:92px;}
+
+/* 상단 가로 스크롤 (홈 상단) */
+.hscroll{
+  display:flex; gap:10px; overflow:auto; padding:12px 16px 4px;
+  scroll-snap-type:x mandatory;
+}
+.hscroll::-webkit-scrollbar{height:6px} 
+.hscroll::-webkit-scrollbar-thumb{background:#333; border-radius:10px}
+
+/* 카드 공통 */
+.card{
+  background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
+  overflow:hidden; position:relative; transform:translateY(6px); opacity:.0;
+  animation:cardIn .5s ease forwards;
+}
+@keyframes cardIn{to{transform:translateY(0);opacity:1}}
+.card.pad{padding:14px}
+.card + .card{margin-top:12px}
+
+/* 세계관 카드(배경 이미지 + 하단 그라) */
+.world-card{height:180px}
+.world-card .bg{
+  position:absolute; inset:0; background:#222 center/cover no-repeat;
+  filter:saturate(1.1) contrast(1.05);
+}
+.world-card .grad{
+  position:absolute; inset:auto 0 0 0; height:42%; 
+  background:linear-gradient(180deg, transparent, rgba(0,0,0,.6), rgba(0,0,0,.85));
+}
+.world-card .title{
+  position:absolute; left:12px; right:12px; bottom:10px; 
+  font-weight:700; letter-spacing:.2px; text-shadow:0 2px 10px rgba(0,0,0,.7);
+}
+
+/* 더미 칩/태그 */
+.chips{display:flex; gap:8px; padding:0 16px 10px}
+.chip{
+  background:#1a2230; color:#c6d1e8; padding:6px 10px; border-radius:999px; font-size:12px;
+  border:1px solid rgba(255,255,255,.06);
+}
+
+/* 생성 탭의 3카드 */
+.grid3{display:grid; grid-template-columns:1fr; gap:12px; padding:0 16px 16px}
+@media (min-width:420px){ .grid3{ grid-template-columns:repeat(2,1fr);} }
+.create-card{min-height:110px; display:flex; gap:12px; align-items:center; padding:16px;}
+.create-card .icon{width:42px; height:42px; border-radius:12px; background:#1d2431; display:grid; place-items:center}
+.create-card .t{font-weight:700}
+.create-card .s{color:var(--muted); margin-top:2px}
+
+/* 내정보 */
+.kv{display:flex; justify-content:space-between; gap:10px; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.05)}
+input[type="text"], textarea{
+  width:100%; border-radius:12px; background:#0f1420; border:1px solid #273248; color:var(--text);
+  padding:10px 12px; outline:none; transition:.2s border-color ease;
+}
+input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));
+  color:#fff; border:none; border-radius:12px; padding:12px 14px; font-weight:700;
+  box-shadow:var(--shadow); cursor:pointer; transition:transform .12s ease, filter .12s ease;
+}
+.btn:active{transform:translateY(1px) scale(.99)}
+.btn.secondary{background:#1d2431}
+.btn.full{width:100%}
+
+/* 하단 플로팅 바 */
+#bottom-bar{
+  position:fixed; left:50%; transform:translateX(-50%); bottom:14px;
+  width:calc(min(var(--maxw), 100%) - 24px);
+  background:rgba(16,21,31,.85);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px; box-shadow:0 20px 40px rgba(0,0,0,.5);
+  backdrop-filter: blur(10px);
+}
+.nav5{display:grid; grid-template-columns:repeat(5,1fr)}
+.nav5 button{
+  appearance:none; background:transparent; color:#bcd1ff; border:0; padding:12px 8px; 
+  display:grid; place-items:center; gap:6px; cursor:pointer;
+}
+.nav5 button .ico{width:22px; height:22px; opacity:.9; transition:opacity .2s ease, transform .2s ease}
+.nav5 button.active{color:#fff}
+.nav5 button.active .ico{opacity:1; transform:scale(1.05)}
+.nav5 .txt{font-size:11px}
+
+/* 전역 로딩 오버레이 (모든 상호작용 차단) */
+#ui-blocker{
+  position:fixed; inset:0; background:rgba(10,12,16,.66);
+  display:none; align-items:center; justify-content:center; z-index:9999;
+  backdrop-filter: blur(3px);
+}
+#ui-blocker.show{display:flex}
+.spinner{width:42px; height:42px; border:3px solid rgba(255,255,255,.2); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 로그인 화면 */
+#auth-screen{min-height:100svh; display:grid; place-items:center; padding:22px}
+.auth-card{max-width:360px; width:100%}
+
+/* 섹션 헤더 */
+.section-h{padding:12px 16px 8px; font-weight:800; letter-spacing:.2px}
+.small{color:var(--muted); font-size:12px}
+
+/* 가독성 보강 */
+.shadow-title{ text-shadow: 0 2px 10px rgba(0,0,0,.7);}
+ㄴ
