@@ -3,7 +3,7 @@ import { ui } from '../ui/frame.js';
 
 const rootSel = '[data-view="create"]';
 
-export function mount(){
+export function mount() {
   const root = document.querySelector(rootSel);
   if (root.dataset.mounted === '1') return;
   root.dataset.mounted = '1';
@@ -29,11 +29,9 @@ function renderHub(){
   `;
 
   // 카드 클릭 시 해당 뷰로 이동
-  document.querySelectorAll(`${rootSel} [data-nav]`).forEach(b=>{
-    b.onclick = ()=>{
-      const targetView = b.dataset.nav;
-      // ui.navTo의 두 번째 인자로 true를 주어 하단 탭 상태는 'create'로 유지
-      ui.navTo(targetView, true);
+  document.querySelectorAll(`${rootSel} [data-nav-to]`).forEach(b => {
+    b.onclick = () => {
+      window.location.hash = b.dataset.navTo;
     };
   });
 }
