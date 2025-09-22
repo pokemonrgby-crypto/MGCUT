@@ -16,7 +16,6 @@ body{
 .app-wrap{min-height:100%; display:flex; flex-direction:column; align-items:center;}
 .app-center{width:100%; max-width:var(--maxw); padding-bottom:92px;}
 
-
 /* 카드 공통 */
 .card{
   background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
@@ -41,13 +40,6 @@ body{
 .world-card .title{
   position:absolute; left:16px; right:16px; bottom:12px; 
   font-size:16px; font-weight:700; letter-spacing:.2px; text-shadow:0 2px 10px rgba(0,0,0,.7);
-}
-
-/* 더미 칩/태그 */
-.chips{display:flex; gap:8px; padding:0 16px 10px}
-.chip{
-  background:#1a2230; color:#c6d1e8; padding:6px 10px; border-radius:999px; font-size:12px;
-  border:1px solid rgba(255,255,255,.06); flex-shrink:0;
 }
 
 /* 생성 탭의 3카드 */
@@ -97,7 +89,7 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 .nav5 button.active .ico{opacity:1; transform:scale(1.05)}
 .nav5 .txt{font-size:11px}
 
-/* 전역 로딩 오버레이 (모든 상호작용 차단) */
+/* 전역 로딩 오버레이 */
 #ui-blocker{
   position:fixed; inset:0; background:rgba(10,12,16,.66);
   display:none; align-items:center; justify-content:center; z-index:9999;
@@ -114,65 +106,12 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 /* 섹션 헤더 */
 .section-h{padding:16px 16px 8px; font-size: 18px; font-weight:800; letter-spacing:.2px}
 .small{color:var(--muted); font-size:12px}
-
-/* 가독성 보강 */
 .shadow-title{ text-shadow: 0 2px 10px rgba(0,0,0,.7);}
 
-
-
-
-/* 좋아요 버튼 */
-.like-btn {
-  position: absolute;
-  top: 10px; right: 10px;
-  background: rgba(0,0,0,.5);
-  color: #fff;
-  border: none;
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  backdrop-filter: blur(4px);
-}
-
-/* 상세 페이지 헤더 */
-.detail-header {
-  height: 250px;
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  padding: 20px;
-  background-size: cover;
-  background-position: center;
-}
-.detail-header h2 {
-  margin: 0;
-  font-size: 24px;
-}
-
-/* 상세 페이지 콘텐츠 */
-.detail-content {
-  padding: 16px;
-}
-.detail-content p {
-  line-height: 1.6;
-  opacity: 0.9;
-}
-
-
-
-/* public/css/app-ui.css 파일의 캐러셀 관련 스타일을 아래 코드로 전체 교체 */
-
-/* 캐러셀 컨테이너 */
-.carousel-container {
-  position: relative;
-  padding: 0 16px;
-}
-
-/* 스크롤 영역 */
+/* --- 캐러셀 UI --- */
+.carousel-container { position: relative; padding: 0 16px; }
 .hscroll {
   display: flex;
-  /* align-items: center; <-- 이 줄을 삭제합니다! */
   overflow-x: auto;
   padding: 12px 0;
   scroll-snap-type: x mandatory;
@@ -180,37 +119,16 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
   scrollbar-width: none;
 }
 .hscroll::-webkit-scrollbar { display: none; }
-
-/* 캐러셀 카드 */
 .h-card {
   width: 100%;
   flex-shrink: 0;
   scroll-snap-align: center;
   margin-right: 12px;
 }
-.h-card:last-child {
-  margin-right: 0;
-}
-
-/* 캐러셀 페이지 표시 점 (Dots) */
-.carousel-dots {
-  padding-top: 12px;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-  transition: background .3s ease;
-}
-.dot.active {
-  background: rgba(255, 255, 255, 0.8);
-}
-
-/* 캐러셀 화살표 버튼 */
+.h-card:last-child { margin-right: 0; }
+.carousel-dots { padding-top: 12px; display: flex; justify-content: center; gap: 8px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); transition: background .3s ease; }
+.dot.active { background: rgba(255, 255, 255, 0.8); }
 .carousel-arrow {
   display: none;
   position: absolute;
@@ -228,66 +146,40 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 }
 .carousel-arrow.prev { left: -4px; }
 .carousel-arrow.next { right: -4px; }
+@media (min-width: 600px) { .carousel-arrow { display: block; } }
 
-@media (min-width: 600px) {
-  .carousel-arrow {
-    display: block;
-  }
+/* --- 상세 페이지 --- */
+.like-btn {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(0,0,0,.5); color: #fff; border: none;
+  border-radius: 999px; padding: 6px 10px; font-size: 12px;
+  cursor: pointer; backdrop-filter: blur(4px);
 }
-
-/* public/css/app-ui.css 파일 하단에 추가 */
-
-/* 상세 페이지 탭 버튼 */
-.detail-tabs-nav {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+.detail-header {
+  height: 250px; position: relative; display: flex;
+  align-items: flex-end; padding: 20px;
+  background-size: cover; background-position: center;
 }
+.detail-header h2 { margin: 0; font-size: 24px; }
+.detail-content { padding: 16px; }
+.detail-content p { line-height: 1.6; opacity: 0.9; }
+
+/* 상세 페이지 탭 */
+.detail-tabs-nav { display: flex; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }
 .tab-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  padding: 10px 4px;
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 700;
-  border-bottom: 2px solid transparent;
+  background: none; border: none; color: var(--muted);
+  padding: 10px 4px; cursor: pointer; font-size: 15px;
+  font-weight: 700; border-bottom: 2px solid transparent;
   transition: all .2s ease;
 }
-.tab-btn.active {
-  color: var(--text);
-  border-bottom-color: var(--acc);
-}
+.tab-btn.active { color: var(--text); border-bottom-color: var(--acc); }
+.info-card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+.info-card .name { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+.info-card .desc { opacity: 0.8; line-height: 1.6; white-space: pre-wrap; }
 
-/* 상세 정보 카드 (세력, NPC 등) */
-.info-card {
-  background: var(--card);
-  border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 12px;
-}
-.info-card .name {
-  font-weight: 700;
-  font-size: 16px;
-  margin-bottom: 8px;
-}
-.info-card .desc {
-  opacity: 0.8;
-  line-height: 1.6;
-  white-space: pre-wrap; /* 줄바꿈 유지 */
-}
-
-/* 에피소드 리치 텍스트 스타일 */
-.episode-content .narrative {
-  margin: 1em 0;
-  opacity: 0.9;
-  line-height: 1.7;
-}
+/* 리치 텍스트 */
+.episode-content .narrative { margin: 1em 0; opacity: 0.9; line-height: 1.7; }
 .episode-content .dialogue {
-  margin: 1em 0;
-  padding: 12px;
-  background: rgba(0,0,0,0.2);
-  border-left: 3px solid var(--acc2);
-  font-style: italic;
+  margin: 1em 0; padding: 12px; background: rgba(0,0,0,0.2);
+  border-left: 3px solid var(--acc2); font-style: italic;
 }
