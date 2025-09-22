@@ -5,45 +5,51 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MGC Next</title>
   <link rel="stylesheet" href="/css/main.css" />
-  <!-- Firebase SDK 초기화 -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js';
-    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js';
+    import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js';
     import './firebase-config.js'; // CI에서 생성됨 (레포에 커밋 X)
 
     const app = initializeApp(window.__FBCONFIG__);
     const auth = getAuth(app);
-    window.__FBAPP__ = { app, auth };
+    window.__FBAPP__ = { app, auth, GoogleAuthProvider, signInWithPopup, signOut };
 
     onAuthStateChanged(auth, (u) => {
       document.body.dataset.authed = u ? '1' : '0';
+      const event = new CustomEvent('auth-changed', { detail: { user: u } });
+      window.dispatchEvent(event);
     });
   </script>
 </head>
 <body>
-  <header>
-    <h1>MGC Next</h1>
-    <div id="auth-area">
-      <div class="when-guest">
-        <input id="email" placeholder="이메일" />
-        <input id="pw" type="password" placeholder="비밀번호" />
-        <button id="btn-signup">가입</button>
-        <button id="btn-login">로그인</button>
+  <div class="container">
+    <header>
+      <h1>MGC Next</h1>
+      <div id="auth-area">
+        <div class="when-guest">
+          <button id="btn-login-google">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
+            <span>Google 로그인</span>
+          </button>
+        </div>
+        <div class="when-user">
+          <img id="user-photo" src="" alt="User" />
+          <span id="whoami"></span>
+          <button id="btn-logout">로그아웃</button>
+        </div>
       </div>
-      <div class="when-user">
-        <span id="whoami"></span>
-        <button id="btn-logout">로그아웃</button>
-      </div>
-    </div>
-  </header>
+    </header>
 
-  <main>
-    <section class="toolbar when-user">
-      <button id="btn-create-world">오늘의 세계 생성</button>
-    </section>
+    <main>
+      <section class="toolbar when-user">
+        <input id="world-name" type="text" placeholder="세계 이름" />
+        <input id="world-intro" type="text" placeholder="한 줄 소개" />
+        <button id="btn-create-world">오늘의 세계 생성</button>
+      </section>
 
-    <section id="world-list"></section>
-  </main>
+      <section id="world-list"></section>
+    </main>
+  </div>
 
   <script type="module" src="/js/api.js"></script>
   <script type="module" src="/js/app.js"></script>
