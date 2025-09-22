@@ -1,5 +1,5 @@
 {
-  "functions": { "source": "functions", "runtime": "nodejs18" },
+  "functions": { "source": "functions", "runtime": "nodejs20" },
   "hosting": {
     "public": "public",
     "site": "tale-of-heros-staging",
