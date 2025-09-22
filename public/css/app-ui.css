@@ -226,3 +226,31 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 .dot.active {
   background: rgba(255, 255, 255, 0.8);
 }
+
+/* public/css/app-ui.css 파일 하단에 추가 */
+
+/* [신규] 캐러셀 화살표 버튼 */
+.carousel-arrow {
+  display: none; /* 모바일에선 숨김 */
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,.5);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 10;
+}
+.carousel-arrow.prev { left: -10px; }
+.carousel-arrow.next { right: -10px; }
+
+/* 화면이 600px 이상일 때만 화살표 표시 */
+@media (min-width: 600px) {
+  .carousel-arrow {
+    display: block;
+  }
+}
