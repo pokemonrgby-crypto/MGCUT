@@ -28,6 +28,13 @@ async function render() {
 
   // 이벤트 리스너 등록
   root.querySelector('#home-worlds-list').addEventListener('scroll', handleCarouselScroll);
+  root.querySelector('#home-worlds-list').addEventListener('click', (e)=>{
+    const card = e.target.closest('.world-card');
+    if (!card) return;
+    const id = card.dataset.id;           // 카드 템플릿에 data-id가 있어야 함
+    if (id) window.location.hash = `world/${id}`;
+  });
+
   root.addEventListener('click', handleHomeClick);
 
   // 데이터 병렬 로딩
