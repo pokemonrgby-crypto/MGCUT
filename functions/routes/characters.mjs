@@ -19,6 +19,26 @@ function buildWorldText(w){
 }
 
 export function mountCharacters(app){
+
+  app.get('/api/my-characters', async (req, res) => {
+    try {
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+      const qs = await db.collection('characters')
+        .where('ownerUid', '==', user.uid)
+        .orderBy('createdAt', 'desc')
+        .limit(20)
+        .get();
+      
+      const items = qs.docs.map(d => ({ id: d.id, ...d.data() }));
+      res.json({ ok: true, data: items });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e) });
+    }
+  });
+
+  
   app.post('/api/characters/create', async (req,res)=>{
     try{
       const user = await getUserFromReq(req);
