@@ -39,7 +39,9 @@ function render(world) {
   const cover = world.coverUrl || '';
   
   // 헤더 업데이트
-  root.querySelector('.detail-header').style.backgroundImage = `url('${cover}')`;
+  const headerEl = root.querySelector('.detail-header');
+  if (headerEl) headerEl.style.backgroundImage = `url('${cover}')`;
+
   root.querySelector('#world-detail-name').textContent = world.name;
 
   // 콘텐츠 영역 채우기
@@ -61,7 +63,9 @@ function render(world) {
 
   // 소유자 관리 패널 표시
   if (auth.currentUser && auth.currentUser.uid === world.ownerUid) {
-    root.querySelector('#world-admin-panel').style.display = 'block';
+    const adminPanel = root.querySelector('#world-admin-panel');
+    if (adminPanel) adminPanel.style.display = 'block';
+
   }
 
   // 각 탭 콘텐츠 렌더링
