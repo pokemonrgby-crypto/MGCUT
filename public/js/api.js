@@ -41,7 +41,6 @@ async function call(method, path, body) {
 
 export const api = {
   // worlds
-  // [수정] createWorld -> saveWorld, 경로 변경
   saveWorld: (worldData) => call('POST', '/api/worlds', worldData),
   listWorlds: () => call('GET', '/api/worlds'),
   updateWorldCover: (id, coverUrl) => call('PATCH', `/api/worlds/${id}/cover`, { coverUrl }),
@@ -51,6 +50,8 @@ export const api = {
     call('POST', '/api/characters/create', { worldId, promptId, customPrompt, userInput }),
 
   // prompts
+  // [신규] 시스템 프롬프트 가져오기
+  getSystemPrompt: (name) => call('GET', `/api/system-prompts/${name}`),
   listPrompts: () => call('GET', '/api/prompts'),
   uploadPrompt: ({ title, content }) => call('POST', '/api/prompts', { title, content }),
   validatePrompt: (id) => call('POST', `/api/prompts/${id}/validate`),
