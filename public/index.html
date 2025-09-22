@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MGC Next</title>
   <link rel="stylesheet" href="/css/app-ui.css">
-<!-- SVG 아이콘 스프라이트 -->
-<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
-  <symbol id="i-home" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3l9 8h-3v9h-4v-6H10v6H6v-9H3l9-8z"/></symbol>
-  <symbol id="i-wand" viewBox="0 0 24 24"><path fill="currentColor" d="M4 20l12-12 2 2L6 22H4v-2zM14 4l2-2 4 4-2 2-4-4z"/></symbol>
-  <symbol id="i-info" viewBox="0 0 24 24"><path fill="currentColor" d="M11 7h2v2h-2V7zm0 4h2v6h-2v-6zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></symbol>
-  <symbol id="i-map" viewBox="0 0 24 24"><path fill="currentColor" d="M15 6l6-2v14l-6 2-6-2-6 2V6l6-2 6 2zM9 6v12l6 2V8l-6-2z"/></symbol>
-  <symbol id="i-user" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a5 5 0 10-5-5 5 5 0 005 5zm0 2c-5.33 0-8 2.67-8 6v2h16v-2c0-3.33-2.67-6-8-6z"/></symbol>
-</svg>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="i-home" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3l9 8h-3v9h-4v-6H10v6H6v-9H3l9-8z"/></symbol>
+    <symbol id="i-wand" viewBox="0 0 24 24"><path fill="currentColor" d="M4 20l12-12 2 2L6 22H4v-2zM14 4l2-2 4 4-2 2-4-4z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><path fill="currentColor" d="M11 7h2v2h-2V7zm0 4h2v6h-2v-6zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path fill="currentColor" d="M15 6l6-2v14l-6 2-6-2-6 2V6l6-2 6 2zM9 6v12l6 2V8l-6-2z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a5 5 0 10-5-5 5 5 0 005 5zm0 2c-5.33 0-8 2.67-8 6v2h16v-2c0-3.33-2.67-6-8-6z"/></symbol>
+  </svg>
 
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js';
@@ -21,144 +21,66 @@
 
     const app = initializeApp(window.__FBCONFIG__);
     const auth = getAuth(app);
+    // api.js 및 frame.js에서 사용할 수 있도록 전역으로 노출
     window.__FBAPP__ = { app, auth, GoogleAuthProvider, signInWithPopup, signOut };
-
-    onAuthStateChanged(auth, (u) => {
-      document.body.dataset.authed = u ? '1' : '0';
-      const event = new CustomEvent('auth-changed', { detail: { user: u } });
-      window.dispatchEvent(event);
-    });
   </script>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>MGC Next</h1>
-      <div id="auth-area">
-        <div class="when-guest">
-          <button id="btn-login-google">
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
-            <span>Google 로그인</span>
-          </button>
-        </div>
-        <div class="when-user">
-          <img id="user-photo" src="" alt="User" />
-          <span id="whoami"></span>
-          <button id="btn-logout">로그아웃</button>
-        </div>
+  <div class="app-wrap">
+    <section id="auth-screen" class="app-center">
+      <div class="card auth-card pad" style="text-align:center">
+        <div style="font-size:20px; font-weight:800; margin-bottom:12px;">로그인</div>
+        <div class="small" style="margin-bottom:20px;">Google로 로그인 후 이용해줘</div>
+        <div id="login-button-anchor"></div>
       </div>
-      <!-- 간단 탭 -->
-<nav id="tabs" style="margin:16px 0; display:flex; gap:8px;">
-  <button data-tab="worlds">세계</button>
-  <button data-tab="characters">캐릭터</button>
-  <button data-tab="prompts">프롬프트</button>
-</nav>
+    </section>
 
-<section id="tab-worlds" style="display:none;">
-  <button id="btn-create-world">오늘 세계 만들기</button>
-  <div id="worlds-tip" style="margin-top:8px; opacity:.8;">* 한국시간 자정 기준 하루 1회</div>
-</section>
+    <section id="app-frame" class="app-center" style="display:none">
+      <div data-view="home" style="display:none">
+        <div class="hscroll"></div>
+        <div class="section-h">추천 세계관</div>
+        <div class="list" style="padding:0 16px 16px"></div>
+      </div>
 
-<section id="tab-characters" style="display:none;">
-  <div>
-    <label>World ID: <input id="char-worldId" placeholder="worldId"/></label>
-  </div>
-  <div>
-    <label>Prompt ID(공개 카드 선택): <input id="char-promptId" placeholder="promptId"/></label>
-    <div style="opacity:.7;">* Prompt ID를 비우고 아래 '직접 프롬프트'를 넣어도 돼 (둘 중 하나만)</div>
-  </div>
-  <div>
-    <label>직접 프롬프트:<br/>
-      <textarea id="char-customPrompt" rows="6" placeholder="직접 쓸 캐릭터 생성 프롬프트"></textarea>
-    </label>
-  </div>
-  <div>
-    <label>사용자 입력(최대 1000자):<br/>
-      <textarea id="char-userInput" rows="6" maxlength="1000"></textarea>
-    </label>
-  </div>
-  <button id="btn-create-character">캐릭터 생성</button>
-</section>
+      <div data-view="create" style="display:none">
+        <div class="section-h">무엇을 만들까요?</div>
+        <div class="grid3"></div>
 
-<section id="tab-prompts" style="display:none;">
-  <div style="margin-bottom:8px;">
-    <label>제목: <input id="pr-title" maxlength="80"/></label>
-  </div>
-  <div>
-    <label>내용(프롬프트 텍스트):<br/>
-      <textarea id="pr-content" rows="8"></textarea>
-    </label>
-  </div>
-  <button id="btn-upload-prompt">프롬프트 업로드(하루 1개)</button>
+        <div class="card pad" data-form="world" style="display:none; margin:16px;">
+          <div style="font-weight:800; margin-bottom:12px">세계관 생성</div>
+          <button class="btn full" id="btn-world-create">오늘의 세계 만들기 (1/1)</button>
+          <div id="world-upload-wrap" style="display:none; margin-top:16px; border-top:1px solid rgba(255,255,255,.05); padding-top:16px;">
+            <div class="small" style="margin-bottom:6px">생성된 세계의 표지 이미지 업로드</div>
+            <input type="text" id="world-id-upload" placeholder="worldId" readonly style="margin-bottom:6px">
+            <input type="file" id="world-cover" accept="image/*" style="margin-bottom:8px; width:100%;">
+            <button class="btn secondary full" id="btn-world-upload">업로드</button>
+          </div>
+        </div>
 
-  <hr/>
-  <button id="btn-load-prompts">공개 프롬프트 불러오기</button>
-  <div id="prompts-list" style="margin-top:8px;"></div>
-</section>
+        <div class="card pad" data-form="char" style="display:none; margin:16px;">
+          <div style="font-weight:800; margin-bottom:12px">캐릭터 생성</div>
+          <input type="text" id="char-world" placeholder="worldId" style="margin-bottom:6px;">
+          <div class="small" style="margin:6px 0">프롬프트 ID 또는 직접 프롬프트 중 하나만 입력</div>
+          <input type="text" id="char-prompt" placeholder="promptId (선택)" style="margin-bottom:6px;">
+          <textarea id="char-custom" rows="5" placeholder="직접 프롬프트 (선택)" style="margin-bottom:6px;"></textarea>
+          <textarea id="char-input" rows="6" maxlength="1000" placeholder="사용자 입력(최대 1000자)" style="margin-bottom:8px;"></textarea>
+          <button class="btn full" id="btn-char-create">생성</button>
+        </div>
 
-    </header>
-
-    <main>
-      <!-- 새 앱 프레임 -->
-<div class="app-wrap">
-  <!-- 로그인 화면 -->
-  <section id="auth-screen" class="app-center">
-    <div class="card auth-card pad" style="text-align:center">
-      <div style="font-size:20px; font-weight:800; margin-bottom:12px;">로그인</div>
-      <div class="small" style="margin-bottom:10px;">Google로 로그인 후 이용해줘</div>
-      <div id="login-button-anchor"></div>
-    </div>
-  </section>
-
-  <!-- 앱 화면 -->
-  <section id="app-frame" class="app-center" style="display:none">
-    <!-- HOME -->
-    <div data-view="home" style="display:none">
-      <div class="hscroll"></div>
-      <div class="section-h">추천 세계관</div>
-      <div class="list" style="padding:0 16px 16px"></div>
-    </div>
-
-    <!-- CREATE -->
-    <div data-view="create" style="display:none">
-      <div class="section-h">무엇을 만들까요?</div>
-      <div class="grid3"></div>
-
-      <div class="card pad" data-form="world" style="display:none; margin:16px;">
-        <div class="t" style="font-weight:800; margin-bottom:8px">세계관 생성</div>
-        <button class="btn full" id="btn-world-create">오늘 세계 만들기</button>
-        <div id="world-upload-wrap" style="display:none; margin-top:12px">
-          <div class="small" style="margin-bottom:6px">표지 이미지 업로드</div>
-          <input type="text" id="world-id-upload" placeholder="worldId" readonly style="margin-bottom:6px">
-          <input type="file" id="world-cover" accept="image/*" style="margin-bottom:8px">
-          <button class="btn secondary full" id="btn-world-upload">업로드</button>
+        <div class="card pad" data-form="prompt" style="display:none; margin:16px;">
+          <div style="font-weight:800; margin-bottom:12px">프롬프트 업로드</div>
+          <input type="text" id="p-title" placeholder="제목(최대 80자)" style="margin-bottom:6px;">
+          <textarea id="p-content" rows="8" placeholder="프롬프트 내용" style="margin-bottom:8px;"></textarea>
+          <button class="btn full" id="btn-prompt-upload">업로드</button>
         </div>
       </div>
-
-      <div class="card pad" data-form="char" style="display:none; margin:16px;">
-        <div class="t" style="font-weight:800; margin-bottom:8px">캐릭터 생성</div>
-        <input type="text" id="char-world" placeholder="worldId">
-        <div class="small" style="margin:6px 0">프롬프트 ID 또는 직접 프롬프트 중 하나만 입력</div>
-        <input type="text" id="char-prompt" placeholder="promptId (선택)">
-        <textarea id="char-custom" rows="5" placeholder="직접 프롬프트 (선택)"></textarea>
-        <textarea id="char-input" rows="6" maxlength="1000" placeholder="사용자 입력(최대 1000자)"></textarea>
-        <button class="btn full" id="btn-char-create">생성</button>
-      </div>
-
-      <div class="card pad" data-form="prompt" style="display:none; margin:16px;">
-        <div class="t" style="font-weight:800; margin-bottom:8px">프롬프트 업로드</div>
-        <input type="text" id="p-title" placeholder="제목(최대 80자)">
-        <textarea id="p-content" rows="8" placeholder="프롬프트 내용"></textarea>
-        <button class="btn full" id="btn-prompt-upload">업로드</button>
-      </div>
-    </div>
-
-    <!-- INFO -->
-    <div data-view="info" style="display:none">
-      <div class="section-h">내 정보</div>
-      <div class="card pad" style="margin:0 16px 12px">
-        <div class="kv kv-uid"><div class="k">UID</div><div class="v small">-</div></div>
-        <div style="margin-top:8px">
+      
+      <div data-view="info" style="display:none">
+        <div class="section-h">내 정보</div>
+        <div class="card" style="margin:0 16px 12px">
+          <div class="kv kv-uid"><div class="k">UID</div><div class="v small">-</div></div>
+        </div>
+        <div class="card pad" style="margin:0 16px 12px">
           <div class="small" style="margin-bottom:6px">Gemini API Key (브라우저 저장)</div>
           <input id="gemini-key" type="text" placeholder="AIza...">
           <div style="display:flex; gap:8px; margin-top:10px">
@@ -167,57 +89,51 @@
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- ADVENTURE -->
-    <div data-view="adventure" style="display:none">
-      <div class="section-h">모험</div>
-      <div class="list" style="padding:0 16px 16px"></div>
-    </div>
-  </section>
+      <div data-view="adventure" style="display:none">
+        <div class="section-h">모험</div>
+        <div class="list" style="padding:0 16px 16px"></div>
+      </div>
+    </section>
 
-  <!-- 하단 플로팅 바 -->
-  <div id="bottom-bar">
-    <div class="nav5">
-      <button data-tab="home" class="active"><svg class="ico"><use href="#i-home"/></svg><div class="txt">홈</div></button>
-      <button data-tab="create"><svg class="ico"><use href="#i-wand"/></svg><div class="txt">생성</div></button>
-      <button data-tab="info"><svg class="ico"><use href="#i-info"/></svg><div class="txt">정보</div></button>
-      <button data-tab="adventure"><svg class="ico"><use href="#i-map"/></svg><div class="txt">모험</div></button>
-      <button data-tab="info"><svg class="ico"><use href="#i-user"/></svg><div class="txt">내정보</div></button>
+    <div id="bottom-bar">
+      <div class="nav5">
+        <button data-tab="home" class="active"><svg class="ico"><use href="#i-home"/></svg><div class="txt">홈</div></button>
+        <button data-tab="create"><svg class="ico"><use href="#i-wand"/></svg><div class="txt">생성</div></button>
+        <button data-tab="adventure"><svg class="ico"><use href="#i-map"/></svg><div class="txt">모험</div></button>
+        <button data-tab="info"><svg class="ico"><use href="#i-user"/></svg><div class="txt">내정보</div></button>
+      </div>
     </div>
   </div>
-</div>
 
-<!-- 전역 로딩 오버레이 -->
-<div id="ui-blocker"><div class="spinner"></div></div>
+  <div id="ui-blocker"><div class="spinner"></div></div>
 
-    </main>
-  </div>
-
-  <script type="module" src="/js/api.js"></script>
-<script type="module" src="/js/ui/frame.js"></script>
-<script type="module" src="/js/tabs/home.js"></script>
-<script type="module" src="/js/tabs/create.js"></script>
-<script type="module" src="/js/tabs/info.js"></script>
-<script type="module" src="/js/tabs/adventure.js"></script>
-
+  <script type="module" src="/js/ui/frame.js"></script>
+  
   <script>
-  // 로그인 버튼 DOM 주입
-  (function(){
-    const slot = document.getElementById('login-button-anchor');
-    if (!slot) return;
-    slot.innerHTML = '<button class="btn full" id="btn-login-google">Google로 로그인</button>';
-    const btn = document.getElementById('btn-login-google');
-    btn.addEventListener('click', async ()=>{
-      try{
-        const { auth, GoogleAuthProvider, signInWithPopup } = window.__FBAPP__ || {};
-        if (!auth) return alert('Firebase 초기화가 필요해요.');
-        const p = new GoogleAuthProvider();
-        await signInWithPopup(auth, p);
-      }catch(e){ alert(e.message||e); }
-    });
-  })();
-</script>
-
+    (function(){
+      function initLoginButton(){
+        const slot = document.getElementById('login-button-anchor');
+        if (!slot) return;
+        slot.innerHTML = '<button class="btn full" id="btn-login-google">Google로 로그인</button>';
+        const btn = document.getElementById('btn-login-google');
+        btn.addEventListener('click', async ()=>{
+          try{
+            const { auth, GoogleAuthProvider, signInWithPopup } = window.__FBAPP__ || {};
+            if (!auth) return alert('Firebase 초기화가 필요해요.');
+            await signInWithPopup(auth, new GoogleAuthProvider());
+          }catch(e){ 
+            if (e.code !== 'auth/popup-closed-by-user') alert(e.message||e); 
+          }
+        });
+      }
+      // DOM 로드 후 실행 보장
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initLoginButton);
+      } else {
+        initLoginButton();
+      }
+    })();
+  </script>
 </body>
 </html>
