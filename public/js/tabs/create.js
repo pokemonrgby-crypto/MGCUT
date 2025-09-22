@@ -1,10 +1,13 @@
-// /public/js/tabs/create.js
-import { api, auth } from '../api.js';
+import { api } from '../api.js';
 import { withBlocker } from '../ui/frame.js';
 
 const rootSel = '[data-view="create"]';
 
 export function mount(){
+  const root = document.querySelector(rootSel);
+  if (root.dataset.mounted === '1') return;
+  root.dataset.mounted = '1';
+
   renderHub();
   bindForms();
 }
@@ -12,26 +15,21 @@ export function mount(){
 function renderHub(){
   const host = document.querySelector(`${rootSel} .grid3`);
   host.innerHTML = `
-    <div class="card create-card">
-      <div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2l4 4-4 4-4-4 4-4zm-7 9h14v9H5z"/></svg></div>
-      <div><div class="t">세계관 생성</div><div class="s">하루 1회 (KST 24시 리셋)</div></div>
-      <button class="btn secondary" data-open="world">열기</button>
+    <div class="card create-card" data-open="world">
+      <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L4.5 5L12 8l7.5-3L12 2zm-7.49 13.5c.66 2.45 2.19 4.45 4.99 5.5V10.5l-5-2v5.5zM12 10.5v10.5c2.8-.95 4.33-3.05 4.99-5.5V8.5l-5 2zM19.5 5.5v5l-5 2V7l5-2z"/></svg></div>
+      <div><div class="t">세계관 생성</div><div class="s">하루 1회 (KST 0시 초기화)</div></div>
     </div>
-    <div class="card create-card">
-      <div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2a5 5 0 015 5v2h2a3 3 0 110 6h-2v2a5 5 0 11-10 0v-2H5a3 3 0 010-6h2V7a5 5 0 015-5z"/></svg></div>
+    <div class="card create-card" data-open="char">
+      <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 6c1.1 0 2 .9 2 2s-.9 2-2 2s-2-.9-2-2s.9-2 2-2m0 9c2.7 0 5.8 1.29 6 2v1H6v-1c.2-.71 3.3-2 6-2m0-11C9.79 4 8 5.79 8 8s1.79 4 4 4s4-1.79 4-4s-1.79-4-4-4zm0 9c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z"/></svg></div>
       <div><div class="t">캐릭터 생성</div><div class="s">세계관 기반 · 프롬프트 선택/직접입력</div></div>
-      <button class="btn secondary" data-open="char">열기</button>
     </div>
-    <div class="card create-card">
-      <div class="icon"><svg class="ico" viewBox="0 0 24 24"><path d="M3 5h18v4H3V5zm0 6h12v4H3v-4zm0 6h18v2H3v-2z"/></svg></div>
-      <div><div class="t">프롬프트 업로드</div><div class="s">하루 1개 · 신고/검증 지원</div></div>
-      <button class="btn secondary" data-open="prompt">열기</button>
+    <div class="card create-card" data-open="prompt">
+      <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18v2H3V5zm0 4h18v2H3V9zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/></svg></div>
+      <div><div class="t">프롬프트 업로드</div><div class="s">공유용 캐릭터 생성 프롬프트</div></div>
     </div>
   `;
-}
 
-function bindForms(){
-  // 열기 버튼
+  // 카드 클릭 시 폼 열기
   document.querySelectorAll(`${rootSel} [data-open]`).forEach(b=>{
     b.onclick = ()=>{
       const t = b.dataset.open;
@@ -39,18 +37,21 @@ function bindForms(){
       document.querySelector(`${rootSel} [data-form="${t}"]`).style.display='';
     };
   });
+}
 
+function bindForms(){
   // === 세계관 생성 ===
   const btnWorld = document.querySelector(`${rootSel} #btn-world-create`);
   btnWorld.onclick = async ()=>{
-    const r = await withBlocker(()=>api.createWorld({}));
-    if (!r.ok) return alert(`실패: ${r.error}`);
-    const wid = r.data.id;
-    alert(`세계관 생성됨: ${wid}\n이미지 업로드 폼으로 이동합니다.`);
+    try {
+      const r = await withBlocker(()=>api.createWorld({}));
+      const wid = r.id; // API 응답 구조에 맞게 수정
+      alert(`세계관이 생성되었습니다: ${wid}\n이제 표지 이미지를 업로드 해주세요.`);
 
-    // 이미지 업로드 보이기
-    document.querySelector(`${rootSel} #world-upload-wrap`).style.display='';
-    document.querySelector(`${rootSel} #world-id-upload`).value = wid;
+      // 이미지 업로드 폼 보이기
+      document.querySelector(`${rootSel} #world-upload-wrap`).style.display='';
+      document.querySelector(`${rootSel} #world-id-upload`).value = wid;
+    } catch(e) { alert(`실패: ${e.message}`); }
   };
 
   // 세계관 커버 업로드 (Storage)
@@ -68,9 +69,9 @@ function bindForms(){
         const r = ref(storage, path);
         await uploadBytes(r, file);
         const url = await getDownloadURL(r);
-        await api.updateWorldCover(wid, url); // api.js에 추가
+        await api.updateWorldCover(wid, url);
       });
-      alert('업로드 완료');
+      alert('업로드 완료! 홈 탭에서 확인하세요.');
     }catch(e){ alert(`업로드 실패: ${e.message||e}`); }
   };
 
@@ -81,11 +82,13 @@ function bindForms(){
     const promptId = val('#char-prompt') || null;
     const customPrompt = val('#char-custom') || null;
     const userInput = val('#char-input');
+    if (!worldId) return alert('World ID를 입력해야 해');
     if ((!promptId && !customPrompt) || (promptId && customPrompt)) return alert('프롬프트는 하나만 선택/입력해줘');
 
-    const r = await withBlocker(()=>api.createCharacter({ worldId, promptId, customPrompt, userInput }));
-    if (!r.ok) return alert(`실패: ${r.error}`);
-    alert(`캐릭터 생성됨: ${r.data.id}`);
+    try {
+      const r = await withBlocker(()=>api.createCharacter({ worldId, promptId, customPrompt, userInput }));
+      alert(`캐릭터 생성됨: ${r.data.id}`);
+    } catch(e) { alert(`실패: ${e.message}`); }
   };
 
   // === 프롬프트 업로드 ===
@@ -93,9 +96,10 @@ function bindForms(){
   btnPrompt.onclick = async ()=>{
     const title = val('#p-title'); const content = val('#p-content');
     if (!title || !content) return alert('제목/내용이 필요해');
-    const r = await withBlocker(()=>api.uploadPrompt({ title, content }));
-    if (!r.ok) return alert(`실패: ${r.error}`);
-    alert(`업로드됨: ${r.data.id}`);
+    try {
+      const r = await withBlocker(()=>api.uploadPrompt({ title, content }));
+      alert(`업로드됨: ${r.data.id}`);
+    } catch(e) { alert(`실패: ${e.message}`); }
   };
 }
 
