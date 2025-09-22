@@ -2,14 +2,34 @@
 import { db, FieldValue } from '../lib/firebase.mjs';
 import { getUserFromReq } from '../lib/auth.mjs';
 import { pickModels, callGemini } from '../lib/gemini.mjs';
-import { loadCharacterBasePrompt } from '../lib/prompts.mjs';
+import { loadCharacterBasePrompt, loadWorldSystemPrompt } from '../lib/prompts.mjs'; // loadWorldSystemPrompt 추가
 import { validateCharacter } from '../lib/schemas.mjs';
+
 
 function getGeminiKeyFromHeaders(req,fallback){
   return req.headers['x-gemini-key'] ? String(req.headers['x-gemini-key']) : fallback;
 }
 
 export function mountPrompts(app){
+
+  app.get('/api/system-prompts/:name', async (req, res) => {
+    try {
+      let promptText = '';
+      if (req.params.name === 'world-system') {
+        promptText = await loadWorldSystemPrompt();
+      } else if (req.params.name === 'character-base') {
+        promptText = await loadCharacterBasePrompt();
+      } else {
+        return res.status(404).json({ ok: false, error: 'PROMPT_NOT_FOUND' });
+      }
+      res.json({ ok: true, data: { content: promptText } });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e) });
+    }
+  });
+
+
+  
   // [GET] 공개 목록
   app.get('/api/prompts', async (req,res)=>{
     try{
