@@ -41,7 +41,8 @@ async function call(method, path, body) {
 
 export const api = {
   // worlds
-  createWorld: (payload = {}) => call('POST', '/api/worlds/create', payload),
+  // [수정] createWorld -> saveWorld, 경로 변경
+  saveWorld: (worldData) => call('POST', '/api/worlds', worldData),
   listWorlds: () => call('GET', '/api/worlds'),
   updateWorldCover: (id, coverUrl) => call('PATCH', `/api/worlds/${id}/cover`, { coverUrl }),
 
