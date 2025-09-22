@@ -1,4 +1,3 @@
-// /public/js/tabs/home.js
 import { api } from '../api.js';
 import { withBlocker } from '../ui/frame.js';
 
@@ -6,7 +5,8 @@ const rootSel = '[data-view="home"]';
 
 export async function mount(){
   const root = document.querySelector(rootSel);
-  if (!root || root.dataset.loaded === '1') return render(); // 이미 렌더된 경우 데이터만 갱신해도 됨
+  // 이미 로드된 데이터가 있다면 다시 로드하지 않음 (원한다면 새로고침 로직 추가 가능)
+  if (!root || root.dataset.loaded === '1') return;
   root.dataset.loaded = '1';
   await render();
 }
@@ -15,29 +15,29 @@ async function render(){
   const hostTop = document.querySelector(`${rootSel} .hscroll`);
   const hostList = document.querySelector(`${rootSel} .list`);
 
-  // 스켈레톤
   hostTop.innerHTML = `<div class="chip">🔥 인기</div><div class="chip">🌌 신작</div><div class="chip">🧭 탐험</div><div class="chip">🎲 랜덤</div>`;
-  hostList.innerHTML = `<div class="card pad small">불러오는 중...</div>`;
+  hostList.innerHTML = `<div class="card pad small">세계관 목록을 불러오는 중...</div>`;
 
-  const res = await withBlocker(()=>api.listWorlds());
-  if (!res.ok){ hostList.innerHTML = `<div class="card pad">불러오기 실패: ${res.error}</div>`; return; }
+  try {
+    const res = await withBlocker(()=>api.listWorlds());
+    const worlds = (res.data||[]).slice();
 
-  const worlds = (res.data||[]).slice(); // 최신 30 가정
-  // 인기 상위 3 (likesCount desc)
-  const popular = [...worlds].sort((a,b)=>(b.likesCount||0)-(a.likesCount||0)).slice(0,3);
-  // 랜덤 2
-  const rest = worlds.filter(w => !popular.find(p=>p.id===w.id));
-  const random = shuffle(rest).slice(0,2);
-  const picks = (popular.concat(random)).slice(0,5);
+    if (worlds.length === 0){
+      hostList.innerHTML = `<div class="card pad">아직 공개된 세계관이 없어요. 생성 탭에서 첫 세계를 만들어보세요!</div>`;
+      return;
+    }
 
-  hostList.innerHTML = '';
-  if (picks.length===0){
-    hostList.innerHTML = `<div class="card pad">아직 공개 세계관이 없어요.</div>`;
-    return;
-  }
+    const popular = [...worlds].sort((a,b)=>(b.likesCount||0)-(a.likesCount||0)).slice(0,3);
+    const rest = worlds.filter(w => !popular.find(p=>p.id===w.id));
+    const random = shuffle(rest).slice(0,2);
+    const picks = popular.concat(random).slice(0,5);
 
-  for (const w of picks){
-    hostList.appendChild(worldCard(w));
+    hostList.innerHTML = '';
+    for (const w of picks){
+      hostList.appendChild(worldCard(w));
+    }
+  } catch (e) {
+    hostList.innerHTML = `<div class="card pad err">목록을 불러오지 못했습니다: ${e.message}</div>`;
   }
 }
 
@@ -49,10 +49,10 @@ function worldCard(w){
   div.innerHTML = `
     <div class="bg" style="background-image:url('${bg}')"></div>
     <div class="grad"></div>
-    <div class="title">${title}</div>
+    <div class="title shadow-title">${title}</div>
   `;
   div.addEventListener('click', ()=>{
-    // TODO: 상세 화면으로 이동(추후)
+    alert(`'${title}' 세계관 상세 보기 (구현 예정)`);
   });
   return div;
 }
