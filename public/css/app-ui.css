@@ -31,51 +31,54 @@ body{
   animation:cardIn .5s ease forwards;
 }
 @keyframes cardIn{to{transform:translateY(0);opacity:1}}
-.card.pad{padding:14px}
+.card.pad{padding:18px}
 .card + .card{margin-top:12px}
 
 /* 세계관 카드(배경 이미지 + 하단 그라) */
-.world-card{height:180px}
+.world-card{height:180px; cursor:pointer;}
 .world-card .bg{
   position:absolute; inset:0; background:#222 center/cover no-repeat;
-  filter:saturate(1.1) contrast(1.05);
+  filter:saturate(1.1) contrast(1.05); transition: transform .3s ease;
 }
+.world-card:hover .bg {transform: scale(1.05);}
 .world-card .grad{
   position:absolute; inset:auto 0 0 0; height:42%; 
   background:linear-gradient(180deg, transparent, rgba(0,0,0,.6), rgba(0,0,0,.85));
 }
 .world-card .title{
-  position:absolute; left:12px; right:12px; bottom:10px; 
-  font-weight:700; letter-spacing:.2px; text-shadow:0 2px 10px rgba(0,0,0,.7);
+  position:absolute; left:16px; right:16px; bottom:12px; 
+  font-size:16px; font-weight:700; letter-spacing:.2px; text-shadow:0 2px 10px rgba(0,0,0,.7);
 }
 
 /* 더미 칩/태그 */
 .chips{display:flex; gap:8px; padding:0 16px 10px}
 .chip{
   background:#1a2230; color:#c6d1e8; padding:6px 10px; border-radius:999px; font-size:12px;
-  border:1px solid rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.06); flex-shrink:0;
 }
 
 /* 생성 탭의 3카드 */
 .grid3{display:grid; grid-template-columns:1fr; gap:12px; padding:0 16px 16px}
 @media (min-width:420px){ .grid3{ grid-template-columns:repeat(2,1fr);} }
-.create-card{min-height:110px; display:flex; gap:12px; align-items:center; padding:16px;}
-.create-card .icon{width:42px; height:42px; border-radius:12px; background:#1d2431; display:grid; place-items:center}
+.create-card{min-height:110px; display:flex; flex-direction:column; gap:8px; align-items:flex-start; padding:16px; cursor:pointer;}
+.create-card .icon{width:42px; height:42px; border-radius:12px; background:#1d2431; display:grid; place-items:center; color: var(--acc); margin-bottom: auto;}
+.create-card .icon svg{width:22px; height:22px;}
 .create-card .t{font-weight:700}
-.create-card .s{color:var(--muted); margin-top:2px}
+.create-card .s{color:var(--muted); font-size:12px; margin-top:2px}
 
 /* 내정보 */
-.kv{display:flex; justify-content:space-between; gap:10px; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.05)}
+.kv{display:flex; justify-content:space-between; gap:10px; padding:12px 16px;}
+.kv:not(:last-child){border-bottom:1px solid rgba(255,255,255,.05)}
 input[type="text"], textarea{
   width:100%; border-radius:12px; background:#0f1420; border:1px solid #273248; color:var(--text);
-  padding:10px 12px; outline:none; transition:.2s border-color ease;
+  padding:10px 12px; outline:none; transition:.2s border-color ease; font-family:inherit; font-size:14px;
 }
 input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 .btn{
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
   background:linear-gradient(135deg,var(--acc),var(--acc2));
   color:#fff; border:none; border-radius:12px; padding:12px 14px; font-weight:700;
-  box-shadow:var(--shadow); cursor:pointer; transition:transform .12s ease, filter .12s ease;
+  box-shadow:var(--shadow); cursor:pointer; transition:transform .12s ease, filter .12s ease; text-decoration: none;
 }
 .btn:active{transform:translateY(1px) scale(.99)}
 .btn.secondary{background:#1d2431}
@@ -88,14 +91,15 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
   background:rgba(16,21,31,.85);
   border:1px solid rgba(255,255,255,.08);
   border-radius:18px; box-shadow:0 20px 40px rgba(0,0,0,.5);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px); z-index: 1000;
 }
-.nav5{display:grid; grid-template-columns:repeat(5,1fr)}
+.nav5{display:grid; grid-template-columns:repeat(4,1fr)}
 .nav5 button{
-  appearance:none; background:transparent; color:#bcd1ff; border:0; padding:12px 8px; 
-  display:grid; place-items:center; gap:6px; cursor:pointer;
+  appearance:none; background:transparent; color:#8a98bb; border:0; padding:12px 8px; 
+  display:grid; place-items:center; gap:4px; cursor:pointer; transition: color .2s ease;
 }
 .nav5 button .ico{width:22px; height:22px; opacity:.9; transition:opacity .2s ease, transform .2s ease}
+.nav5 button:hover { color: #fff; }
 .nav5 button.active{color:#fff}
 .nav5 button.active .ico{opacity:1; transform:scale(1.05)}
 .nav5 .txt{font-size:11px}
@@ -115,7 +119,7 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 .auth-card{max-width:360px; width:100%}
 
 /* 섹션 헤더 */
-.section-h{padding:12px 16px 8px; font-weight:800; letter-spacing:.2px}
+.section-h{padding:16px 16px 8px; font-size: 18px; font-weight:800; letter-spacing:.2px}
 .small{color:var(--muted); font-size:12px}
 
 /* 가독성 보강 */
