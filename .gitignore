@@ -1,1 +1,19 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Firebase local
+.firebaserc.backup
+
+# Build cache
+functions/.cache/
+
+# Env-like
+.env
+.env.*
+
+# Generated at CI (DO NOT COMMIT)
 public/firebase-config.js
