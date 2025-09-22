@@ -18,11 +18,16 @@ body{
 
 /* 상단 가로 스크롤 (홈 상단) */
 .hscroll{
-  display:flex; gap:10px; overflow:auto; padding:12px 16px 4px;
-  scroll-snap-type:x mandatory;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 12px 16px; /* 좌우 패딩을 넉넉하게 줍니다 */
+  /* --- 스크롤 스냅 기능 추가 --- */
+  scroll-snap-type: x mandatory; /* x축으로 스크롤 시 자석처럼 붙게 함 */
+  scroll-padding: 0 16px; /* 좌우 패딩만큼 여백을 줘서 정중앙에 오도록 함 */
 }
-.hscroll::-webkit-scrollbar{height:6px} 
-.hscroll::-webkit-scrollbar-thumb{background:#333; border-radius:10px}
+.hscroll::-webkit-scrollbar{ height: 6px } 
+.hscroll::-webkit-scrollbar-thumb{ background:#333; border-radius:10px }
 
 /* 카드 공통 */
 .card{
@@ -130,8 +135,10 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 
 /* 홈 가로 스크롤 카드 */
 .h-card {
-  width: 240px;
+  width: calc(100% - 32px); /* 좌우 패딩을 제외한 너비 */
   flex-shrink: 0;
+  /* --- 스크롤 스냅 정렬 추가 --- */
+  scroll-snap-align: center; /* 카드가 스크롤 컨테이너의 중앙에 오도록 함 */
 }
 
 /* 좋아요 버튼 */
