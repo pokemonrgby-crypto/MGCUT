@@ -161,7 +161,7 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 
 
 
-/* public/css/app-ui.css 파일에서 기존 캐러셀 관련 스타일(.carousel-container, .hscroll, .h-card, .carousel-dots, .carousel-arrow)을 모두 지우고 아래 코드로 교체해주세요 */
+/* public/css/app-ui.css 파일의 캐러셀 관련 스타일을 아래 코드로 전체 교체 */
 
 /* 캐러셀 컨테이너 */
 .carousel-container {
@@ -172,9 +172,9 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 /* 스크롤 영역 */
 .hscroll {
   display: flex;
-  align-items: center; /* [수정] 카드를 수직 중앙 정렬 */
+  /* align-items: center; <-- 이 줄을 삭제합니다! */
   overflow-x: auto;
-  padding: 12px 0; /* [수정] 상하 패딩을 수정하여 불필요한 높이 제거 */
+  padding: 12px 0;
   scroll-snap-type: x mandatory;
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -214,7 +214,7 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 .carousel-arrow {
   display: none;
   position: absolute;
-  top: 90px; /* [수정] 카드 높이(180px)의 절반으로 위치 고정 */
+  top: 90px;
   transform: translateY(-50%);
   background: rgba(0,0,0,.5);
   color: #fff;
@@ -229,7 +229,6 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 .carousel-arrow.prev { left: -4px; }
 .carousel-arrow.next { right: -4px; }
 
-/* 화면이 600px 이상일 때만 화살표 표시 */
 @media (min-width: 600px) {
   .carousel-arrow {
     display: block;
