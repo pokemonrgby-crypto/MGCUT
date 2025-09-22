@@ -8,6 +8,8 @@ async function idToken() {
 
 async function call(method, path, body) {
   const headers = { 'content-type': 'application/json' };
+  headers['x-gemini-key'] = localStorage.getItem('GEMINI_KEY') || '';
+
   const t = await idToken();
   if (t) headers['authorization'] = 'Bearer ' + t;
 
@@ -34,6 +36,11 @@ reportPrompt: (id, reason) => call('POST', `/api/prompts/${id}/report`, { reason
 createCharacter: ({ worldId, promptId, customPrompt, userInput }) =>
   call('POST', '/api/characters/create', { worldId, promptId, customPrompt, userInput }),
 
+// 세계 목록 (공개 최신 30)
+listWorlds: () => call('GET', '/api/worlds'),
+
+// 표지 URL 저장 (이미지 업로드 후 호출)
+updateWorldCover: (id, coverUrl) => call('PATCH', `/api/worlds/${id}/cover`, { coverUrl }),
 
   
 };
