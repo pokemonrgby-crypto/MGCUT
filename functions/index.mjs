@@ -9,7 +9,7 @@ app.use(express.json());
 // 헬스체크
 app.get('/api/ping', (req, res) => res.json({ ok: true }));
 
-// 세계 목록
+// 세계 목록 (최신 30)
 app.get('/api/worlds', async (req, res) => {
   try {
     const snap = await db.collection('worlds')
@@ -40,6 +40,7 @@ app.post('/api/worlds/create', async (req, res) => {
     const user = await getUserFromReq(req);
     if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
 
+    // 한국 시간 기준 YYYY-MM-DD
     const now = new Date();
     const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     const day = kst.toISOString().slice(0, 10);
@@ -51,7 +52,7 @@ app.post('/api/worlds/create', async (req, res) => {
 
     const { name = '새 세계', intro = '소개글', detail = {} } = req.body || {};
 
-    // TODO: 여기서 AI 생성(텍스트/이미지) 붙일 수 있음
+    // TODO: 여기에서 AI(텍스트/이미지) 생성 로직을 이어 붙일 수 있어.
     const worldDoc = {
       ownerUid: user.uid,
       name,
