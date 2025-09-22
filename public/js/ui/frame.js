@@ -32,6 +32,53 @@ export const ui = {
 };
 window.ui = ui;
 
+
+// [신규] 해시 기반 라우터
+function handleRouteChange() {
+  const hash = window.location.hash || '#home';
+  const [path, param] = hash.slice(1).split('/');
+  
+  const routes = {
+    'home': { view: 'home' },
+    'create': { view: 'create' },
+    'adventure': { view: 'adventure' },
+    'info': { view: 'info' },
+    'create-world': { view: 'create', subView: 'create-world' },
+    'create-character': { view: 'create', subView: 'create-character' },
+    'create-prompt': { view: 'create', subView: 'create-prompt' },
+    'world': { view: 'home', subView: 'world-detail', params: { id: param } }
+  };
+
+  const route = routes[path];
+  if (route) {
+    const viewName = route.subView || route.view;
+    const isSub = !!route.subView;
+    ui.navTo(viewName, route.params || {}, isSub);
+    // 메인 뷰의 탭 활성화
+    document.querySelectorAll('#bottom-bar .nav5 button').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === route.view);
+    });
+  }
+}
+
+// 최초 로드 및 해시 변경 시 라우터 실행
+window.addEventListener('hashchange', handleRouteChange);
+window.addEventListener('DOMContentLoaded', () => {
+  // 기존 초기화 로직은 라우터가 모두 처리
+  CreateWorld.mount();
+  CreateCharacter.mount();
+  CreatePrompt.mount();
+  
+  auth.onAuthStateChanged?.((user) => {
+    updateAuthUI(user || null);
+    if (user) {
+      handleRouteChange(); // 로그인 후 라우트 처리
+    }
+  });
+
+  bindBottomBar();
+});
+
 // ... (updateAuthUI 코드는 동일) ...
 function updateAuthUI(user){
   const authScreen = document.getElementById('auth-screen');
