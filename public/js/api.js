@@ -21,8 +21,20 @@ async function call(method, path, body) {
 }
 
 export const api = {
-  listWorlds: () => call('GET', '/api/worlds'),
-  getWorld: (id) => call('GET', `/api/worlds/${id}`),
-  createWorld: (payload) => call('POST', '/api/worlds/create', payload),
-  likeWorld: (id) => call('POST', `/api/worlds/${id}/like`)
+// worlds
+createWorld: (payload = {}) => call('POST', '/api/worlds/create', payload),
+
+// prompts
+listPrompts: () => call('GET', '/api/prompts'),
+uploadPrompt: ({ title, content }) => call('POST', '/api/prompts', { title, content }),
+validatePrompt: (id) => call('POST', `/api/prompts/${id}/validate`),
+reportPrompt: (id, reason) => call('POST', `/api/prompts/${id}/report`, { reason }),
+
+// characters
+createCharacter: ({ worldId, promptId, customPrompt, userInput }) =>
+  call('POST', '/api/characters/create', { worldId, promptId, customPrompt, userInput }),
+
+
+  
 };
+
