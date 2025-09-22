@@ -102,5 +102,101 @@ window.addEventListener('auth-changed', async ({ detail }) => {
   await renderWorlds();
 });
 
+
+// 탭 전환
+const tabs = document.querySelectorAll('#tabs button');
+const sections = {
+  worlds: document.getElementById('tab-worlds'),
+  characters: document.getElementById('tab-characters'),
+  prompts: document.getElementById('tab-prompts'),
+};
+tabs.forEach(b => b.addEventListener('click', () => {
+  Object.values(sections).forEach(s => s.style.display = 'none');
+  const t = b.dataset.tab;
+  sections[t].style.display = '';
+}));
+
+// 기본 탭
+if (sections.worlds) sections.worlds.style.display = '';
+
+// 세계 생성
+document.getElementById('btn-create-world')?.addEventListener('click', async () => {
+  try {
+    const r = await api.createWorld();
+    alert(r.ok ? `세계 생성됨: ${r.data.id}` : `실패: ${r.error}`);
+  } catch (e) {
+    alert(`실패: ${e.message || e}`);
+  }
+});
+
+// 캐릭터 생성
+document.getElementById('btn-create-character')?.addEventListener('click', async () => {
+  const worldId = document.getElementById('char-worldId').value.trim();
+  const promptId = document.getElementById('char-promptId').value.trim() || null;
+  const customPrompt = document.getElementById('char-customPrompt').value.trim() || null;
+  const userInput = document.getElementById('char-userInput').value.trim();
+  try {
+    const r = await api.createCharacter({ worldId, promptId, customPrompt, userInput });
+    alert(r.ok ? `캐릭터 생성됨: ${r.data.id}` : `실패: ${r.error}`);
+  } catch (e) {
+    alert(`실패: ${e.message || e}`);
+  }
+});
+
+// 프롬프트 업로드
+document.getElementById('btn-upload-prompt')?.addEventListener('click', async () => {
+  const title = document.getElementById('pr-title').value.trim();
+  const content = document.getElementById('pr-content').value.trim();
+  if (!title || !content) return alert('제목/내용을 입력해줘');
+  try {
+    const r = await api.uploadPrompt({ title, content });
+    alert(r.ok ? `업로드됨: ${r.data.id}` : `실패: ${r.error}`);
+  } catch (e) {
+    alert(`실패: ${e.message || e}`);
+  }
+});
+
+// 프롬프트 목록/신고/검증 표시
+document.getElementById('btn-load-prompts')?.addEventListener('click', async () => {
+  const host = document.getElementById('prompts-list');
+  host.innerHTML = '불러오는 중...';
+  try {
+    const r = await api.listPrompts();
+    if (!r.ok) return host.innerHTML = `실패: ${r.error}`;
+    host.innerHTML = '';
+    r.data.forEach(p => {
+      const div = document.createElement('div');
+      div.className = 'prompt-card';
+      div.style.cssText = 'border:1px solid #555;padding:8px;margin:8px 0;';
+      div.innerHTML = `
+        <div><b>${(p.title||'무제')}</b> <small>by ${p.ownerUid||'?'}</small></div>
+        <pre style="white-space:pre-wrap">${(p.content||'')}</pre>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button data-act="validate">검증</button>
+          <button data-act="report">신고</button>
+        </div>
+      `;
+      div.querySelector('[data-act="validate"]').onclick = async () => {
+        try {
+          const rr = await api.validatePrompt(p.id);
+          alert(rr.ok ? '검증 성공(스키마 통과)' : `실패: ${rr.error}`);
+        } catch (e) { alert(`실패: ${e.message||e}`); }
+      };
+      div.querySelector('[data-act="report"]').onclick = async () => {
+        const reason = prompt('신고 사유 입력 (3자 이상)');
+        if (!reason) return;
+        try {
+          const rr = await api.reportPrompt(p.id, reason);
+          alert(rr.ok ? '신고 접수' : `실패: ${rr.error}`);
+        } catch (e) { alert(`실패: ${e.message||e}`); }
+      };
+      host.appendChild(div);
+    });
+  } catch (e) {
+    host.innerHTML = `실패: ${e.message || e}`;
+  }
+});
+
+
 bindAuthUI();
 bindCreate();
