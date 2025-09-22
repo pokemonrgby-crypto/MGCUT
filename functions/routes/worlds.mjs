@@ -2,8 +2,50 @@
 import { db, FieldValue } from '../lib/firebase.mjs';
 import { toKstDay } from '../lib/kst.mjs';
 import { getUserFromReq } from '../lib/auth.mjs';
+// TODO: 새로운 스키마에 맞는 validateWorld 함수를 schemas.mjs에 만들어야 함
 
 export function mountWorlds(app){
+  // ... (기존 GET, POST /like, PATCH /cover 코드는 동일) ...
+
+  // [POST] 생성 -> [POST] 저장 (클라이언트에서 생성한 데이터를 받아 저장)
+  app.post('/api/worlds', async (req,res)=>{
+    try{
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+
+      // KST 기준 하루 1회 생성 제한
+      const today = toKstDay(new Date());
+      const metaRef = db.collection('user_meta').doc(user.uid);
+      const metaSnap = await metaRef.get();
+      if ((metaSnap.data()?.lastWorldCreateDay||null) === today){
+        return res.status(429).json({ ok:false, error:'DAILY_LIMIT' });
+      }
+
+      const worldData = req.body || {};
+      
+      // [중요] 서버 측에서 데이터 유효성 검사를 수행해야 함
+      // 예: if (!validateWorld(worldData).ok) { return res.status(400).json(...) }
+      if (!worldData.name || !worldData.introShort) {
+        return res.status(400).json({ ok: false, error: 'REQUIRED_FIELDS_MISSING' });
+      }
+
+      const ref = await db.collection('worlds').add({
+        ...worldData,
+        ownerUid: user.uid,
+        createdAt: FieldValue.serverTimestamp(),
+        likesCount: 0,
+        visibility: 'public',
+        coverUrl: ''
+      });
+      
+      // 생성 횟수 제한 업데이트
+      await metaRef.set({ lastWorldCreateDay: today }, { merge:true });
+      
+      res.status(201).json({ ok:true, data: { id: ref.id } });
+    }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
+  });
+  
+  // ... (기존 GET, POST /like, PATCH /cover 코드는 동일) ...
   // [GET] 목록 (공개 최신 30)
   app.get('/api/worlds', async (req,res)=>{
     try{
@@ -20,30 +62,6 @@ export function mountWorlds(app){
       const doc = await db.collection('worlds').doc(req.params.id).get();
       if (!doc.exists) return res.status(404).json({ ok:false, error:'NOT_FOUND' });
       res.json({ ok:true, data:{ id:doc.id, ...doc.data() } });
-    }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
-  });
-
-  // [POST] 생성 (KST 기준 하루 1회)
-  app.post('/api/worlds/create', async (req,res)=>{
-    try{
-      const user = await getUserFromReq(req);
-      if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
-
-      const today = toKstDay(new Date());
-      const metaRef = db.collection('user_meta').doc(user.uid);
-      const metaSnap = await metaRef.get();
-      if ((metaSnap.data()?.lastWorldCreateDay||null) === today){
-        return res.status(429).json({ ok:false, error:'DAILY_LIMIT' });
-      }
-
-      const { name='새 세계', intro='소개글', detail={} } = req.body || {};
-      const ref = await db.collection('worlds').add({
-        ownerUid: user.uid, name, intro, detail,
-        createdAt: FieldValue.serverTimestamp(),
-        likesCount: 0, visibility: 'public', coverUrl: ''
-      });
-      await metaRef.set({ lastWorldCreateDay: today }, { merge:true });
-      res.json({ ok:true, id: ref.id });
     }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
   });
 
@@ -82,10 +100,8 @@ export function mountWorlds(app){
       const ref = db.collection('worlds').doc(req.params.id);
       const snap = await ref.get();
       if (!snap.exists) return res.status(404).json({ ok:false, error:'NOT_FOUND' });
-
-      // 정책에 맞게 권한 체크(소유자만 허용 등) 필요 시 아래 조건 활성화
-      // if (snap.data().ownerUid !== user.uid) return res.status(403).json({ ok:false, error:'FORBIDDEN' });
-
+      if (snap.data().ownerUid !== user.uid) return res.status(403).json({ ok:false, error:'FORBIDDEN' });
+      
       await ref.update({ coverUrl: String(coverUrl) });
       res.json({ ok:true });
     }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
