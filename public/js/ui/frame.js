@@ -1,11 +1,10 @@
-// /public/js/ui/frame.js
-import { api, auth } from '../api.js'; // 프로젝트의 api.js 경로에 맞춰 조정하세요
+import { auth } from '../api.js';
 import * as Home from '../tabs/home.js';
 import * as Create from '../tabs/create.js';
 import * as Info from '../tabs/info.js';
 import * as Adventure from '../tabs/adventure.js';
 
-/** 전역 UI 컨트롤러: 로딩 차단 */
+/** 전역 UI 컨트롤러: 로딩 차단 및 내비게이션 */
 export const ui = {
   blocker: null,
   busy(v=true){ 
@@ -28,31 +27,34 @@ window.ui = ui; // 다른 탭 스크립트에서 ui.busy() 호출 가능
 function updateAuthUI(user){
   const authScreen = document.getElementById('auth-screen');
   const appFrame   = document.getElementById('app-frame');
+  const bottomBar  = document.getElementById('bottom-bar');
 
   if (!user){
     authScreen.style.display = '';
     appFrame.style.display   = 'none';
+    bottomBar.style.display  = 'none';
     return;
   }
   authScreen.style.display = 'none';
   appFrame.style.display   = '';
+  bottomBar.style.display  = '';
 
   // 최초 진입은 홈
   ui.navTo('home');
-  Home.mount(); // 데이터 프리페치
+  Home.mount(); // 홈 데이터 미리 불러오기
 }
 
 auth.onAuthStateChanged?.((user)=>{
   updateAuthUI(user||null);
 });
 
-/** 하단바 이벤트 */
+/** 하단바 이벤트 바인딩 */
 function bindBottomBar(){
   document.querySelectorAll('#bottom-bar .nav5 button').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const t = btn.dataset.tab;
       ui.navTo(t);
-      // 탭 별 초기 렌더
+      // 탭 별 초기 렌더 함수(mount) 호출
       if (t==='home')      Home.mount();
       if (t==='create')    Create.mount();
       if (t==='info')      Info.mount();
@@ -62,8 +64,16 @@ function bindBottomBar(){
 }
 bindBottomBar();
 
-/** 전역 로딩 차단 헬퍼: 모든 fetch 호출 전후에서 써도 좋음 */
+/** 전역 로딩 차단 헬퍼 함수 */
 export async function withBlocker(task){
-  try{ ui.busy(true); return await task(); }
-  finally{ ui.busy(false); }
+  ui.busy(true);
+  try { 
+    return await task();
+  } catch(e) {
+    console.error(e);
+    // 여기서 에러를 다시 던져서 호출한 쪽에서 잡도록 함
+    throw e;
+  } finally {
+    ui.busy(false);
+  }
 }
