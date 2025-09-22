@@ -4,7 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MGC Next</title>
-  <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="/css/app-ui.css">
+<!-- SVG 아이콘 스프라이트 -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-home" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3l9 8h-3v9h-4v-6H10v6H6v-9H3l9-8z"/></symbol>
+  <symbol id="i-wand" viewBox="0 0 24 24"><path fill="currentColor" d="M4 20l12-12 2 2L6 22H4v-2zM14 4l2-2 4 4-2 2-4-4z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><path fill="currentColor" d="M11 7h2v2h-2V7zm0 4h2v6h-2v-6zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path fill="currentColor" d="M15 6l6-2v14l-6 2-6-2-6 2V6l6-2 6 2zM9 6v12l6 2V8l-6-2z"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a5 5 0 10-5-5 5 5 0 005 5zm0 2c-5.33 0-8 2.67-8 6v2h16v-2c0-3.33-2.67-6-8-6z"/></symbol>
+</svg>
+
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js';
     import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js';
@@ -90,17 +99,125 @@
     </header>
 
     <main>
-      <section class="toolbar when-user">
-        <input id="world-name" type="text" placeholder="세계 이름" />
-        <input id="world-intro" type="text" placeholder="한 줄 소개" />
-        <button id="btn-create-world">오늘의 세계 생성</button>
-      </section>
+      <!-- 새 앱 프레임 -->
+<div class="app-wrap">
+  <!-- 로그인 화면 -->
+  <section id="auth-screen" class="app-center">
+    <div class="card auth-card pad" style="text-align:center">
+      <div style="font-size:20px; font-weight:800; margin-bottom:12px;">로그인</div>
+      <div class="small" style="margin-bottom:10px;">Google로 로그인 후 이용해줘</div>
+      <div id="login-button-anchor"></div>
+    </div>
+  </section>
 
-      <section id="world-list"></section>
+  <!-- 앱 화면 -->
+  <section id="app-frame" class="app-center" style="display:none">
+    <!-- HOME -->
+    <div data-view="home" style="display:none">
+      <div class="hscroll"></div>
+      <div class="section-h">추천 세계관</div>
+      <div class="list" style="padding:0 16px 16px"></div>
+    </div>
+
+    <!-- CREATE -->
+    <div data-view="create" style="display:none">
+      <div class="section-h">무엇을 만들까요?</div>
+      <div class="grid3"></div>
+
+      <div class="card pad" data-form="world" style="display:none; margin:16px;">
+        <div class="t" style="font-weight:800; margin-bottom:8px">세계관 생성</div>
+        <button class="btn full" id="btn-world-create">오늘 세계 만들기</button>
+        <div id="world-upload-wrap" style="display:none; margin-top:12px">
+          <div class="small" style="margin-bottom:6px">표지 이미지 업로드</div>
+          <input type="text" id="world-id-upload" placeholder="worldId" readonly style="margin-bottom:6px">
+          <input type="file" id="world-cover" accept="image/*" style="margin-bottom:8px">
+          <button class="btn secondary full" id="btn-world-upload">업로드</button>
+        </div>
+      </div>
+
+      <div class="card pad" data-form="char" style="display:none; margin:16px;">
+        <div class="t" style="font-weight:800; margin-bottom:8px">캐릭터 생성</div>
+        <input type="text" id="char-world" placeholder="worldId">
+        <div class="small" style="margin:6px 0">프롬프트 ID 또는 직접 프롬프트 중 하나만 입력</div>
+        <input type="text" id="char-prompt" placeholder="promptId (선택)">
+        <textarea id="char-custom" rows="5" placeholder="직접 프롬프트 (선택)"></textarea>
+        <textarea id="char-input" rows="6" maxlength="1000" placeholder="사용자 입력(최대 1000자)"></textarea>
+        <button class="btn full" id="btn-char-create">생성</button>
+      </div>
+
+      <div class="card pad" data-form="prompt" style="display:none; margin:16px;">
+        <div class="t" style="font-weight:800; margin-bottom:8px">프롬프트 업로드</div>
+        <input type="text" id="p-title" placeholder="제목(최대 80자)">
+        <textarea id="p-content" rows="8" placeholder="프롬프트 내용"></textarea>
+        <button class="btn full" id="btn-prompt-upload">업로드</button>
+      </div>
+    </div>
+
+    <!-- INFO -->
+    <div data-view="info" style="display:none">
+      <div class="section-h">내 정보</div>
+      <div class="card pad" style="margin:0 16px 12px">
+        <div class="kv kv-uid"><div class="k">UID</div><div class="v small">-</div></div>
+        <div style="margin-top:8px">
+          <div class="small" style="margin-bottom:6px">Gemini API Key (브라우저 저장)</div>
+          <input id="gemini-key" type="text" placeholder="AIza...">
+          <div style="display:flex; gap:8px; margin-top:10px">
+            <button class="btn" id="btn-save-key">저장</button>
+            <button class="btn secondary" id="btn-logout">로그아웃</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADVENTURE -->
+    <div data-view="adventure" style="display:none">
+      <div class="section-h">모험</div>
+      <div class="list" style="padding:0 16px 16px"></div>
+    </div>
+  </section>
+
+  <!-- 하단 플로팅 바 -->
+  <div id="bottom-bar">
+    <div class="nav5">
+      <button data-tab="home" class="active"><svg class="ico"><use href="#i-home"/></svg><div class="txt">홈</div></button>
+      <button data-tab="create"><svg class="ico"><use href="#i-wand"/></svg><div class="txt">생성</div></button>
+      <button data-tab="info"><svg class="ico"><use href="#i-info"/></svg><div class="txt">정보</div></button>
+      <button data-tab="adventure"><svg class="ico"><use href="#i-map"/></svg><div class="txt">모험</div></button>
+      <button data-tab="info"><svg class="ico"><use href="#i-user"/></svg><div class="txt">내정보</div></button>
+    </div>
+  </div>
+</div>
+
+<!-- 전역 로딩 오버레이 -->
+<div id="ui-blocker"><div class="spinner"></div></div>
+
     </main>
   </div>
 
   <script type="module" src="/js/api.js"></script>
-  <script type="module" src="/js/app.js"></script>
+<script type="module" src="/js/ui/frame.js"></script>
+<script type="module" src="/js/tabs/home.js"></script>
+<script type="module" src="/js/tabs/create.js"></script>
+<script type="module" src="/js/tabs/info.js"></script>
+<script type="module" src="/js/tabs/adventure.js"></script>
+
+  <script>
+  // 로그인 버튼 DOM 주입
+  (function(){
+    const slot = document.getElementById('login-button-anchor');
+    if (!slot) return;
+    slot.innerHTML = '<button class="btn full" id="btn-login-google">Google로 로그인</button>';
+    const btn = document.getElementById('btn-login-google');
+    btn.addEventListener('click', async ()=>{
+      try{
+        const { auth, GoogleAuthProvider, signInWithPopup } = window.__FBAPP__ || {};
+        if (!auth) return alert('Firebase 초기화가 필요해요.');
+        const p = new GoogleAuthProvider();
+        await signInWithPopup(auth, p);
+      }catch(e){ alert(e.message||e); }
+    });
+  })();
+</script>
+
 </body>
 </html>
