@@ -101,20 +101,29 @@
     </div>
   </div>
 
-<div data-view="world-detail" style="display:none">
+<div data-view="world-detail" style="display:none;">
   <div class="detail-header">
-    <img id="world-detail-cover" src="" alt="Cover image">
     <div class="grad"></div>
-    <h2 id="world-detail-name" class="shadow-title"></h2>
+    <h2 class="shadow-title" id="world-detail-name"></h2>
   </div>
+
   <div class="detail-content">
     <div id="world-admin-panel" style="display:none; margin-bottom: 16px;">
       <button class="btn secondary full">콘텐츠 추가/수정</button>
     </div>
-    <div class="card pad">
-      <div id="world-detail-long-intro"></div>
+
+    <div class="detail-tabs-nav">
+      <button class="tab-btn active" data-tab="intro">소개</button>
+      <button class="tab-btn" data-tab="factions">세력</button>
+      <button class="tab-btn" data-tab="npcs">주요 인물</button>
+      <button class="tab-btn" data-tab="episodes">에피소드</button>
     </div>
-    </div>
+
+    <div class="tab-content" id="tab-intro"></div>
+    <div class="tab-content" id="tab-factions" style="display: none;"></div>
+    <div class="tab-content" id="tab-npcs" style="display: none;"></div>
+    <div class="tab-content" id="tab-episodes" style="display: none;"></div>
+  </div>
 </div>
 </section>
 
