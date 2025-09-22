@@ -1,6 +1,5 @@
 // public/js/tabs/world-detail.js
 import { api, auth } from '../api.js';
-import { withBlocker } from '../ui/frame.js';
 
 const rootSel = '[data-view="world-detail"]';
 
@@ -8,14 +7,16 @@ export async function mount(worldId) {
   const root = document.querySelector(rootSel);
   if (!root || !worldId) return;
 
-  // 로딩 UI는 간단하게 처리
-  root.querySelector('.detail-content').innerHTML = `<div class="spinner"></div>`;
+  // [수정] 로딩 UI를 detail-content 내부에만 표시하도록 변경
+  const contentArea = root.querySelector('.detail-content');
+  contentArea.innerHTML = `<div class="spinner"></div>`;
 
   try {
     const res = await api.getWorld(worldId);
     render(res.data);
   } catch (e) {
-    root.querySelector('.detail-content').innerHTML = `<div class="card pad">오류: ${e.message}</div>`;
+    // [수정] 오류 발생 시에도 contentArea를 직접 수정하여 오류 방지
+    contentArea.innerHTML = `<div class="card pad">오류: ${e.message}</div>`;
   }
 }
 
