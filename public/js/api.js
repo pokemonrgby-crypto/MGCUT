@@ -1,4 +1,22 @@
-import { getAuth } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js';
+import {
+  getAuth,
+  onAuthStateChanged as fbOnAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut as fbSignOut,
+} from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js';
+
+// frame.js가 기대하는 auth 래퍼 (onAuthStateChanged/ signOut 등 메서드 보유)
+export const auth = {
+  get currentUser(){ return getAuth().currentUser; },
+  onAuthStateChanged(cb){ return fbOnAuthStateChanged(getAuth(), cb); },
+  async signOut(){ return fbSignOut(getAuth()); },
+  async signInWithGoogle(){
+    const provider = new GoogleAuthProvider();
+    return signInWithPopup(getAuth(), provider);
+  },
+};
+
 
 async function idToken() {
   const auth = getAuth();
