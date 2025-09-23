@@ -12,12 +12,16 @@ function storyCard(s){
     <div>${esc(s?.text||'').replace(/\n/g,'<br>')}</div>
   </div>`;
 }
-function skillChip(sk){ 
-  return `<button class="skill" data-skill-id="${esc(sk?.id||sk?.name||'')}" title="${esc(sk?.desc||'')}">
-    <div style="font-weight:700">${esc(sk?.name||'(이름없음)')}</div>
-    ${sk?.desc? `<div class="small" style="opacity:.85;margin-top:3px">${esc(sk.desc)}</div>`:''}
+function skillChip(sk){
+  const id = sk?.id || sk?.name || '';
+  const name = sk?.name || '(이름없음)';
+  const desc = sk?.desc || sk?.description || '';
+  return `<button class="skill" data-skill-id="${esc(id)}" title="${esc(desc)}">
+    <div style="font-weight:700">${esc(name)}</div>
+    ${desc ? `<span class="small">${esc(desc)}</span>` : ''}
   </button>`;
 }
+
 function itemChip(it){
   const raw = String(it?.rarity || it?.grade || 'N').toUpperCase();
   const map = { COMMON:'N', NORMAL:'N', RARE:'R', EPIC:'SR', LEGENDARY:'UR', SSR:'SSR', UR:'UR' };
@@ -65,7 +69,7 @@ export async function mount(characterId){
             <div class="kv"><div class="k">소속 세계관</div><div class="v small">${esc(c.worldName || c.worldId || '-')}</div></div>
             <div class="kv"><div class="k">Elo</div><div class="v"><b>${c.elo ?? 1000}</b></div></div>
           </div>
-          <div class="story-cards grid2">
+          <div class="story-cards rail">
             ${
               Array.isArray(c.narratives) && c.narratives.length
               ? c.narratives.map(storyCard).join('')
@@ -76,7 +80,8 @@ export async function mount(characterId){
 
         <div class="panel skills">
           <div class="skills-head"><span class="count">0/3</span><div style="flex:1"></div><button class="btn small" id="btn-save-skills">저장</button></div>
-          <div class="skills-list grid2">
+          <div class="skills-list rail">
+
             ${
               Array.isArray(c.abilities) && c.abilities.length
               ? c.abilities.map(skillChip).join('')
@@ -137,6 +142,31 @@ export async function mount(characterId){
         panels[t]?.classList.add('active');
       };
     });
+
+
+    // --- 서사 카드 클릭 시 전체보기 모달 ---
+const storyWrap = root.querySelector('.story-cards');
+if (storyWrap){
+  storyWrap.addEventListener('click', (e)=>{
+    const card = e.target.closest('.story-card');
+    if (!card) return;
+    const html = card.innerHTML;
+    const modal = document.createElement('div');
+    modal.className = 'modal-layer';
+    modal.innerHTML = `
+      <div class="modal-card">
+        <button class="modal-close" aria-label="닫기">×</button>
+        <div class="modal-body">${html}</div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (ev)=>{
+      if (ev.target === modal || ev.target.classList.contains('modal-close')) {
+        modal.remove();
+      }
+    });
+  });
+}
+
 
     // --- 스킬: 3개 고정 선택 ---
     const skillEls = Array.from(root.querySelectorAll('.skills-list .skill'));
