@@ -165,14 +165,18 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 .info-card .name { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
 .info-card .desc { opacity: 0.8; line-height: 1.6; white-space: pre-wrap; }
 
-/* 리치 텍스트 */
+/* --- [수정] 에피소드 리치 텍스트 (버그 수정) --- */
 .episode-content .narrative { margin: 1em 0; opacity: 0.9; line-height: 1.7; }
 .episode-content .dialogue {
-  margin: 1em 0; padding: 12px; background: rgba(0,0,0,0.2);
-  border-left: 3px solid var(--acc2); font-style: italic;
+  margin: 1em 0;
+  padding: 12px 16px;
+  background: rgba(0,0,0,0.2);
+  border-left: 3px solid var(--acc2);
+  font-style: italic;
+  border-radius: 0 8px 8px 0;
 }
 
-/* --- [추가] 카드 애니메이션 및 에피소드 상세 스타일 --- */
+/* --- 카드 애니메이션 --- */
 @keyframes cardFadeIn { to { transform: translateY(0); opacity: 1; } }
 .info-card {
   transform: translateY(10px);
@@ -191,32 +195,33 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 .episode-detail-view { animation: cardFadeIn .4s ease; }
 
 
-/* --- [추가] 캐릭터 생성(create-character) UI --- */
+/* --- [수정] 캐릭터 생성(create-character) UI --- */
 .world-select-card {
-  height: 140px;
-  cursor: pointer;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  gap: 16px;
   padding: 12px;
-  position: relative;
-  border-radius: var(--radius);
-  overflow: hidden;
   margin-bottom: 12px;
+  cursor: pointer;
+  transition: background-color .2s ease;
 }
-.world-select-card .bg {
-  position: absolute; inset: 0;
-  background-color: #222; background-size: cover; background-position: center;
-  transition: transform .3s ease;
+.world-select-card:hover {
+  background-color: #1a212d;
 }
-.world-select-card:hover .bg { transform: scale(1.05); }
-.world-select-card .grad {
-  position: absolute; inset: auto 0 0 0; height: 80%;
-  background: linear-gradient(180deg, transparent, rgba(0,0,0,.7), rgba(0,0,0,.9));
-  pointer-events: none;
+.world-select-card .image-box {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  background-color: #222;
+  background-size: cover;
+  background-position: center;
 }
-.world-select-card .content { position: relative; z-index: 1; }
-.world-select-card .title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
-.world-select-card .desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.world-select-card .text-box {
+  flex-grow: 1;
+}
+.world-select-card .title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.world-select-card .desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
 
 .prompt-select-card {
   cursor: pointer;
