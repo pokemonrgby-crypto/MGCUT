@@ -118,10 +118,9 @@ findMatch: (charId) => call('POST', '/api/matchmaking/find', { charId }),
   createBattle: (meId, opId) =>
     call('POST', '/api/battle/create', { meId, opId }),
 
-battleTurn: (battleId, action, userApiKey) =>
-  call('POST', '/api/battle/turn', { battleId, action }, { 'X-User-Api-Key': userApiKey || '' }),
 
-
+  battleSimulate: (battleId, userApiKey) =>
+    call('POST', '/api/battle/simulate', { battleId }, { 'X-User-Api-Key': userApiKey || '' }),
 
     
 // Elo 매치(선택 기능)
