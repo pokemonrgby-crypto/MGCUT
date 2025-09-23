@@ -45,8 +45,9 @@ function handleRouteChange() {
     'create-prompt': { parentView: 'create', view: 'create-prompt' },
     'create-site': { parentView: 'create', view: 'create-site' },
     'world': { parentView: 'home', view: 'world-detail', mount: () => WorldDetail.mount(param1) },
+    'character': { parentView: 'home', view: 'character-detail', mount: () => CharacterDetail.mount(param1) },
     'episode': { parentView: 'home', view: 'episode-detail', mount: () => EpisodeDetail.mount(param1, decodeURIComponent(param2)) }
-  };
+};
 
   const route = routes[path];
   if (route) {
