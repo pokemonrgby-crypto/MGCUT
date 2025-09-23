@@ -25,6 +25,50 @@ export function mountCharacters(app) {
   });
 
 
+  // [신규] 매칭 후보 찾기: 자기 자신 제외 + Elo 근접
+app.post('/api/matchmaking/find', async (req, res) => {
+  try{
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+
+    const { charId } = req.body || {};
+    if (!charId) return res.status(400).json({ ok:false, error:'charId required' });
+
+    const myDoc = await db.collection('characters').doc(charId).get();
+    if (!myDoc.exists) return res.status(404).json({ ok:false, error:'CHAR_NOT_FOUND' });
+    const me = myDoc.data();
+    if (me.ownerUid !== user.uid) return res.status(403).json({ ok:false, error:'NOT_OWNER' });
+
+    const elo = Number(me.elo ?? 1000);
+    const band = 150; // 점수대 허용폭
+    const minE = Math.max(0, elo - band);
+    const maxE = elo + band;
+
+    // Elo 범위로 후보 가져오기 (ownerUid/자기캐릭터 제외는 앱단 필터)
+    const qs = await db.collection('characters')
+      .where('elo', '>=', minE)
+      .where('elo', '<=', maxE)
+      .orderBy('elo')         // 인덱스 필요시 콘솔 링크로 한 번 생성
+      .limit(40)
+      .get();
+
+    const candidates = qs.docs
+      .map(d => ({ id:d.id, ...d.data() }))
+      .filter(x => x.id !== charId && x.ownerUid !== user.uid);
+
+    if (!candidates.length) return res.json({ ok:true, data:{ opponentId: null }});
+
+    // Elo 차이가 가장 가까운 상대 고르기
+    candidates.sort((a,b)=> Math.abs((a.elo??1000)-elo) - Math.abs((b.elo??1000)-elo));
+    const opponent = candidates[0];
+
+    return res.json({ ok:true, data:{ opponentId: opponent.id }});
+  }catch(e){
+    return res.status(500).json({ ok:false, error:String(e) });
+  }
+});
+
+
 // [신규] 내 캐릭터 목록 (최신 50개)
 app.get('/api/my-characters', async (req, res) => {
   try {
