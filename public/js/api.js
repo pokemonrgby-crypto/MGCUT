@@ -75,6 +75,14 @@ export const api = {
   reportPrompt: (id, reason) => call('POST', `/api/prompts/${id}/report`, { reason }),
 
   // [신규] rankings
-  getCharacterRanking: () => call('GET', '/api/rankings/characters'),
-  getWorldRanking: () => call('GET', '/api/rankings/worlds'),
+  // [추가] 캐릭터 단건/목록/랭킹/매치
+  getCharacter: (id) => call('GET', `/api/characters/${id}`),
+  listCharacters: (params={}) => {
+    const q = new URLSearchParams(params).toString();
+    return call('GET', `/api/characters${q ? `?${q}` : ''}`);
+   },
+  getCharacterRanking: ({ limit=50 }={}) => call('GET', `/api/rankings/characters?limit=${limit}`),
+  getWorldRanking: ({ limit=50 }={}) => call('GET', `/api/rankings/worlds?limit=${limit}`),
+  reportMatch: (aId, bId, result /* 'A'|'B'|'DRAW' */) => call('POST', `/api/match`, { aId, bId, result }),
+
 };
