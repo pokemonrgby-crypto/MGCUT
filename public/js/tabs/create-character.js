@@ -1,5 +1,5 @@
 // public/js/tabs/create-character.js
-import { api } from '../api.js';
+import { api, storage } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
 import { callClientSideGemini } from '../lib/gemini-client.js';
 
@@ -164,6 +164,12 @@ export function mount() {
 
         try {
             await withBlocker(async () => {
+                const imageFile = root.querySelector('#cc-char-image').files[0];
+                let imageUrl = '';
+                if (imageFile) {
+                    imageUrl = await storage.uploadImage(`characters/${Date.now()}_${imageFile.name}`, imageFile);
+                }
+
                 const characterJson = await callClientSideGemini({
                     system: characterBasePrompt,
                     user: composedUser
@@ -174,7 +180,8 @@ export function mount() {
                 const res = await api.saveCharacter({
                     worldId: selectedWorld.id,
                     promptId: selectedPrompt.id === 'default-basic' ? null : selectedPrompt.id, // 기본 프롬프트는 ID 저장 안함
-                    characterData: characterJson
+                    characterData: characterJson,
+                    imageUrl: imageUrl
                 });
 
                 alert(`캐릭터 생성 성공! (ID: ${res.data.id})`);
