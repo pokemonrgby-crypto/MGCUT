@@ -1,5 +1,17 @@
 // public/js/lib/gemini-client.js
 
+// [추가] 클라이언트 사이드 모델 풀
+const MODEL_POOL = [
+  'gemini-2.0-flash-latest',
+  'gemini-2.5-flash-latest',
+  'gemini-2.0-flash-lite-latest',
+  'gemini-2.5-flash-lite-latest',
+];
+
+function pickModel() {
+  return MODEL_POOL[Math.floor(Math.random() * MODEL_POOL.length)];
+}
+
 function stripFences(s = '') {
   return String(s).trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/i, '').trim();
 }
@@ -16,8 +28,9 @@ export async function callClientSideGemini({ system, user }) {
     throw new Error('Gemini API 키가 필요합니다. 내정보 탭에서 키를 저장해주세요.');
   }
 
-  // 모델은 우선 flash로 고정
-  const model = 'gemini-1.5-flash-latest';
+  // [수정] 모델 풀에서 무작위 선택
+  const model = pickModel();
+  console.log(`Using Gemini Model: ${model}`); // 디버깅용 로그
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
   
   const body = {
@@ -26,7 +39,7 @@ export async function callClientSideGemini({ system, user }) {
       responseMimeType: "application/json",
     }
   };
-  if (system) body.systemInstruction = { role: 'system', parts: [{ text: system }] };
+  if (system) body.systemInstruction = { parts: [{ text: system }] };
 
   const r = await fetch(url, {
     method: 'POST',
@@ -36,7 +49,9 @@ export async function callClientSideGemini({ system, user }) {
 
   if (!r.ok) {
     const errorData = await r.json().catch(() => ({}));
-    throw new Error(`Gemini API 오류 (HTTP ${r.status}): ${errorData?.error?.message || '알 수 없는 오류'}`);
+    const message = errorData?.error?.message || '알 수 없는 오류';
+    console.error('Gemini API Error:', errorData);
+    throw new Error(`Gemini API 오류 (HTTP ${r.status}): ${message}`);
   }
 
   const data = await r.json();
