@@ -20,22 +20,17 @@ function siteCard(s) {
 }
 
 function characterListCard(c) {
+  const bg = c.imageUrl || '';
   return `
-    <div class="card info-card character-list-card" data-nav-to="#character/${c.id}" style="cursor:pointer">
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div class="image-box" style="width:50px; height:50px; border-radius:12px; background:url('${c.imageUrl}') center/cover; flex-shrink:0;"></div>
-        <div style="flex-grow:1;">
-          <div class="name">${c.name}</div>
-          <div class="small">${c.introShort}</div>
-        </div>
-        <div style="text-align:right;">
-          <div>ELO</div>
-          <div style="font-weight:700; font-size:16px;">${c.elo}</div>
-        </div>
-      </div>
+    <div class="card character-card" data-nav-to="#character/${c.id}" style="cursor:pointer">
+      <div class="bg" style="background-image:url('${bg}')"></div>
+      <div class="grad"></div>
+      <div class="title shadow-title">${c.name}</div>
+      <div class="char-info">Elo: ${c.elo ?? 1000}</div>
     </div>
   `;
 }
+
 
 
 function parseRichText(text) {
@@ -131,7 +126,8 @@ const isOwner = true;
   try {
     const charRes = await api.getWorldCharacters(world.id);
     if (charRes.data && charRes.data.length > 0) {
-      charactersTab.innerHTML = '<div class="list" style="padding:0 16px;">' + charRes.data.map(characterListCard).join('') + '</div>';
+      charactersTab.innerHTML = '<div class="grid3">' + charRes.data.map(characterListCard).join('') + '</div>';
+
     } else {
       charactersTab.innerHTML = '<div class="card pad small" style="margin:0 16px;">이 세계관에 속한 캐릭터가 없습니다.</div>';
     }
