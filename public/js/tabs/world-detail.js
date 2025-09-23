@@ -19,16 +19,16 @@ export async function mount(worldId) {
   
   try {
     const res = await api.getWorld(worldId);
-    render(worldId, res.data); // worldId를 render 함수에 전달
+    render(res.data);
   } catch (e) {
     const contentArea = root.querySelector('.detail-content');
     if (contentArea) {
-      contentArea.innerHTML = `<div class="card pad">오류: ${e.message}</div>`;
+      contentArea.innerHTML = `<div class="card pad" style="margin: 16px;">오류: ${e.message}</div>`;
     }
   }
 }
 
-function render(worldId, world) { // worldId 파라미터 추가
+function render(world) {
   const root = document.querySelector(rootSel);
   const contentArea = root.querySelector('.detail-content');
   if (!contentArea) return;
@@ -41,7 +41,7 @@ function render(worldId, world) { // worldId 파라미터 추가
   root.querySelector('#world-detail-name').textContent = world.name;
 
   contentArea.innerHTML = `
-    <div id="world-admin-panel" style="display:none; margin-bottom: 16px;">
+    <div id="world-admin-panel" style="display:none; padding: 0 16px 16px;">
       <button class="btn secondary full">콘텐츠 추가/수정</button>
     </div>
     <div class="detail-tabs-nav">
@@ -50,10 +50,12 @@ function render(worldId, world) { // worldId 파라미터 추가
       <button class="tab-btn" data-tab="npcs">주요 인물</button>
       <button class="tab-btn" data-tab="episodes">에피소드</button>
     </div>
-    <div class="tab-content" id="tab-intro"></div>
-    <div class="tab-content" id="tab-factions" style="display: none;"></div>
-    <div class="tab-content" id="tab-npcs" style="display: none;"></div>
-    <div class="tab-content" id="tab-episodes" style="display: none;"></div>
+    <div class="tab-content-wrapper">
+      <div class="tab-content" id="tab-intro"></div>
+      <div class="tab-content" id="tab-factions" style="display: none;"></div>
+      <div class="tab-content" id="tab-npcs" style="display: none;"></div>
+      <div class="tab-content" id="tab-episodes" style="display: none;"></div>
+    </div>
   `;
 
   if (auth.currentUser && auth.currentUser.uid === world.ownerUid) {
@@ -61,45 +63,33 @@ function render(worldId, world) { // worldId 파라미터 추가
     if (adminPanel) adminPanel.style.display = 'block';
   }
 
-  root.querySelector('#tab-intro').innerHTML = `<div class="card pad"><p>${world.introLong || world.introShort}</p></div>`;
+  root.querySelector('#tab-intro').innerHTML = `<div class="card pad"><p style="white-space: pre-wrap;">${world.introLong || world.introShort}</p></div>`;
   root.querySelector('#tab-factions').innerHTML = (world.factions || []).map(f => infoCard(f.name, f.description)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
   root.querySelector('#tab-npcs').innerHTML = (world.npcs || []).map(n => infoCard(n.name, n.description)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
-  // [수정] episodeCard 호출 시 worldId 전달
-  root.querySelector('#tab-episodes').innerHTML = (world.episodes || []).map(e => episodeCard(e, worldId)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
+  root.querySelector('#tab-episodes').innerHTML = (world.episodes || []).map(e => episodeCard(e, world.id)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
 
   bindEvents(root);
 }
 
-// [수정] 템플릿 함수들
+// 템플릿 함수들
 function infoCard(name, description) {
   return `
     <div class="info-card">
       <div class="name">${name || ''}</div>
-      <div class="desc">${(description || '').substring(0, 100)}...</div>
+      <div class="desc">${(description || '')}</div>
     </div>
   `;
 }
-
-// [수정] episodeCard: 클릭 가능하도록 클래스 및 데이터 속성 추가
 function episodeCard(episode, worldId) {
+    const summary = (episode.content || '').replace(/<[^>]+>/g, ' ').substring(0, 120);
     return `
     <div class="info-card episode-card" data-world-id="${worldId}" data-episode-title="${episode.title}">
       <div class="name">${episode.title || ''}</div>
-      <div class="desc episode-content">${parseRichText(episode.content).replace(/<[^>]+>/g, '').substring(0, 120)}...</div>
+      <div class="desc">${summary}${summary.length >= 120 ? '...' : ''}</div>
     </div>
   `;
 }
 
-function parseRichText(text) {
-  if (!text) return '';
-  return text
-    .replace(/<대사>/g, '<div class="dialogue">')
-    .replace(/<\/대사>/g, '</div>')
-    .replace(/<서술>/g, '<div class="narrative">')
-    .replace(/<\/서술>/g, '</div>');
-}
-
-// [수정] bindEvents: 탭과 카드 클릭 이벤트를 한 번에 처리
 function bindEvents(container) {
   // 탭 전환 로직
   const nav = container.querySelector('.detail-tabs-nav');
@@ -114,12 +104,6 @@ function bindEvents(container) {
     btn.classList.add('active');
     contents.forEach(c => c.style.display = c.id === tabId ? '' : 'none');
   };
-
-  // 초기 탭 상태 설정
-  buttons.forEach(b => b.classList.remove('active'));
-  contents.forEach(c => c.style.display = 'none');
-  if (buttons[0]) buttons[0].classList.add('active');
-  if (contents[0]) contents[0].style.display = '';
 
   // 에피소드 카드 클릭 이벤트 (이벤트 위임)
   container.addEventListener('click', (e) => {
