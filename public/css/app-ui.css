@@ -229,3 +229,11 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
   transition: background-color .2s ease;
 }
 .prompt-select-card:hover { background-color: #1a212d; }
+
+/* public/css/app-ui.css */
+
+/* --- [추가] 강조(emphasis) 리치 텍스트 스타일 --- */
+.emphasis {
+  font-weight: 800;
+  color: var(--warn);
+}
