@@ -80,7 +80,8 @@ export async function mount(characterId){
 
         <div class="panel skills">
           <div class="skills-head"><span class="count">0/3</span><div style="flex:1"></div><button class="btn small" id="btn-save-skills">저장</button></div>
-          <div class="skills-list rail">
+          <div class="skills-list vlist">
+
 
             ${
               Array.isArray(c.abilities) && c.abilities.length
