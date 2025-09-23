@@ -13,6 +13,11 @@ import * as WorldDetail from '../tabs/world-detail.js';
 import * as EpisodeDetail from '../tabs/episode-detail.js';
 import * as CharacterDetail from '../tabs/character-detail.js';
 
+// ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
+import * as Matching from '../tabs/matching.js';
+import * as Battle from '../tabs/battle.js';
+// ▲▲▲ [수정] 여기까지 추가 ▲▲▲
+
 export const ui = {
   blocker: null,
   busy(v = true) {
@@ -33,7 +38,7 @@ window.ui = ui;
 
 function handleRouteChange() {
   const hash = window.location.hash || '#home';
-  const [path, param1, param2] = hash.slice(1).split('/');
+  const [path, param1, param2] = hash.slice(1).split('?')[0].split('/');
 
   const routes = {
     'home': { view: 'home', mount: Home.mount },
@@ -47,7 +52,11 @@ function handleRouteChange() {
     'create-site': { parentView: 'create', view: 'create-site' },
     'world': { parentView: 'home', view: 'world-detail', mount: () => WorldDetail.mount(param1) },
     'character': { parentView: 'home', view: 'character-detail', mount: () => CharacterDetail.mount(param1) },
-    'episode': { parentView: 'home', view: 'episode-detail', mount: () => EpisodeDetail.mount(param1, decodeURIComponent(param2 || '')) }
+    'episode': { parentView: 'home', view: 'episode-detail', mount: () => EpisodeDetail.mount(param1, decodeURIComponent(param2 || '')) },
+    // ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
+    'matching': { view: 'matching' }, // matching.js는 onRoute로 자체 처리
+    'battle': { view: 'battle' },     // battle.js도 onRoute로 자체 처리
+    // ▲▲▲ [수정] 여기까지 추가 ▲▲▲
   };
 
   const route = routes[path];
@@ -60,7 +69,6 @@ function handleRouteChange() {
       b.classList.toggle('active', b.dataset.tab === activeTab);
     });
   } else {
-    // 알 수 없는 해시 → 홈으로
     ui.showView('home');
     Home.mount?.();
     document.querySelectorAll('#bottom-bar button').forEach(b => {
@@ -71,13 +79,11 @@ function handleRouteChange() {
 
 window.addEventListener('hashchange', handleRouteChange);
 window.addEventListener('DOMContentLoaded', () => {
-  // 서브뷰들 초기 mount
   CreateWorld.mount();
   CreateCharacter.mount();
   CreatePrompt.mount();
   CreateSite.mount();
 
-  // 🔧 auth 객체 안전 처리 (auth가 없을 때도 크래시 안 나게)
   const fbAuth = auth || window.__FBAPP__?.auth;
   fbAuth?.onAuthStateChanged?.((user) => {
     updateAuthUI(user);
@@ -85,8 +91,6 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   bindBottomBar();
-
-  // 🔧 초기 라우트 강제 렌더 (onAuthStateChanged 보다 먼저 필요할 수 있음)
   handleRouteChange();
 });
 
