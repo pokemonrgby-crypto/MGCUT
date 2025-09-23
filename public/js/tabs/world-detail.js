@@ -80,7 +80,11 @@ async function render(world) {
   if (!contentArea) return;
 
   const cover = world.coverUrl || '';
-  const isOwner = auth.currentUser && auth.currentUser.uid === world.ownerUid;
+  // 개발/디버그용(임시): 관리 탭 항상 보이게
+const isOwner = true;
+// 운영 시에는 아래로 되돌리고 관리자 체크와 OR로 묶자:
+// const isOwner = (auth.currentUser && auth.currentUser.uid === world.ownerUid) || isAdmin();
+
   
   const headerEl = root.querySelector('.detail-header');
   if (headerEl) headerEl.style.backgroundImage = `url('${cover}')`;
