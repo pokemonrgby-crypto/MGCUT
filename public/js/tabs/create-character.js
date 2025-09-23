@@ -8,16 +8,15 @@ let promptsCache = [];
 let selectedWorld = null;
 let selectedPrompt = null;
 
-// 세계관 카드 템플릿
+// [수정] 개선된 카드 디자인을 위한 템플릿
 function worldCardTemplate(w) {
     const desc = (w.introShort || '');
     const shortDesc = desc.substring(0, 80);
     return `
     <div class="card world-select-card" data-id="${w.id}">
-        <div class="bg" style="background-image:url('${w.coverUrl || ''}')"></div>
-        <div class="grad"></div>
-        <div class="content">
-          <div class="title shadow-title">${w.name}</div>
+        <div class="image-box" style="background-image:url('${w.coverUrl || ''}')"></div>
+        <div class="text-box">
+          <div class="title">${w.name}</div>
           <div class="desc">${shortDesc}${desc.length > 80 ? '...' : ''}</div>
         </div>
     </div>
