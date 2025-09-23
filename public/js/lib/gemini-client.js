@@ -2,10 +2,10 @@
 
 // [추가] 클라이언트 사이드 모델 풀
 const MODEL_POOL = [
-  'gemini-2.0-flash-latest',
-  'gemini-2.5-flash-latest',
-  'gemini-2.0-flash-lite-latest',
-  'gemini-2.5-flash-lite-latest',
+  'gemini-2.0-flash',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-2.5-flash-lite',
 ];
 
 function pickModel() {
