@@ -53,10 +53,9 @@ function handleRouteChange() {
     'world': { parentView: 'home', view: 'world-detail', mount: () => WorldDetail.mount(param1) },
     'character': { parentView: 'home', view: 'character-detail', mount: () => CharacterDetail.mount(param1) },
     'episode': { parentView: 'home', view: 'episode-detail', mount: () => EpisodeDetail.mount(param1, decodeURIComponent(param2 || '')) },
-    // ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
-    'matching': { view: 'matching' }, // matching.js는 onRoute로 자체 처리
-    'battle': { view: 'battle' },     // battle.js도 onRoute로 자체 처리
-    // ▲▲▲ [수정] 여기까지 추가 ▲▲▲
+    // [수정] matching과 battle 페이지의 라우팅 정보를 다른 페이지와 동일한 방식으로 통합합니다.
+    'matching': { parentView: 'home', view: 'matching', mount: Matching.mount },
+    'battle': { parentView: 'home', view: 'battle', mount: Battle.mount },
   };
 
   const route = routes[path];
