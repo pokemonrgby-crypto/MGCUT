@@ -39,6 +39,12 @@ export function validateCharacter(obj) {
       }
     });
   }
+  
+  // [수정] items는 필수가 아님
+  if (obj.items && !Array.isArray(obj.items)) {
+    errs.push('items가 있다면 배열이어야 함');
+  }
+
 
   return { ok: errs.length === 0, errors: errs };
 }
