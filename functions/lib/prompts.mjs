@@ -27,12 +27,17 @@ export async function loadWorldSystemPrompt() {
     { "name": "NPC 이름", "description": "해당 NPC의 역할, 성격, 배경 이야기 등을 설명하는 상세한 소개. (약 300자)" }
   ],
   "sites": [
-    { "name": "명소 이름", "description": "해당 장소의 지리적 특징, 역사적 의미, 주요 사건 등을 설명." }
+    {
+      "name": "명소 이름",
+      "description": "해당 장소의 지리적 특징, 역사적 의미, 주요 사건 등을 설명.",
+      "difficulty": "명소의 탐험 난이도. 'easy', 'normal', 'hard', 'extreme', 'impossible' 중 하나.",
+      "imageUrl": "이 명소를 대표하는 이미지 URL (현재는 빈 문자열로 고정)"
+    }
   ],
   "episodes": [
     {
       "title": "에피소드 제목",
-      "content": "이 세계관에서 일어날 법한 특정 사건이나 이야기를 담은 에피소드. 등장인물의 대사는 <대사> 태그로, 상황이나 배경 묘사는 <서술> 태그로 감싸야 합니다. 적절한 부분에 줄바꿈을 사용합니다. 예시: <대사> 안녕하세요! </대사> (약 1200자)"
+      "content": "이 세계관에서 일어날 법한 특정 사건이나 이야기를 담은 에피소드. 등장인물의 대사는 <대사>...</대사> 태그로, 강조할 부분은 <강조>...</강조> 태그로 감싸야 합니다. 예시: <서술>남자가 조심스럽게 문을 열었다.</서술> <대사>거기 누구 있나?</대사> <서술>그의 목소리에는 <강조>알 수 없는 불안감</강조>이 묻어났다.</서술>"
     }
   ],
   "allowPublicContribution": false
@@ -45,7 +50,6 @@ export async function loadWorldSystemPrompt() {
   );
 }
 
-// [수정] 캐릭터 생성용 프롬프트
 export async function loadCharacterBasePrompt() {
   return (
     (await tryLoadFromConfigs('character_base')) ||
@@ -58,7 +62,7 @@ export async function loadCharacterBasePrompt() {
   "narratives": [
     {
       "title": "서사 제목 (예: 과거, 목표)",
-      "long": "캐릭터의 배경 이야기를 담은 긴 서사. 등장인물의 대사는 <대사> 태그로, 상황이나 배경 묘사는 <서술> 태그로 감싸야 합니다.",
+      "long": "캐릭터의 배경 이야기를 담은 긴 서사. 등장인물의 대사는 <대사>...</대사> 태그로, 강조할 부분은 <강조>...</강조> 태그로 감싸야 합니다. 예시: <서술>그녀는 <강조>결심한 듯</강조> 주먹을 꽉 쥐었다.</서술> <대사>이제 와서... 돌아갈 수는 없어.</대사>",
       "short": "서사 내용을 1~2 문장으로 요약한 버전."
     }
   ],
