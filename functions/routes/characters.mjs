@@ -1,3 +1,4 @@
+// (수정된 결과)
 // ===== characters.mjs — SAFE BLOCK (routes only) =====
 import { FieldValue } from 'firebase-admin/firestore';
 // 노드 런타임이 18 미만이면 주석 해제: import fetch from 'node-fetch';
@@ -87,6 +88,34 @@ export function mountCharacters(app, db, getUserFromReq) {
       if (!d.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
       res.json({ ok: true, data: { id: d.id, ...d.data() } });
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
+  });
+
+  // --- [신규] 캐릭터 배틀 로그 조회 ---
+  app.get('/api/characters/:id/battle-logs', async (req, res) => {
+    try {
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+      const charId = req.params.id;
+      
+      const q1 = db.collection('battles').where('meId', '==', charId).get();
+      const q2 = db.collection('battles').where('opId', '==', charId).get();
+
+      const [snap1, snap2] = await Promise.all([q1, q2]);
+      
+      const logs = [
+        ...snap1.docs.map(d => ({ id: d.id, ...d.data() })),
+        ...snap2.docs.map(d => ({ id: d.id, ...d.data() })),
+      ];
+
+      // createdAt 기준으로 최신순 정렬 (중복 제거 포함)
+      const uniqueLogs = Array.from(new Map(logs.map(log => [log.id, log])).values())
+        .filter(log => log.status === 'finished') // 완료된 전투만
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+      res.json({ ok: true, data: uniqueLogs.slice(0, 50) }); // 최근 50개
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e) });
+    }
   });
 
   // --- 세계관 소속 캐릭터 (Elo desc) ---
@@ -208,6 +237,8 @@ export function mountCharacters(app, db, getUserFromReq) {
       const now = FieldValue.serverTimestamp();
       const doc = await db.collection('battles').add({
         meId, opId,
+        meName: aSnap.data().name || '',
+        opName: bSnap.data().name || '',
         eloMe: aSnap.data().elo ?? 1000,
         eloOp: bSnap.data().elo ?? 1000,
         status: 'ready',
@@ -218,62 +249,55 @@ export function mountCharacters(app, db, getUserFromReq) {
   });
 
   // --- 배틀 1회 시뮬 + 타임라인 기록 ---
-app.post('/api/battle/simulate', async (req, res) => {
-  try {
-    const user = await getUserFromReq(req);
-    if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-
-    // [수정] 클라이언트에서 API 키를 사용하므로 서버에서는 받을 필요가 없습니다.
-    // const apiKey = String(req.get('X-User-Api-Key') || ... ).trim();
-    // if (!apiKey) return res.status(400).json({ ok: false, error: 'USER_API_KEY_REQUIRED' });
-
-    const { battleId } = req.body || {};
-    if (!battleId) return res.status(400).json({ ok: false, error: 'battleId required' });
-
-    const bRef = db.collection('battles').doc(battleId);
-    const bSnap = await bRef.get();
-    if (!bSnap.exists) return res.status(404).json({ ok: false, error: 'BATTLE_NOT_FOUND' });
-    const b = bSnap.data();
-
-    // [수정] battle 문서의 ownerUid 체크 추가 (본인 배틀만 시뮬레이션 가능)
-    const meSnapForOwnerCheck = await db.collection('characters').doc(b.meId).get();
-    if (meSnapForOwnerCheck.data().ownerUid !== user.uid) {
-      return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
-    }
-    
-    const [meSnap, opSnap] = await Promise.all([
-      meSnapForOwnerCheck, // 이미 조회했으므로 재사용
-      db.collection('characters').doc(b.opId).get(),
-    ]);
-    const me = meSnap.data(), op = opSnap.data();
-
-    let world = null;
+  app.post('/api/battle/simulate', async (req, res) => {
     try {
-      const wid = me.worldId || op.worldId;
-      if (wid) {
-        const w = await db.collection('worlds').doc(wid).get();
-        if (w.exists) world = w.data();
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+      const { battleId } = req.body || {};
+      if (!battleId) return res.status(400).json({ ok: false, error: 'battleId required' });
+
+      const bRef = db.collection('battles').doc(battleId);
+      const bSnap = await bRef.get();
+      if (!bSnap.exists) return res.status(404).json({ ok: false, error: 'BATTLE_NOT_FOUND' });
+      const b = bSnap.data();
+
+      const meSnapForOwnerCheck = await db.collection('characters').doc(b.meId).get();
+      if (meSnapForOwnerCheck.data().ownerUid !== user.uid) {
+        return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
       }
-    } catch {}
+      
+      const [meSnap, opSnap] = await Promise.all([
+        meSnapForOwnerCheck,
+        db.collection('characters').doc(b.opId).get(),
+      ]);
+      const me = meSnap.data(), op = opSnap.data();
 
-    const prompt = buildOneShotBattlePrompt({ me, op, world });
+      let world = null;
+      try {
+        const wid = me.worldId || op.worldId;
+        if (wid) {
+          const w = await db.collection('worlds').doc(wid).get();
+          if (w.exists) world = w.data();
+        }
+      } catch {}
 
-    // [수정] AI를 호출하는 대신, 생성된 프롬프트를 클라이언트에 전달합니다.
-    res.json({ ok: true, data: { promptForClient: prompt } });
+      const prompt = buildOneShotBattlePrompt({ me, op, world });
+      res.json({ ok: true, data: { promptForClient: prompt } });
 
-  } catch (e) { 
-    res.status(500).json({ ok: false, error: String(e) }); 
-  }
-});
-
+    } catch (e) { 
+      res.status(500).json({ ok: false, error: String(e) }); 
+    }
+  });
+  
+  // [수정] 전투 종료 시 로그(log)를 함께 받도록 수정
   app.post('/api/battle/finish', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
 
-      const { battleId, winner } = req.body || {};
-      if (!battleId || !['A', 'B'].includes(winner))
-        return res.status(400).json({ ok: false, error: 'ARGS_REQUIRED' });
+      const { battleId, winner, log } = req.body || {};
+      if (!battleId || !['A', 'B'].includes(winner) || !log)
+        return res.status(400).json({ ok: false, error: 'ARGS_REQUIRED (battleId, winner, log)' });
 
       const bRef = db.collection('battles').doc(battleId);
       const bSnap = await bRef.get();
@@ -287,11 +311,20 @@ app.post('/api/battle/simulate', async (req, res) => {
       const a = aSnap.data(), o = oSnap.data();
       const Sa = (winner === 'A') ? 1 : 0;
       const [newA, newB] = updateElo(a.elo ?? 1000, o.elo ?? 1000, Sa);
+      
+      const now = FieldValue.serverTimestamp();
 
       await Promise.all([
-        db.collection('characters').doc(b.meId).update({ elo: newA, updatedAt: FieldValue.serverTimestamp() }),
-        db.collection('characters').doc(b.opId).update({ elo: newB, updatedAt: FieldValue.serverTimestamp() }),
-        bRef.update({ eloMeAfter: newA, eloOpAfter: newB, updatedAt: FieldValue.serverTimestamp() })
+        db.collection('characters').doc(b.meId).update({ elo: newA, updatedAt: now }),
+        db.collection('characters').doc(b.opId).update({ elo: newB, updatedAt: now }),
+        bRef.update({
+          status: 'finished', // [추가] 상태 변경
+          winner: winner,      // [추가] 승자 기록
+          log: log,            // [추가] 로그 저장
+          eloMeAfter: newA,
+          eloOpAfter: newB,
+          updatedAt: now,
+        })
       ]);
 
       res.json({ ok: true, data: { eloMe: newA, eloOp: newB } });
