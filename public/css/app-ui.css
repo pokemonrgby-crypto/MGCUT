@@ -22,15 +22,17 @@ body{
 .card.pad{padding:18px}
 /*.card + .card, .world-select-card + .world-select-card {margin-top:12px}*/
 
-.world-card, .site-card{
+.world-card, .site-card, .character-card{
+
   position: relative;
-  height: 180px;
+  height: 180px;ㄴ
   cursor: pointer;
   border-radius: var(--radius);
   overflow: hidden;
   contain: paint;
 }
-.world-card .bg, .site-card .bg{
+.world-card .bg, .site-card .bg, .character-card .bg{
+
 
   position: absolute;
   inset: 0;
@@ -41,13 +43,29 @@ body{
   transform: translateZ(0);
   backface-visibility: hidden;
 }
-.world-card:hover .bg, .site-card:hover .bg {transform: scale(1.05);}
+.world-card:hover .bg, .site-card:hover .bg, .character-card:hover .bg {transform: scale(1.05);}
 
-.world-card .grad, .site-card .grad{
+.world-card .grad, .site-card .grad, .character-card .grad{
+
   position:absolute; inset:auto 0 0 0; height:42%; 
   background:linear-gradient(180deg, transparent, rgba(0,0,0,.6), rgba(0,0,0,.85));
 }
-.world-card .title, .site-card .title{
+.world-card .title, .site-card .title, .character-card .title{
+
+
+.character-card .char-info{
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  font-size: 12px;
+  opacity: .9;
+  background: rgba(0,0,0,.35);
+  padding: 4px 8px;
+  border-radius: 8px;
+  backdrop-filter: blur(2px);
+}
+
+
   position:absolute; left:16px; right:16px; bottom:12px; 
   font-size:16px; font-weight:700; letter-spacing:.2px; text-shadow:0 2px 10px rgba(0,0,0,.7);
 }
