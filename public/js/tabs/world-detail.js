@@ -72,10 +72,28 @@ function render(world) {
   root.querySelector('#tab-intro').innerHTML = `<div class="card pad"><p>${world.introLong || world.introShort}</p></div>`;
   root.querySelector('#tab-factions').innerHTML = (world.factions || []).map(f => infoCard(f.name, f.description)).join('');
   root.querySelector('#tab-npcs').innerHTML = (world.npcs || []).map(n => infoCard(n.name, n.description)).join('');
-  root.querySelector('#tab-episodes').innerHTML = (world.episodes || []).map(e => episodeCard(e.title, e.content)).join('');
+  root.querySelector('#tab-episodes').innerHTML = (world.episodes || []).map(e => episodeCard(e, world.id)).join('');
 
   bindTabEvents(root);
+  bindCardClickEvents(root);
+  
 }
+
+
+function bindCardClickEvents(container) {
+  container.addEventListener('click', (e) => {
+    const episodeCard = e.target.closest('.episode-card');
+    if (episodeCard) {
+      const worldId = episodeCard.dataset.worldId;
+      const episodeTitle = episodeCard.dataset.episodeTitle;
+      if (worldId && episodeTitle) {
+        // 해시를 변경하여 에피소드 상세 뷰로 이동
+        window.location.hash = `episode/${worldId}/${encodeURIComponent(episodeTitle)}`;
+      }
+    }
+  });
+}
+
 
 // 템플릿 함수들
 function infoCard(name, description) {
@@ -86,11 +104,20 @@ function infoCard(name, description) {
     </div>
   `;
 }
-function episodeCard(title, content) {
+
+function summarizeContent(content) {
+  if (!content) return '';
+  // 태그 제거 후 텍스트만 추출하여 요약
+  const text = content.replace(/<[^>]+>/g, ' ');
+  return text.slice(0, 100) + (text.length > 100 ? '...' : '');
+}
+
+
+function episodeCard(e, worldId) {
     return `
-    <div class="info-card">
-      <div class="name">${title || ''}</div>
-      <div class="desc episode-content">${parseRichText(content)}</div>
+    <div class="info-card episode-card" data-world-id="${worldId}" data-episode-title="${e.title}">
+      <div class.name">${e.title || ''}</div>
+      <div class="desc episode-content-summary">${summarizeContent(e.content)}</div>
     </div>
   `;
 }
