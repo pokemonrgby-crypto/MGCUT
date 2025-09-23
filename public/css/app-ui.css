@@ -237,3 +237,55 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
   font-weight: 800;
   color: var(--warn);
 }
+
+/* public/css/app-ui.css 에 아래 내용 추가 */
+
+/* --- 명소(Site) 카드 UI --- */
+.site-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.site-image {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  background-color: #222;
+  object-fit: cover;
+}
+.site-info {
+  flex-grow: 1;
+}
+.difficulty {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 99px;
+  display: inline-block;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+.difficulty-easy { background-color: #3e6e4a; color: #a5dca2; }
+.difficulty-normal { background-color: #3e6e8a; color: #a2c6dc; }
+.difficulty-hard { background-color: #8a633e; color: #dcb3a2; }
+.difficulty-extreme { background-color: #8a3e3e; color: #dca2a2; }
+.difficulty-impossible { background-color: #6c3e8a; color: #c6a2dc; }
+
+.site-admin-panel {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+/* --- 기타 UI 수정 --- */
+select.select-box {
+  width:100%; 
+  padding:10px; 
+  border-radius:12px; 
+  background:#0f1420; 
+  border:1px solid #273248; 
+  color:var(--text);
+  font-family: inherit;
+  font-size: 14px;
+}
