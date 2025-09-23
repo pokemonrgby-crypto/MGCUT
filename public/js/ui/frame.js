@@ -8,7 +8,7 @@ import * as CreateWorld from '../tabs/create-world.js';
 import * as CreateCharacter from '../tabs/create-character.js';
 import * as CreatePrompt from '../tabs/create-prompt.js';
 import * as WorldDetail from '../tabs/world-detail.js';
-import * as EpisodeDetail from '../tabs/episode-detail.js';
+import * as EpisodeDetail from '../tabs/episode-detail.js'; // [추가]
 
 export const ui = {
   blocker: null,
@@ -40,7 +40,8 @@ function handleRouteChange() {
     'create-world': { parentView: 'create', view: 'create-world' },
     'create-character': { parentView: 'create', view: 'create-character' },
     'create-prompt': { parentView: 'create', view: 'create-prompt' },
-    'world': { parentView: 'home', view: 'world-detail', mount: () => WorldDetail.mount(param) }
+    'world': { parentView: 'home', view: 'world-detail', mount: () => WorldDetail.mount(param1) },
+    // [추가] 에피소드 상세 보기 라우트
     'episode': { parentView: 'home', view: 'episode-detail', mount: () => EpisodeDetail.mount(param1, decodeURIComponent(param2)) }
   };
 
@@ -51,7 +52,7 @@ function handleRouteChange() {
     if (route.mount) route.mount();
 
     // 하단 탭 활성화 상태 업데이트
-    const activeTab = route.parentView || route.view;
+    const activeTab = route.parentView || path; // [수정] 자식 뷰일 때 parentView를 기준으로 탭 활성화
     document.querySelectorAll('#bottom-bar button').forEach(b => {
       b.classList.toggle('active', b.dataset.tab === activeTab);
     });
@@ -68,9 +69,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   auth.onAuthStateChanged?.((user) => {
     updateAuthUI(user);
-    if (user) {
-      handleRouteChange(); // 로그인 되면 현재 해시로 페이지 이동
-    }
+    // [수정] 로그인/아웃 시 항상 handleRouteChange 호출하여 현재 해시에 맞는 화면 표시
+    handleRouteChange(); 
   });
 
   bindBottomBar();
@@ -100,6 +100,8 @@ export async function withBlocker(task) {
     return await task();
   } catch (e) {
     console.error(e);
+    // 오류 메시지를 사용자에게 더 친절하게 보여줄 수 있음
+    // alert(e.message); 
     throw e;
   } finally {
     ui.busy(false);
