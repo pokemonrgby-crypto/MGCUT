@@ -72,7 +72,7 @@ export async function loadCharacterBasePrompt() {
   ],
   "chosen": ["선택한 어빌리티 3개의 이름(문자열)"],
   "items": [
-    { "name": "아이템 이름", "description": "아이템의 효과나 배경 설명" }
+    { "name": "아이템 이름", "description": "아이템의 효과나 배경 설명", "grade": "아이템 등급 ('common', 'rare', 'epic', 'legendary' 중 하나)" }
   ]
 }
 
@@ -80,7 +80,7 @@ export async function loadCharacterBasePrompt() {
 - narratives 배열은 최소 1개 이상이어야 합니다.
 - abilities 배열은 정확히 6개여야 합니다.
 - chosen 배열은 abilities 중 3개를 골라 그 이름으로 채워야 합니다.
-- items 배열은 캐릭터가 소지할 만한 아이템 2개를 포함해야 합니다.
+- [중요] items 배열은 기본적으로 빈 배열([])이어야 합니다. 특별한 요청이 없는 한 아이템을 추가하지 마세요.
 - 각 필드의 내용은 풍부하고 상세하게 작성해야 합니다.
 `
   );
