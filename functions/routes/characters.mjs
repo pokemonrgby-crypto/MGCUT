@@ -62,6 +62,70 @@ export function mountCharacters(app) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
+
+
+// [신규] AI JSON을 받아 캐릭터 생성
+app.post('/api/characters/save', async (req, res) => {
+  try {
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+
+    const { worldId, promptId = null, characterData = {}, imageUrl = '' } = req.body || {};
+    if (!worldId) return res.status(400).json({ ok:false, error:'worldId required' });
+
+    const v = validateCharacter(characterData);
+    if (!v.ok) return res.status(400).json({ ok:false, error:`INVALID_CHARACTER: ${v.errors.join(', ')}` });
+
+    // worldName 보강(선택)
+    let worldName = '';
+    try {
+      const wSnap = await db.collection('worlds').doc(worldId).get();
+      worldName = wSnap.exists ? (wSnap.data().name || '') : '';
+    } catch {}
+
+    const now = FieldValue.serverTimestamp();
+
+    // 아이템 정규화: grade -> rarity(N/R/SR/SSR/UR), 기본 []
+    const rarityMap = { common:'N', normal:'N', rare:'R', epic:'SR', legendary:'UR', mythic:'UR', ssr:'SSR', ur:'UR' };
+    const itemsSrc = Array.isArray(characterData.items) ? characterData.items : [];
+    const items = itemsSrc.map(it => {
+      const raw = String(it?.rarity || it?.grade || 'N').toUpperCase();
+      const mapped = rarityMap[raw.toLowerCase()] || raw;
+      const r = ['N','R','SR','SSR','UR'].includes(mapped) ? mapped : 'N';
+      return {
+        name: String(it?.name||'').slice(0,60),
+        description: String(it?.description||''),
+        rarity: r
+      };
+    });
+
+    const docRef = await db.collection('characters').add({
+      name: characterData.name,
+      introShort: characterData.introShort || '',
+      narratives: characterData.narratives || [],
+      abilities: characterData.abilities || [],
+      chosen: characterData.chosen || [],
+      description: characterData.description || '',
+      imageUrl: imageUrl || '',
+      worldId,
+      worldName,
+      promptId: promptId || null,
+      elo: 1000,
+      items,                 // 기본 0개(없으면 [])
+      ownerUid: user.uid,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    res.json({ ok:true, data:{ id: docRef.id }});
+  } catch(e) {
+    res.status(500).json({ ok:false, error:String(e) });
+  }
+});
+
+
+  
+
   // 매치 결과 반영 (Elo 업데이트)
   // body: { aId, bId, result }  // result: 'A' | 'B' | 'DRAW'
   app.post('/api/match', async (req, res) => {
