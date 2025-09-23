@@ -431,3 +431,17 @@ modalStyle.textContent = `
   .modal-body{color:#e9eefb;}
 `;
 document.head.appendChild(modalStyle);
+
+.compare-wrap{ padding:0 16px 12px; }
+.compare-row{ display:grid; grid-template-columns:1fr; gap:12px; }
+.compare .cap{ font-size:12px; opacity:.85; margin-bottom:6px; }
+.compare .hero{ height:160px; border-radius:12px; background:#121826 center/cover no-repeat; margin-bottom:8px; }
+.compare .name{ font-weight:800; font-size:16px; margin-bottom:4px; }
+@media (min-width:520px){
+  .compare-row{ grid-template-columns:1fr 1fr; }
+  .compare .hero{ height:200px; }
+}
+
+.battle-log .log-line{ padding:8px 0; border-bottom:1px dashed #ffffff18; }
+.battle-log blockquote{ border-left:3px solid #7aa2ff66; padding-left:8px; margin:6px 0; color:#e9eefb; opacity:.95; }
+.battle-log code{ background:#111a2c; padding:2px 6px; border-radius:6px; }
