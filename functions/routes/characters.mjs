@@ -218,80 +218,53 @@ export function mountCharacters(app, db, getUserFromReq) {
   });
 
   // --- 배틀 1회 시뮬 + 타임라인 기록 ---
-  app.post('/api/battle/simulate', async (req, res) => {
+app.post('/api/battle/simulate', async (req, res) => {
+  try {
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+    // [수정] 클라이언트에서 API 키를 사용하므로 서버에서는 받을 필요가 없습니다.
+    // const apiKey = String(req.get('X-User-Api-Key') || ... ).trim();
+    // if (!apiKey) return res.status(400).json({ ok: false, error: 'USER_API_KEY_REQUIRED' });
+
+    const { battleId } = req.body || {};
+    if (!battleId) return res.status(400).json({ ok: false, error: 'battleId required' });
+
+    const bRef = db.collection('battles').doc(battleId);
+    const bSnap = await bRef.get();
+    if (!bSnap.exists) return res.status(404).json({ ok: false, error: 'BATTLE_NOT_FOUND' });
+    const b = bSnap.data();
+
+    // [수정] battle 문서의 ownerUid 체크 추가 (본인 배틀만 시뮬레이션 가능)
+    const meSnapForOwnerCheck = await db.collection('characters').doc(b.meId).get();
+    if (meSnapForOwnerCheck.data().ownerUid !== user.uid) {
+      return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
+    }
+    
+    const [meSnap, opSnap] = await Promise.all([
+      meSnapForOwnerCheck, // 이미 조회했으므로 재사용
+      db.collection('characters').doc(b.opId).get(),
+    ]);
+    const me = meSnap.data(), op = opSnap.data();
+
+    let world = null;
     try {
-      const user = await getUserFromReq(req);
-      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-
-      const apiKey = String(req.get('X-User-Api-Key') || req.get('X-OpenAI-Key') || '').trim();
-      if (!apiKey) return res.status(400).json({ ok: false, error: 'USER_API_KEY_REQUIRED' });
-
-      const { battleId } = req.body || {};
-      if (!battleId) return res.status(400).json({ ok: false, error: 'battleId required' });
-
-      const bRef = db.collection('battles').doc(battleId);
-      const bSnap = await bRef.get();
-      if (!bSnap.exists) return res.status(404).json({ ok: false, error: 'BATTLE_NOT_FOUND' });
-      const b = bSnap.data();
-
-      const [meSnap, opSnap] = await Promise.all([
-        db.collection('characters').doc(b.meId).get(),
-        db.collection('characters').doc(b.opId).get(),
-      ]);
-      const me = meSnap.data(), op = opSnap.data();
-
-      let world = null;
-      try {
-        const wid = me.worldId || op.worldId;
-        if (wid) {
-          const w = await db.collection('worlds').doc(wid).get();
-          if (w.exists) world = w.data();
-        }
-      } catch {}
-
-      const prompt = buildOneShotBattlePrompt({ me, op, world });
-
-      const model = 'gemini-1.5-flash-latest';
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const body = {
-        systemInstruction: { role: 'system', parts: [{ text: '당신은 판타지 전투 해설가입니다. 출력은 반드시 한국어 마크다운 형식이어야 합니다.' }] },
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.9, maxOutputTokens: 2048 }
-      };
-      
-      const resAI = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!resAI.ok) {
-        const t = await resAI.text().catch(() => '');
-        throw new Error(`Gemini ${resAI.status} ${t.slice(0, 200)}`);
+      const wid = me.worldId || op.worldId;
+      if (wid) {
+        const w = await db.collection('worlds').doc(wid).get();
+        if (w.exists) world = w.data();
       }
-      const j = await resAI.json();
-      const markdown =
-        j?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        '**오류**: AI로부터 유효한 응답을 받지 못했습니다.';
+    } catch {}
 
-      const m = /승자:\s*(A|B|무승부)/.exec(markdown);
-      const winTag = m ? (m[1] === '무승부' ? (Math.random() < 0.5 ? 'A' : 'B') : m[1]) : (me.elo >= op.elo ? 'A' : 'B');
+    const prompt = buildOneShotBattlePrompt({ me, op, world });
 
-      const now = FieldValue.serverTimestamp();
-      await bRef.update({ status: 'done', updatedAt: now, logMd: markdown, winner: winTag });
+    // [수정] AI를 호출하는 대신, 생성된 프롬프트를 클라이언트에 전달합니다.
+    res.json({ ok: true, data: { promptForClient: prompt } });
 
-      const preview = markdown.split('\n').slice(0, 4).join(' ').slice(0, 280);
-      await Promise.all([
-        db.collection('characters').doc(b.meId).collection('timeline').add({
-          ts: now, type: 'battle', battleId, opponentId: b.opId,
-          result: winTag === 'A' ? 'WIN' : 'LOSE',
-          preview, worldId: me.worldId || null
-        }),
-        db.collection('characters').doc(b.opId).collection('timeline').add({
-          ts: now, type: 'battle', battleId, opponentId: b.meId,
-          result: winTag === 'B' ? 'WIN' : 'LOSE',
-          preview, worldId: op.worldId || null
-        })
-      ]);
-
-      res.json({ ok: true, data: { winner: winTag, markdown } });
-    } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
-  });
+  } catch (e) { 
+    res.status(500).json({ ok: false, error: String(e) }); 
+  }
+});
 
   app.post('/api/battle/finish', async (req, res) => {
     try {
