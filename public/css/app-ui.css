@@ -463,3 +463,131 @@ document.head.appendChild(modalStyle);
   display:inline-block; margin-bottom:8px; padding:6px 10px;
   border-radius:10px; background:#1a233a; border:1px solid #88aaff55; font-weight:800;
 }
+
+
+/* public/css/app-ui.css 파일 맨 아래에 이 내용을 추가하세요. */
+
+/* === Character Detail (Hero/Tabs/Panels) === */
+.char-hero{
+  position:relative; aspect-ratio:1/1;
+  border-radius:16px; overflow:hidden; margin:12px 16px;
+  box-shadow: var(--shadow);
+}
+.char-hero .bg{
+  position:absolute; inset:0; background:#222 center/cover no-repeat;
+  transform: translateY(0); transition: transform .25s ease, opacity .25s ease;
+  will-change: transform, opacity;
+}
+.char-hero .grad{ position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.1)); }
+.char-hero .title{ position:absolute; left:16px; right:16px; bottom:12px; font-weight:700; font-size:18px; text-shadow:0 2px 10px rgba(0,0,0,.7); }
+
+.tabs-char{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:8px 16px; }
+.tabs-char button{ padding:10px 8px; border-radius:10px; background:#1115; color:#cfd6e6; border:0; cursor:pointer; font-weight:700; }
+.tabs-char button.active{ background:#ffffff18; color:#fff; }
+
+.tab-panels{ padding:0 16px 16px; }
+.panel{ display:none; opacity:0; transform:translateY(6px); transition:opacity .12s ease, transform .12s ease; }
+.panel.active{ display:block; opacity:1; transform:translateY(0); }
+
+.story-cards.grid2{ display:grid; grid-template-columns:1fr; gap:12px; }
+.story-card{
+  padding:14px; border-radius:14px;
+  background:rgba(15, 20, 36, 0.9); border:1px solid rgba(170, 183, 255, 0.18);
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+}
+.story-card .title{ font-weight:700; margin-bottom:6px; }
+
+.skills-head{ display:flex; align-items:center; gap:8px; margin:6px 0 8px; }
+.skills-head .count{ font-size:12px; opacity:.85; }
+.skills-list.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.skill{
+  padding:12px; border-radius:12px;
+  border:1px solid rgba(159, 180, 255, 0.2);
+  background:rgba(17, 25, 41, 0.8);
+  cursor:pointer; text-align:left;
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+}
+.skill.selected{
+  outline:2px solid #88aaff; background:#18243b;
+  box-shadow: 0 8px 22px rgba(23,105,255,.20);
+}
+.skill .small{ display:block; margin-top:6px; line-height:1.35; }
+
+.slots{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:10px 0 12px; }
+.slot{ height:64px; border-radius:10px; background:#0b0f1a; border:1px dashed rgba(255, 255, 255, 0.19); display:flex; align-items:center; justify-content:center; }
+.inventory.grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.item{ padding:8px; border-radius:10px; background:#12172a; border:1px solid rgba(255, 255, 255, 0.13); }
+.item.in-slot{ background:#1a233a; }
+
+.fab-battle{
+  position:fixed; left:16px; right:auto; bottom:calc(96px + env(safe-area-inset-bottom));
+  width:56px; height:56px; border-radius:50%; border:0;
+  background:#ff4d67; color:#fff; font-size:22px;
+  display:grid; place-items:center; box-shadow:0 8px 20px rgba(255,77,103,.35); z-index:1001;
+  transition: transform 0.2s ease;
+}
+.fab-battle:active{ transform:translateY(1px) scale(.98); }
+
+@media (min-width: 420px){
+  .story-cards.grid2{ grid-template-columns:1fr 1fr; }
+}
+
+.rail{
+  display:flex; gap:12px; overflow-x:auto; padding: 4px 2px 10px;
+  scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling: touch; /* For momentum-based scrolling on iOS */
+  scrollbar-width: none; /* For Firefox */
+}
+.rail::-webkit-scrollbar { display: none; } /* For Chrome, Safari, and Opera */
+.rail > *{
+  flex:0 0 82%;
+  scroll-snap-align:start;
+}
+@media (min-width:420px){ .rail > *{ flex:0 0 48%; } }
+@media (min-width:640px){ .rail > *{ flex:0 0 32%; } }
+
+.modal-layer{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);display:grid;place-items:center;z-index:1002;animation:fadeIn .2s ease;}
+.modal-card{max-width:720px;width:90%;max-height:80vh;overflow:auto;background:#0f1424; border:1px solid rgba(159, 180, 255, 0.2); border-radius:14px; padding:16px; box-shadow:0 20px 50px rgba(0,0,0,.5); animation:slideInUp .3s ease;}
+.modal-close{position:sticky; top:0; right:0; float:right; font-size:20px; background:transparent; border:0; color:#fff; cursor:pointer;}
+.modal-body{color:#e9eefb;}
+
+.compare-wrap{ padding:0 16px 12px; }
+.compare-row{ display:grid; grid-template-columns:1fr; gap:12px; }
+.compare .cap{ font-size:12px; opacity:.85; margin-bottom:6px; }
+.compare .hero{ height:160px; border-radius:12px; background:#121826 center/cover no-repeat; margin-bottom:8px; transition: transform 0.3s ease; }
+.compare:hover .hero { transform: scale(1.03); }
+.compare .name{ font-weight:800; font-size:16px; margin-bottom:4px; }
+@media (min-width:520px){
+  .compare-row{ grid-template-columns:1fr 1fr; }
+  .compare .hero{ height:200px; }
+}
+
+.battle-log .log-line{ padding:8px 0; border-bottom:1px dashed rgba(255, 255, 255, 0.12); }
+.battle-log blockquote{ border-left:3px solid rgba(122, 162, 255, 0.4); padding-left:8px; margin:6px 0; color:#e9eefb; opacity:.95; font-style: italic; }
+.battle-log code{ background:#111a2c; padding:2px 6px; border-radius:6px; }
+
+.sim-loading{ display:grid; place-items:center; text-align:center; }
+.sim-loading .dots{ font-weight:700; letter-spacing:.5px; }
+.sim-loading .dots span{ animation: blink 1.2s infinite; display:inline-block; }
+.sim-loading .dots span:nth-child(2){ animation-delay:.2s }
+.sim-loading .dots span:nth-child(3){ animation-delay:.4s }
+@keyframes blink{ 0%,60%,100%{ opacity:.2 } 30%{ opacity:1 } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+.md-body{ color:#e9eefb; line-height:1.6 }
+.md-body h3{ margin:12px 0 6px }
+.md-body p{ margin:8px 0 }
+.md-body blockquote{ border-left:3px solid rgba(122, 162, 255, 0.4); padding-left:8px; color:#e9eefb; opacity:.95; }
+.md-body code{ background:#111a2c; padding:2px 6px; border-radius:6px }
+
+.winner-badge{
+  display:inline-block; margin-bottom:8px; padding:6px 10px;
+  border-radius:10px; background:#1a233a; border:1px solid rgba(136, 170, 255, 0.35); font-weight:800;
+}
+
+.err {
+    background-color: rgba(255, 107, 107, 0.1);
+    border-left: 3px solid var(--err);
+    color: #ffc2c2;
+}
