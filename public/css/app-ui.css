@@ -20,7 +20,7 @@ body{
   overflow:hidden; position:relative;
 }
 .card.pad{padding:18px}
-.card + .card{margin-top:12px}
+.card + .card, .world-select-card + .world-select-card {margin-top:12px}
 
 .world-card{
   position: relative;
@@ -201,9 +201,10 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
   align-items: center;
   gap: 16px;
   padding: 12px;
-  margin-bottom: 12px;
   cursor: pointer;
+  border-radius: var(--radius);
   transition: background-color .2s ease;
+  background-color: var(--card);
 }
 .world-select-card:hover {
   background-color: #1a212d;
