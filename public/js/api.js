@@ -31,20 +31,29 @@ async function idToken() {
   return u ? await u.getIdToken() : null;
 }
 
+// [교체] 응답이 HTML일 때 BAD_JSON 대신 깔끔히 에러 던지기
 async function call(method, path, body) {
-  const headers = { 'content-type': 'application/json' };
-  
-  const t = await idToken();
-  if (t) headers['authorization'] = 'Bearer ' + t;
-
   const res = await fetch(path, {
-    method, headers,
-    body: body ? JSON.stringify(body) : undefined
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'include'
   });
-  const json = await res.json().catch(()=>({ ok:false, error:'BAD_JSON' }));
-  if (!res.ok || !json.ok) throw new Error(json.error || json.details?.join(', ') || res.statusText);
-  return json;
+
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    // 서버에서 404/에러로 index.html 같은 걸 돌려준 케이스
+    const text = await res.text();
+    throw new Error(`NETWORK_NON_JSON: ${res.status} ${res.statusText}`);
+  }
+
+  const json = await res.json();
+  if (!res.ok || json?.ok === false) {
+    throw new Error(json?.error || `HTTP_${res.status}`);
+  }
+  return json; // { ok:true, data: ... }
 }
+
 
 export const api = {
   // worlds
@@ -74,15 +83,24 @@ export const api = {
   validatePrompt: (id) => call('POST', `/api/prompts/${id}/validate`),
   reportPrompt: (id, reason) => call('POST', `/api/prompts/${id}/report`, { reason }),
 
-  // [신규] rankings
-  // [추가] 캐릭터 단건/목록/랭킹/매치
-  getCharacter: (id) => call('GET', `/api/characters/${id}`),
-  listCharacters: (params={}) => {
-    const q = new URLSearchParams(params).toString();
-    return call('GET', `/api/characters${q ? `?${q}` : ''}`);
-   },
-  getCharacterRanking: ({ limit=50 }={}) => call('GET', `/api/rankings/characters?limit=${limit}`),
-  getWorldRanking: ({ limit=50 }={}) => call('GET', `/api/rankings/worlds?limit=${limit}`),
-  reportMatch: (aId, bId, result /* 'A'|'B'|'DRAW' */) => call('POST', `/api/match`, { aId, bId, result }),
+  // [추가] 랭킹/캐릭터/세계관 상세용
+getCharacter: (id) => call('GET', `/api/characters/${id}`),
 
+// 세계관에 소속된 캐릭터를 Elo 내림차순으로
+getWorldCharacters: (worldId) =>
+  call('GET', `/api/characters?worldId=${encodeURIComponent(worldId)}&sort=elo_desc&limit=50`),
+
+// 랭킹 탭
+getCharacterRanking: ({ limit=50 }={}) =>
+  call('GET', `/api/rankings/characters?limit=${limit}`),
+
+getWorldRanking: ({ limit=50 }={}) =>
+  call('GET', `/api/rankings/worlds?limit=${limit}`),
+
+// 좋아요(기존에 있다면 생략)
+likeWorld: (id) => call('POST', `/api/worlds/${id}/like`),
+
+// Elo 매치(선택 기능)
+reportMatch: (aId, bId, result /* 'A'|'B'|'DRAW' */) =>
+  call('POST', `/api/match`, { aId, bId, result }),
 };
