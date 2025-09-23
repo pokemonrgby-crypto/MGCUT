@@ -5,16 +5,29 @@
     "site": "tale-of-heros-staging",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "headers": [
-      { "source": "/index.html",
-        "headers": [{ "key": "Cache-Control", "value": "no-store" }] },
-      { "source": "**/*.html",
-        "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-      { "source": "**/*.@(js|mjs|css)",
-        "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] },
-      { "source": "/configs/**",
-        "headers": [{ "key": "Cache-Control", "value": "no-store" }] },
-      { "source": "**/*.@(png|jpg|jpeg|webp|svg|gif|woff2|ttf)",
-        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] }
+      { 
+        "source": "**/*.@(js|mjs|css)",
+        "headers": [{ 
+          "key": "Cache-Control", 
+          "value": "public, max-age=3600, must-revalidate" 
+        }] 
+      },
+      { 
+        "source": "**/*.@(png|jpg|jpeg|webp|svg|gif|woff2|ttf)",
+        "headers": [{ 
+          "key": "Cache-Control", 
+          "value": "public, max-age=31536000, immutable" 
+        }] 
+      },
+      {
+        "source": "**/*.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      }
     ],
     "rewrites": [
       { "source": "/api/**", "function": "api" },
