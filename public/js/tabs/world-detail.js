@@ -77,9 +77,31 @@ function render(world) {
   bindTabEvents(root);
 }
 
-function infoCard(name, description) { /* ... 이전과 동일 ... */ }
-function episodeCard(title, content) { /* ... 이전과 동일 ... */ }
-function parseRichText(text) { /* ... 이전과 동일 ... */ }
+// 템플릿 함수들
+function infoCard(name, description) {
+  return `
+    <div class="info-card">
+      <div class="name">${name || ''}</div>
+      <div class="desc">${description || ''}</div>
+    </div>
+  `;
+}
+function episodeCard(title, content) {
+    return `
+    <div class="info-card">
+      <div class="name">${title || ''}</div>
+      <div class="desc episode-content">${parseRichText(content)}</div>
+    </div>
+  `;
+}
+function parseRichText(text) {
+  if (!text) return '';
+  return text
+    .replace(/<대사>/g, '<div class="dialogue">')
+    .replace(/<\/대사>/g, '</div>')
+    .replace(/<서술>/g, '<div class="narrative">')
+    .replace(/<\/서술>/g, '</div>');
+}
 
 function bindTabEvents(container) {
   const nav = container.querySelector('.detail-tabs-nav');
