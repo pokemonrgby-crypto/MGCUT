@@ -59,9 +59,8 @@ async function render(meId) { // [수정] opId 인자 제거
         <div class="small" style="opacity:.8;margin-top:6px">개인 API 키는 [내정보]에 저장된 값을 사용합니다.</div>
       </div>`;
 
-    const row = document.getElementById('cmp-row');
-    row.innerHTML = cardHTML('나', me) + cardHTML('상대', op);
 
+    
     document.getElementById('btn-start-battle').onclick = async () => {
       const key = localStorage.getItem('GEMINI_KEY');
       if (!key) return alert('내정보에서 Gemini API 키를 먼저 저장해주세요.');
