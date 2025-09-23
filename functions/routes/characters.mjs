@@ -113,7 +113,8 @@ app.post('/api/battle/turn', async (req, res) => {
     const user = await getUserFromReq(req);
     if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
 
-    const apiKey = String(req.get('X-OpenAI-Key') || '').trim();
+    const apiKey = String(req.get('X-User-Api-Key') || req.get('X-OpenAI-Key') || '').trim();
+
     if (!apiKey) return res.status(400).json({ ok:false, error:'OPENAI_KEY_REQUIRED' });
 
     const { battleId, action } = req.body || {};
