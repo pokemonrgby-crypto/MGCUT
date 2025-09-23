@@ -81,7 +81,6 @@ async function render(battleId){
       b.textContent = `결과: ${winner} 승리`;
       out.prepend(b);
       
-      // [수정] Elo 업데이트 시 로그(markdown)를 함께 전송합니다.
       await api.battleFinish(battleId, winner, markdown);
 
     } else {
@@ -105,7 +104,8 @@ async function render(battleId){
   };
 }
 export function mount() {
-  const m = location.hash.match(/#\/battle\??(.*)$/);
+  // [수정] URL에서 /가 빠져도 인식하도록 정규식 수정
+  const m = location.hash.match(/#\/?battle\??(.*)$/);
   if (!m) return;
   const q = new URLSearchParams(m[1] || '');
   const id = q.get('id');
