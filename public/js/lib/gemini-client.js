@@ -1,11 +1,7 @@
 // public/js/lib/gemini-client.js
-
-// [추가] 클라이언트 사이드 모델 풀
 const MODEL_POOL = [
-  'gemini-2.0-flash',
-  'gemini-2.5-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-2.5-flash-lite',
+  'gemini-1.5-flash-latest',
+  'gemini-pro',
 ];
 
 function pickModel() {
@@ -22,21 +18,21 @@ function extractJson(text = '') {
   try { return JSON.parse(stripFences(m[1] || m[0])); } catch { return null; }
 }
 
-export async function callClientSideGemini({ system, user }) {
+export async function callClientSideGemini(prompts, responseMimeType = "application/json") {
+  const { system, user } = prompts;
   const apiKey = localStorage.getItem('GEMINI_KEY');
   if (!apiKey) {
     throw new Error('Gemini API 키가 필요합니다. 내정보 탭에서 키를 저장해주세요.');
   }
 
-  // [수정] 모델 풀에서 무작위 선택
   const model = pickModel();
-  console.log(`Using Gemini Model: ${model}`); // 디버깅용 로그
+  console.log(`Using Gemini Model: ${model}`);
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
   
   const body = {
     contents: [{ role: 'user', parts: [{ text: user }] }],
     generationConfig: {
-      responseMimeType: "application/json",
+      responseMimeType: responseMimeType,
     }
   };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
@@ -56,5 +52,9 @@ export async function callClientSideGemini({ system, user }) {
 
   const data = await r.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  return extractJson(text);
+  
+  if (responseMimeType === "application/json") {
+    return extractJson(text);
+  }
+  return text; // JSON이 아닌 경우 원본 텍스트 반환
 }
