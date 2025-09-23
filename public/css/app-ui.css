@@ -445,3 +445,21 @@ document.head.appendChild(modalStyle);
 .battle-log .log-line{ padding:8px 0; border-bottom:1px dashed #ffffff18; }
 .battle-log blockquote{ border-left:3px solid #7aa2ff66; padding-left:8px; margin:6px 0; color:#e9eefb; opacity:.95; }
 .battle-log code{ background:#111a2c; padding:2px 6px; border-radius:6px; }
+
+.sim-loading{ display:grid; place-items:center; text-align:center; }
+.sim-loading .dots{ font-weight:700; letter-spacing:.5px; }
+.sim-loading .dots span{ animation: blink 1.2s infinite; display:inline-block; }
+.sim-loading .dots span:nth-child(2){ animation-delay:.2s }
+.sim-loading .dots span:nth-child(3){ animation-delay:.4s }
+@keyframes blink{ 0%,60%,100%{ opacity:.2 } 30%{ opacity:1 } }
+
+.md-body{ color:#e9eefb; line-height:1.6 }
+.md-body h3{ margin:12px 0 6px }
+.md-body p{ margin:8px 0 }
+.md-body blockquote{ border-left:3px solid #7aa2ff66; padding-left:8px; color:#e9eefb; opacity:.95; }
+.md-body code{ background:#111a2c; padding:2px 6px; border-radius:6px }
+
+.winner-badge{
+  display:inline-block; margin-bottom:8px; padding:6px 10px;
+  border-radius:10px; background:#1a233a; border:1px solid #88aaff55; font-weight:800;
+}
