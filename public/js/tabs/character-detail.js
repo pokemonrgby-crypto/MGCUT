@@ -263,13 +263,27 @@ if (storyWrap){
     const currentUid = window.__FBAPP__?.auth?.currentUser?.uid;
     if (currentUid && c.ownerUid && currentUid === c.ownerUid) {
       fab.hidden = false;
-      fab.addEventListener('click', ()=>{
-        // 이벤트만 쏘고 라우터/다른 모듈이 처리하도록
-        const ev = new CustomEvent('start-battle', { detail:{ characterId: c.id }});
-        window.dispatchEvent(ev);
-        // 필요시 기본 이동
-        location.hash = '#/adventure';
-      });
+      fab.addEventListener('click', async ()=>{
+  try{
+    // 서버에 매칭 후보 요청(자기 자신 제외 + Elo 근접)
+    const r = await api.findMatch(c.id);
+    const opId = r?.data?.opponentId;
+    if (!opId) {
+      alert('지금은 비슷한 점수대의 상대가 없어요. 잠시 후 다시 시도해줘!');
+      return;
+    }
+    // 매칭 탭으로 이동(hash 라우터 기준)
+    if (document.querySelector('[data-view="matching"]')) {
+      location.hash = `#/matching?me=${encodeURIComponent(c.id)}&op=${encodeURIComponent(opId)}`;
+    } else {
+      // 매칭 탭이 없다면 임시로 모험 탭으로
+      location.hash = `#/adventure?me=${encodeURIComponent(c.id)}&op=${encodeURIComponent(opId)}`;
+    }
+  }catch(e){
+    alert('매칭 요청 실패: ' + (e.message||e));
+  }
+});
+
     } else {
       fab.hidden = true;
     }
