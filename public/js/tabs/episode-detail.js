@@ -1,8 +1,10 @@
+// (수정된 결과)
 // public/js/tabs/episode-detail.js
 import { api } from '../api.js';
 
 const rootSel = '[data-view="episode-detail"]';
 
+// [수정] <생각>, <시스템> 태그 지원 추가
 function parseRichText(text) {
   if (!text) return '';
   return text
@@ -11,7 +13,11 @@ function parseRichText(text) {
     .replace(/<서술>/g, '<div class="narrative">')
     .replace(/<\/서술>/g, '</div>')
     .replace(/<강조>/g, '<strong class="emphasis">')
-    .replace(/<\/강조>/g, '</strong>');
+    .replace(/<\/강조>/g, '</strong>')
+    .replace(/<생각>/g, '<div class="thought">')
+    .replace(/<\/생각>/g, '</div>')
+    .replace(/<시스템>/g, '<div class="system">')
+    .replace(/<\/시스템>/g, '</div>');
 }
 
 export async function mount(worldId, episodeTitle) {
