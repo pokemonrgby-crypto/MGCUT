@@ -1,3 +1,4 @@
+// (수정된 결과)
 // public/js/api.js
 import {
   getAuth,
@@ -90,13 +91,13 @@ export const api = {
   getWorldRanking: ({ limit=50 }={}) =>
     call('GET', `/api/rankings/worlds?limit=${limit}`),
   
-  // ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
   findMatch: (charId) => call('POST', '/api/matchmaking/find', { charId }),
   createBattle: (meId, opId) => call('POST', '/api/battle/create', { meId, opId }),
   battleSimulate: (battleId, userApiKey) => call('POST', '/api/battle/simulate', { battleId }, { 'X-User-Api-Key': userApiKey || '' }),
-  battleFinish: (battleId, winner) => call('POST', '/api/battle/finish', { battleId, winner }), // [추가] battle.js에서 사용하므로 명시적으로 추가
- 
-      // ▲▲▲ [수정] 여기까지 추가 ▲▲▲
+  // [수정] battleFinish에 log 파라미터 추가
+  battleFinish: (battleId, winner, log) => call('POST', '/api/battle/finish', { battleId, winner, log }),
+  // [추가] 캐릭터 로그 조회를 위한 API 함수
+  getCharacterBattleLogs: (charId) => call('GET', `/api/characters/${charId}/battle-logs`),
 
   updateAbilitiesEquipped: (id, chosen) =>
     call('POST', `/api/characters/${encodeURIComponent(id)}/abilities`, { chosen }),
