@@ -336,6 +336,15 @@ select.select-box {
 .char-hero .title{ position:absolute; left:16px; right:16px; bottom:12px; font-weight:700; font-size:18px; text-shadow:0 2px 10px rgba(0,0,0,.7); }
 
 .tabs-char{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:8px 16px; }
+/* === readability boost === */
+.panel, .story-card, .skill, .item, .kv .v, .desc, .small {
+  color: #e9eefb;  /* 본문/보조 텍스트 기본 대비 ↑ */
+}
+.panel .small { color:#d6def4; }
+.skill .small, .item .small { color:#dfe6ff; }
+.info-card .name { color:#ffffff; }
+.info-card .kv .k { color:#cbd6f3; }
+
 .tabs-char button{ padding:10px 8px; border-radius:10px; background:#1115; color:#cfd6e6; border:0; cursor:pointer; font-weight:700; }
 .tabs-char button.active{ background:#ffffff18; color:#fff; }
 
@@ -344,14 +353,31 @@ select.select-box {
 .panel.active{ display:block; opacity:1; transform:translateY(0); }
 
 .story-cards.grid2{ display:grid; grid-template-columns:1fr; gap:12px; }
-.story-card{ padding:12px; border-radius:12px; background:#0f1220cc; border:1px solid #ffffff22; }
+.story-card{
+  padding:14px; border-radius:14px;
+  background:#0f1424e6; border:1px solid #aab7ff2e;
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+}
+.story-card .title{ font-weight:700; margin-bottom:6px; }
+
 
 /* skills */
 .skills-head{ display:flex; align-items:center; gap:8px; margin:6px 0 8px; }
 .skills-head .count{ font-size:12px; opacity:.85; }
 .skills-list.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-.skill{ padding:10px; border-radius:10px; border:1px solid #ffffff26; background:#101424cc; cursor:pointer; text-align:left; }
-.skill.selected{ outline:2px solid #8ad; background:#1b2235ea; }
+.skill{
+  padding:12px; border-radius:12px;
+  border:1px solid #9fb4ff33;
+  background:#111929cc;
+  cursor:pointer; text-align:left;
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+}
+.skill.selected{
+  outline:2px solid #88aaff; background:#18243b;
+  box-shadow: 0 8px 22px rgba(23,105,255,.20);
+}
+.skill .small{ display:block; margin-top:6px; line-height:1.35; }
+
 
 /* items */
 .slots{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:10px 0 12px; }
@@ -370,5 +396,21 @@ select.select-box {
 .fab-battle:active{ transform:translateY(1px) scale(.98); }
 @media (min-width: 420px){
   .story-cards.grid2{ grid-template-columns:1fr 1fr; }
+}
+
+/* === horizontal rail (no wrap) === */
+.rail{
+  display:flex; gap:12px; overflow-x:auto; padding: 4px 2px 10px;
+  scroll-snap-type:x mandatory;
+}
+.rail > *{
+  flex:0 0 82%;           /* 모바일 기본: 한 카드가 화면 대부분 차지 */
+  scroll-snap-align:start;
+}
+@media (min-width:420px){
+  .rail > *{ flex:0 0 48%; }  /* 태블릿 작은 폭: 2개가 옆으로 */
+}
+@media (min-width:640px){
+  .rail > *{ flex:0 0 32%; }  /* 큰 폭: 3개까지 옆으로 */
 }
 
