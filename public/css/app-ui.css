@@ -20,7 +20,7 @@ body{
   overflow:hidden; position:relative;
 }
 .card.pad{padding:18px}
-.card + .card, .world-select-card + .world-select-card {margin-top:12px}
+/*.card + .card, .world-select-card + .world-select-card {margin-top:12px}*/
 
 .world-card, .site-card{
   position: relative;
@@ -52,6 +52,11 @@ body{
   font-size:16px; font-weight:700; letter-spacing:.2px; text-shadow:0 2px 10px rgba(0,0,0,.7);
 }
 .grid3{display:grid; grid-template-columns:1fr; gap:12px; padding:0 16px 16px}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 @media (min-width:420px){ .grid3{ grid-template-columns:repeat(2,1fr);} }
 .create-card{min-height:110px; display:flex; flex-direction:column; gap:8px; align-items:flex-start; padding:16px; cursor:pointer;}
 .create-card .icon{width:42px; height:42px; border-radius:12px; background:#1d2431; display:grid; place-items:center; color: var(--acc); margin-bottom: auto;}
