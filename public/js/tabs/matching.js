@@ -92,5 +92,3 @@ function onRoute(){
   render(q.get('me'));
 }
 
-window.addEventListener('hashchange', onRoute);
-window.addEventListener('DOMContentLoaded', onRoute);
