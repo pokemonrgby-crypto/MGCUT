@@ -1,9 +1,12 @@
-// /public/js/tabs/battle.js — 1회 시뮬 버전
+// public/js/tabs/battle.js
 import { api } from '../api.js';
+import { ui } from '../ui/frame.js';
+import { callClientSideGemini } from '../lib/gemini-client.js';
 
 const ROOT = '[data-view="battle"]';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+
 function md(s){
   let t = esc(s);
   t = t.replace(/^### (.+)$/gm,'<h3>$1</h3>');
@@ -27,54 +30,81 @@ async function render(battleId){
       <div class="small">ID: ${battleId}</div>
     </div>
     <div class="card pad sim-loading" style="margin:0 16px 12px">
-      <div class="dots">시뮬레이션 중<span>.</span><span>.</span><span>.</span></div>
-      <div class="small" style="opacity:.8">AI는 내정보에 저장된 키로 호출돼.</div>
+      <div class="dots">AI 시뮬레이션 중<span>.</span><span>.</span><span>.</span></div>
+      <div class="small" style="opacity:.8">Gemini API 키로 AI를 호출합니다.</div>
     </div>
     <div class="card pad md-body" style="margin:0 16px 16px; display:none"></div>
     <div style="display:flex; gap:8px; margin:0 16px 16px">
-      <button id="btn-rematch" class="btn">다시 매칭</button>
-      <button id="btn-resim" class="btn">다시 시뮬</button>
+      <button id="btn-rematch" class="btn secondary">다른 상대 찾기</button>
+      <button id="btn-resim" class="btn">다시 시뮬레이션</button>
     </div>
   `;
 
-  const key = localStorage.getItem('GEMINI_KEY') || '';
+  const key = localStorage.getItem('GEMINI_KEY');
   if (!key) {
     const l = root.querySelector('.sim-loading .small');
-    l.innerHTML = '내정보에서 API 키를 먼저 저장해줘!';
+    if (l) l.innerHTML = '내정보 탭에서 Gemini API 키를 먼저 저장해주세요.';
     return;
   }
 
-  try{
-    const r = await api.battleSimulate(battleId, key);
-    const markdown = r?.data?.markdown || '**오류**: 결과 없음';
-    const out = root.querySelector('.md-body');
-    out.innerHTML = md(markdown);
-    out.style.display = '';
+  try {
+    // 1. 서버에서 AI 호출을 위한 프롬프트를 받아옵니다.
+    const promptRes = await api.battleSimulate(battleId, key);
+    const promptForClient = promptRes.data.promptForClient;
 
-    // 로딩 박스 숨김
-    root.querySelector('.sim-loading')?.remove();
+    if (!promptForClient) {
+        throw new Error("서버로부터 유효한 AI 프롬프트를 받지 못했습니다.");
+    }
+    
+    // 2. 클라이언트에서 Gemini API를 직접 호출합니다.
+    const markdown = await callClientSideGemini({
+        system: "당신은 판타지 전투 해설가입니다. 전투 과정을 생생하고 흥미롭게 묘사해주세요. 출력은 반드시 한국어 마크다운 형식이어야 합니다.",
+        user: promptForClient
+    }, 'text/markdown'); // 응답 형식을 마크다운으로 요청
 
-    // 승자 뱃지 강조
-    const m = /승자:\s*(A|B|무승부)/.exec(markdown);
-    if (m) {
-      const b = document.createElement('div');
-      b.className = 'winner-badge';
-      b.textContent = `결과: ${m[1]}`;
-      out.prepend(b);
+    if (!markdown) {
+        throw new Error("AI가 유효한 전투 로그를 생성하지 못했습니다.");
     }
 
-  }catch(e){
+    const out = root.querySelector('.md-body');
+    if (out) {
+      out.innerHTML = md(markdown);
+      out.style.display = '';
+    }
+
+    root.querySelector('.sim-loading')?.remove();
+
+    // 3. 승자 정보를 파싱하고, 서버에 결과를 전송하여 Elo를 업데이트합니다.
+    const m = /승자:\s*(A|B)/.exec(markdown);
+    if (m) {
+      const winner = m[1];
+      const b = document.createElement('div');
+      b.className = 'winner-badge';
+      b.textContent = `결과: ${winner} 승리`;
+      out.prepend(b);
+      
+      // Elo 업데이트 요청
+      await api.battleFinish(battleId, winner);
+
+    } else {
+        // AI가 승자를 명시하지 않은 경우, 무작위로 한 명을 승자로 지정
+        const winner = Math.random() < 0.5 ? 'A' : 'B';
+        const b = document.createElement('div');
+        b.className = 'winner-badge';
+        b.textContent = `결과: ${winner} 승리 (임의 결정)`;
+        out.prepend(b);
+        await api.battleFinish(battleId, winner);
+    }
+
+  } catch(e) {
     const l = root.querySelector('.sim-loading .small');
-    l.innerHTML = '시뮬 실패: ' + (e.message||e);
+    if (l) l.textContent = `시뮬레이션 실패: ${e.message || e}`;
   }
 
-  // 버튼
-  root.querySelector('#btn-rematch').onclick = ()=>{
-    // 이전 matching 화면으로 복귀
-    history.back(); // 또는: location.hash = '#/matching'
+  root.querySelector('#btn-rematch').onclick = () => {
+    history.back();
   };
-  root.querySelector('#btn-resim').onclick = ()=>{
-    // 현재 id로 다시 시뮬
+  root.querySelector('#btn-resim').onclick = () => {
     render(battleId);
   };
 }
@@ -89,5 +119,6 @@ function onRoute(){
   const id = q.get('id');
   if (id) render(id);
 }
+
 window.addEventListener('hashchange', onRoute);
-document.addEventListener('DOMContentLoaded', onRoute);
+window.addEventListener('DOMContentLoaded', onRoute);
