@@ -132,6 +132,7 @@ export function mountWorlds(app){
       res.status(500).json({ ok: false, error: String(e) });
     }
   });
+
   app.patch('/api/worlds/:id/siteImage', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
@@ -155,6 +156,60 @@ export function mountWorlds(app){
 
       await worldRef.update({ sites });
       res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e) });
+    }
+  });
+
+  // [신규] 세계관 요소 추가 (명소, NPC, 세력 공용)
+  app.post('/api/worlds/:id/elements', async (req, res) => {
+    try {
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+      const { type, data } = req.body;
+      const validTypes = ['sites', 'npcs', 'factions'];
+      if (!validTypes.includes(type) || !data || !data.name) {
+        return res.status(400).json({ ok: false, error: 'INVALID_REQUEST' });
+      }
+      
+      const ref = db.collection('worlds').doc(req.params.id);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+      if (snap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'FORBIDDEN' });
+
+      await ref.update({ [type]: FieldValue.arrayUnion(data) });
+      res.json({ ok: true });
+
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e) });
+    }
+  });
+
+  // [신규] 세계관 요소 삭제 (명소, NPC, 세력 공용)
+  app.delete('/api/worlds/:id/elements', async (req, res) => {
+    try {
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+      const { type, name } = req.body;
+      const validTypes = ['sites', 'npcs', 'factions'];
+      if (!validTypes.includes(type) || !name) {
+        return res.status(400).json({ ok: false, error: 'INVALID_REQUEST' });
+      }
+      
+      const ref = db.collection('worlds').doc(req.params.id);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+      const worldData = snap.data();
+      if (worldData.ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'FORBIDDEN' });
+
+      const currentElements = worldData[type] || [];
+      const updatedElements = currentElements.filter(el => el.name !== name);
+
+      await ref.update({ [type]: updatedElements });
+      res.json({ ok: true });
+
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e) });
     }
