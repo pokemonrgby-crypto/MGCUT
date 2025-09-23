@@ -196,15 +196,7 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
 .info-card .desc { opacity: 0.8; line-height: 1.6; white-space: pre-wrap; }
 
 /* --- [수정] 에피소드 리치 텍스트 (버그 수정) --- */
-.episode-content .narrative { margin: 1em 0; opacity: 0.9; line-height: 1.7; }
-.episode-content .dialogue {
-  margin: 1em 0;
-  padding: 12px 16px;
-  background: rgba(0,0,0,0.2);
-  border-left: 3px solid var(--acc2);
-  font-style: italic;
-  border-radius: 0 8px 8px 0;
-}
+.episode-content .narrative { margin: 1em 0; opacity: 0.9; line-he
 
 /* --- 카드 애니메이션 --- */
 @keyframes cardFadeIn { to { transform: translateY(0); opacity: 1; } }
