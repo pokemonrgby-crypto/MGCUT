@@ -366,6 +366,14 @@ select.select-box {
 .skills-head .count{ font-size:12px; opacity:.85; }
 .skills-list.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .skill{
+  /* 세로 전용 스킬 리스트 */
+.skills-list.vlist{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.skills-list.vlist .skill{ width:100%; }
+
   padding:12px; border-radius:12px;
   border:1px solid #9fb4ff33;
   background:#111929cc;
@@ -388,7 +396,8 @@ select.select-box {
 
 /* fab */
 .fab-battle{
-  position:fixed; right:20px; bottom:calc(72px + env(safe-area-inset-bottom));
+  position:fixed; left:16px; right:auto; bottom:calc(96px + env(safe-area-inset-bottom));
+
   width:56px; height:56px; border-radius:50%; border:0;
   background:#ff4d67; color:#fff; font-size:22px;
   display:grid; place-items:center; box-shadow:0 8px 20px rgba(255,77,103,.35); z-index:1001;
