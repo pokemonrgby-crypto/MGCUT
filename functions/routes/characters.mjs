@@ -1,6 +1,15 @@
 // functions/routes/characters.mjs
-import { db, FieldValue } from '../lib/firebase.mjs';
+import { FieldValue } from 'firebase-admin/firestore';
 
+// Elo 계산 함수
+function updateElo(a, b, Sa, K = 32) {
+  const Ea = 1 / (1 + Math.pow(10, (b - a) / 400));
+  const newA = Math.round(a + K * (Sa - Ea));
+  const newB = Math.round(b + K * ((1 - Sa) - (1 - Ea)));
+  return [newA, newB];
+}
+
+// Elo 기반 상대 찾기 함수
 async function findOpponentByElo({ db, elo, excludeCharId, excludeUid, band = 150 }) {
   const e = Number(elo ?? 1000);
   const range = async (lo, hi) => {
@@ -21,6 +30,7 @@ async function findOpponentByElo({ db, elo, excludeCharId, excludeUid, band = 15
   return top.length > 0 ? top[Math.floor(Math.random() * top.length)] : null;
 }
 
+// AI 호출을 위한 프롬프트 생성 함수
 function buildOneShotBattlePrompt({ me, op, world }) {
   const pick = (c) => {
     const chosen = Array.isArray(c.chosen) ? c.chosen : [];
@@ -57,6 +67,7 @@ function buildOneShotBattlePrompt({ me, op, world }) {
     `3) 마지막 줄에 '승자: A' 또는 '승자: B' 중 하나만 명시 (무승부 없음)`,
   ].join('\n');
 }
+
 
 export function mountCharacters(app, db, getUserFromReq) {
   app.get('/api/my-characters', async (req, res) => {
@@ -136,7 +147,7 @@ export function mountCharacters(app, db, getUserFromReq) {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
       const { equipped } = req.body || {};
-      if (!Array.isArray(equipped) || equipped.length > 3) { // 3개 이하 허용으로 변경
+      if (!Array.isArray(equipped) || equipped.length > 3) {
         return res.status(400).json({ ok: false, error: 'EQUIPPED_MAX_3_REQUIRED' });
       }
       const ref = db.collection('characters').doc(req.params.id);
@@ -150,7 +161,6 @@ export function mountCharacters(app, db, getUserFromReq) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-  // ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
   app.post('/api/matchmaking/find', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
@@ -195,20 +205,89 @@ export function mountCharacters(app, db, getUserFromReq) {
   });
 
   app.post('/api/battle/simulate', async (req, res) => {
-    // 서버는 AI 호출을 하지 않으므로 이 엔드포인트는 더미 응답만 반환하거나,
-    // 클라이언트가 직접 AI를 호출하도록 유도합니다.
-    // 여기서는 클라이언트가 AI 호출 후 결과를 저장하는 역할만 하도록 수정할 수 있습니다.
-    // 하지만 요청사항은 "서버는 AI 호출을 지원하지 않음"이므로, 이 엔드포인트는 사실상 필요 없습니다.
-    // 클라이언트 battle.js가 직접 AI 호출 후 battle log를 생성/저장하는 방식으로 변경해야 합니다.
-    // 여기서는 요청에 맞춰, 서버가 아닌 클라이언트에서 AI를 호출한다는 전제 하에,
-    // Elo 업데이트와 같은 서버 사이드 작업만 처리하는 로직을 남깁니다.
+    try {
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
 
-    // **중요**: 실제 AI 호출은 battle.js에서 `callClientSideGemini`를 통해 이루어지고,
-    // 그 결과를 이 엔드포인트로 보내 Elo 업데이트 등을 처리해야 합니다.
-    // 하지만 현재 `battle.js`는 `api.battleSimulate`를 호출하고 있으므로,
-    // 이 함수는 단순히 더미 마크다운을 반환하여 기존 흐름을 유지하겠습니다.
-    
-    res.json({ ok: true, data: { markdown: "AI 호출은 클라이언트에서 처리해야 합니다.\n\n승자: A" } });
+      const { battleId } = req.body || {};
+      if (!battleId) return res.status(400).json({ ok: false, error: 'battleId required' });
+
+      const bRef = db.collection('battles').doc(battleId);
+      const bSnap = await bRef.get();
+      if (!bSnap.exists) return res.status(404).json({ ok: false, error: 'BATTLE_NOT_FOUND' });
+      const b = bSnap.data();
+
+      const [meSnap, opSnap] = await Promise.all([
+        db.collection('characters').doc(b.meId).get(),
+        db.collection('characters').doc(b.opId).get(),
+      ]);
+      const me = meSnap.data(), op = opSnap.data();
+
+      let world = null;
+      try {
+        const wid = me.worldId || op.worldId;
+        if (wid) {
+          const w = await db.collection('worlds').doc(wid).get();
+          if (w.exists) world = w.data();
+        }
+      } catch {}
+
+      const prompt = buildOneShotBattlePrompt({ me, op, world });
+      
+      // AI 호출은 클라이언트에서 하므로, 여기서는 단순히 프롬프트만 반환
+      // 클라이언트는 이 프롬프트를 받아 Gemini에 요청을 보냄
+      res.json({ ok: true, data: { promptForClient: prompt } });
+
+    } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
-  // ▲▲▲ [수정] 여기까지 추가 ▲▲▲
+
+  app.post('/api/battle/finish', async (req, res) => {
+    try {
+        const user = await getUserFromReq(req);
+        if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+        const { battleId, winner } = req.body || {}; // 'A' or 'B'
+        if (!battleId || !['A', 'B'].includes(winner)) {
+            return res.status(400).json({ ok: false, error: 'battleId and winner (A or B) required' });
+        }
+
+        const bRef = db.collection('battles').doc(battleId);
+        const bSnap = await bRef.get();
+        if (!bSnap.exists) return res.status(404).json({ ok: false, error: 'BATTLE_NOT_FOUND' });
+        const b = bSnap.data();
+        
+        // Elo가 이미 업데이트되었는지 확인
+        if (b.status === 'finished') {
+            return res.json({ ok: true, message: 'Already finished' });
+        }
+
+        const aRef = db.collection('characters').doc(b.meId);
+        const oRef = db.collection('characters').doc(b.opId);
+
+        await db.runTransaction(async (tx) => {
+            const [aSnap, oSnap] = await Promise.all([tx.get(aRef), tx.get(oRef)]);
+            if (!aSnap.exists || !oSnap.exists) throw new Error('Character not found in transaction');
+
+            const a = aSnap.data();
+            const o = oSnap.data();
+            const Sa = (winner === 'A') ? 1 : 0;
+            
+            const [newA, newB] = updateElo(a.elo ?? 1000, o.elo ?? 1000, Sa);
+
+            tx.update(aRef, { elo: newA, updatedAt: FieldValue.serverTimestamp() });
+            tx.update(oRef, { elo: newB, updatedAt: FieldValue.serverTimestamp() });
+            tx.update(bRef, { 
+                status: 'finished',
+                winner,
+                eloMeAfter: newA, 
+                eloOpAfter: newB, 
+                updatedAt: FieldValue.serverTimestamp() 
+            });
+        });
+
+        res.json({ ok: true, data: { message: 'Elo updated' } });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: String(e) });
+    }
+  });
 }
