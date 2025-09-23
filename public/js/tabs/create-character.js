@@ -34,18 +34,24 @@ function promptCardTemplate(p) {
     `;
 }
 
-// 서버의 buildWorldText와 유사한 역할을 하는 클라이언트 함수
+// [수정] 서버의 buildWorldText와 유사한 역할을 하는 클라이언트 함수 -> 전체 정보 포함하도록 수정
 function buildWorldTextForAI(w){
-  const sites=(w?.sites||[]).map(s=>`- ${s.name}: ${s.description}`).join('\n');
-  const orgs=(w?.factions||[]).map(o=>`- ${o.name}: ${o.description}`).join('\n');
-  const npcs=(w?.npcs||[]).map(n=>`- ${n.name}: ${n.description}`).join('\n');
-  const latestEpisode = (w?.episodes||[]).slice(-1).map(e=>`* ${e.title}: ${e.content.replace(/<[^>]+>/g, "").substring(0,200)}...`).join('\n');
+  if (!w) return '';
+  // 객체에서 주요 정보를 추출하여 텍스트로 변환
+  const worldInfo = {
+    name: w.name,
+    introShort: w.introShort,
+    introLong: w.introLong,
+    sites: (w.sites || []).map(s => ({ name: s.name, description: s.description })),
+    factions: (w.factions || []).map(f => ({ name: f.name, description: f.description })),
+    npcs: (w.npcs || []).map(n => ({ name: n.name, description: n.description })),
+    episodes: (w.episodes || []).map(e => ({ title: e.title, summary: e.content.replace(/<[^>]+>/g, "").substring(0, 200) + '...' }))
+  };
 
-  return [
-    `세계 이름: ${w?.name||''}`, `세계관 한 줄 소개: ${w?.introShort||''}`, `주요 명소:\n${sites}`,
-    `주요 세력/조직:\n${orgs}`, `주요 NPC:\n${npcs}`, `최근 발생한 사건:\n${latestEpisode}`
-  ].join('\n\n');
+  // JSON.stringify를 사용하여 가독성 좋은 문자열로 변환
+  return JSON.stringify(worldInfo, null, 2);
 }
+
 
 export function mount() {
     const root = document.querySelector(rootSel);
@@ -94,7 +100,6 @@ export function mount() {
         }
 
         const worldId = card.dataset.id;
-        selectedWorld = worldsCache.find(w => w.id === worldId);
         
         await withBlocker(async () => {
           const worldRes = await api.getWorld(worldId);
@@ -103,7 +108,7 @@ export function mount() {
           selectedWorldInfoEl.innerHTML = `
               <div class="card world-image-card" data-id="${selectedWorld.id}" style="aspect-ratio: 1/1; background: url('${selectedWorld.coverUrl}') center/cover; cursor:pointer;" title="클릭하여 세계관 정보 보기"></div>
               <h3 style="margin-top:12px;">${selectedWorld.name}</h3>
-              <p class="small" style="opacity:0.8; line-height:1.6;">${selectedWorld.introLong || selectedWorld.introShort}</p>
+              <p class="small" style="opacity:0.8; line-height:1.6;">${selectedWorld.introShort}</p>
           `;
         });
         
@@ -151,7 +156,7 @@ export function mount() {
         const userInputText = `캐릭터 이름: ${root.querySelector('#cc-char-name').value.trim()}\n추가 요청: ${root.querySelector('#cc-char-input').value.trim()}`;
         
         const composedUser = [
-            `### 세계관 정보`, worldText,
+            `### 세계관 정보 (JSON)`, worldText,
             `### 생성 프롬프트`, promptText,
             `### 사용자 요청`, userInputText,
             `\n\n위 정보를 바탕으로 JSON 스키마에 맞춰 캐릭터를 생성해줘.`,
