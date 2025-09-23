@@ -25,6 +25,120 @@ export function mountCharacters(app) {
   });
 
 
+
+  // [신규] 스킬 선택 저장 (characters/:id/abilities)
+app.post('/api/characters/:id/abilities', async (req, res) => {
+  try{
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+
+    const id = req.params.id;
+    const { chosen } = req.body || {};
+    if (!Array.isArray(chosen) || chosen.length !== 3)
+      return res.status(400).json({ ok:false, error:'CHOSEN_3_REQUIRED' });
+
+    const ref = db.collection('characters').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ ok:false, error:'NOT_FOUND' });
+    const c = snap.data();
+    if (c.ownerUid !== user.uid) return res.status(403).json({ ok:false, error:'NOT_OWNER' });
+
+    await ref.update({ chosen, updatedAt: FieldValue.serverTimestamp() });
+    return res.json({ ok:true, data:{ id, chosen }});
+  }catch(e){ return res.status(500).json({ ok:false, error:String(e) }); }
+});
+
+// [신규] 아이템 장착 저장 (characters/:id/items)
+app.post('/api/characters/:id/items', async (req, res) => {
+  try{
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+
+    const id = req.params.id;
+    const { equipped } = req.body || {}; // (string|null)[] 길이=3
+    if (!Array.isArray(equipped) || equipped.length !== 3)
+      return res.status(400).json({ ok:false, error:'EQUIPPED_3_REQUIRED' });
+
+    const ref = db.collection('characters').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ ok:false, error:'NOT_FOUND' });
+    const c = snap.data();
+    if (c.ownerUid !== user.uid) return res.status(403).json({ ok:false, error:'NOT_OWNER' });
+
+    // 인벤토리에 없는 이름은 null 처리
+    const names = (Array.isArray(c.items) ? c.items : []).map(x=>String(x?.name||''));
+    const norm = equipped.map(n => (n && names.includes(String(n))) ? String(n) : null);
+
+    await ref.update({ equipped: norm, updatedAt: FieldValue.serverTimestamp() });
+    return res.json({ ok:true, data:{ id, equipped:norm }});
+  }catch(e){ return res.status(500).json({ ok:false, error:String(e) }); }
+});
+
+
+// [신규] 배틀 생성
+app.post('/api/battle/create', async (req, res) => {
+  try{
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+
+    const { meId, opId } = req.body || {};
+    if (!meId || !opId) return res.status(400).json({ ok:false, error:'ARGS_REQUIRED' });
+
+    const [meSnap, opSnap] = await Promise.all([
+      db.collection('characters').doc(meId).get(),
+      db.collection('characters').doc(opId).get(),
+    ]);
+    if (!meSnap.exists || !opSnap.exists) return res.status(404).json({ ok:false, error:'CHAR_NOT_FOUND' });
+
+    const me = meSnap.data(), op = opSnap.data();
+    if (me.ownerUid !== user.uid) return res.status(403).json({ ok:false, error:'NOT_OWNER' });
+
+    const now = FieldValue.serverTimestamp();
+    const doc = await db.collection('battles').add({
+      meId, opId,
+      eloMe: me.elo ?? 1000,
+      eloOp: op.elo ?? 1000,
+      createdAt: now,
+      updatedAt: now,
+      status: 'ready'
+    });
+    return res.json({ ok:true, data:{ id: doc.id }});
+  }catch(e){ return res.status(500).json({ ok:false, error:String(e) }); }
+});
+
+  // [신규] 배틀 턴 (리치텍스트 로그 추가)
+// body: { battleId, action } , header: X-OpenAI-Key
+app.post('/api/battle/turn', async (req, res) => {
+  try{
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+
+    const apiKey = String(req.get('X-OpenAI-Key') || '').trim();
+    if (!apiKey) return res.status(400).json({ ok:false, error:'OPENAI_KEY_REQUIRED' });
+
+    const { battleId, action } = req.body || {};
+    if (!battleId || !action) return res.status(400).json({ ok:false, error:'ARGS_REQUIRED' });
+
+    const bRef = db.collection('battles').doc(battleId);
+    const bSnap = await bRef.get();
+    if (!bSnap.exists) return res.status(404).json({ ok:false, error:'BATTLE_NOT_FOUND' });
+
+    // === TODO: 여기서 apiKey를 사용해 실제 모델 호출 ===
+    // 리치텍스트(마크다운) 형태의 응답을 가정한 샘플 로그
+    const now = FieldValue.serverTimestamp();
+    const turnRef = await db.collection('battles').doc(battleId).collection('turns').add({
+      ts: now,
+      actor: 'system',
+      text: `**행동**: ${String(action)}\n\n> (샘플) 모델 응답 자리 — 실제 연결 시 여기에 리치텍스트를 넣어주세요.`,
+    });
+
+    await bRef.update({ updatedAt: now, status: 'ongoing' });
+
+    return res.json({ ok:true, data:{ turnId: turnRef.id }});
+  }catch(e){ return res.status(500).json({ ok:false, error:String(e) }); }
+});
+
+  
   // [신규] 매칭 후보 찾기: 자기 자신 제외 + Elo 근접
 app.post('/api/matchmaking/find', async (req, res) => {
   try{
