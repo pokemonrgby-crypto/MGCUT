@@ -1,7 +1,19 @@
 // public/js/tabs/world-detail.js
 import { api, auth } from '../api.js';
+import { withBlocker } from '../ui/frame.js';
 
 const rootSel = '[data-view="world-detail"]';
+
+function parseRichText(text) {
+  if (!text) return '';
+  return text
+    .replace(/<대사>/g, '<div class="dialogue">')
+    .replace(/<\/대사>/g, '</div>')
+    .replace(/<서술>/g, '<div class="narrative">')
+    .replace(/<\/서술>/g, '</div>')
+    .replace(/<강조>/g, '<strong class="emphasis">')
+    .replace(/<\/강조>/g, '</strong>');
+}
 
 export async function mount(worldId) {
   const root = document.querySelector(rootSel);
@@ -42,7 +54,11 @@ function render(world) {
 
   contentArea.innerHTML = `
     <div id="world-admin-panel" style="display:none; padding: 0 16px 16px;">
-      <button class="btn secondary full">콘텐츠 추가/수정</button>
+      <div class="card pad">
+        <div class="small" style="margin-bottom:6px">커버 이미지 변경</div>
+        <input type="file" id="cover-image-upload" accept="image/*" style="width:100%">
+        <button id="btn-cover-save" class="btn full" style="margin-top:10px;">저장</button>
+      </div>
     </div>
     <div class="detail-tabs-nav">
       <button class="tab-btn active" data-tab="intro">소개</button>
@@ -68,10 +84,9 @@ function render(world) {
   root.querySelector('#tab-npcs').innerHTML = (world.npcs || []).map(n => infoCard(n.name, n.description)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
   root.querySelector('#tab-episodes').innerHTML = (world.episodes || []).map(e => episodeCard(e, world.id)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
 
-  bindEvents(root);
+  bindEvents(root, world.id);
 }
 
-// 템플릿 함수들
 function infoCard(name, description) {
   return `
     <div class="info-card">
@@ -90,8 +105,7 @@ function episodeCard(episode, worldId) {
   `;
 }
 
-function bindEvents(container) {
-  // 탭 전환 로직
+function bindEvents(container, worldId) {
   const nav = container.querySelector('.detail-tabs-nav');
   const contents = container.querySelectorAll('.tab-content');
   const buttons = nav.querySelectorAll('.tab-btn');
@@ -105,7 +119,6 @@ function bindEvents(container) {
     contents.forEach(c => c.style.display = c.id === tabId ? '' : 'none');
   };
 
-  // 에피소드 카드 클릭 이벤트 (이벤트 위임)
   container.addEventListener('click', (e) => {
     const card = e.target.closest('.episode-card');
     if (card) {
@@ -114,4 +127,16 @@ function bindEvents(container) {
       window.location.hash = `episode/${worldId}/${encodeURIComponent(title)}`;
     }
   });
+  
+  const btnSave = container.querySelector('#btn-cover-save');
+  if (btnSave) {
+    btnSave.onclick = async () => {
+      const fileInput = container.querySelector('#cover-image-upload');
+      const file = fileInput.files[0];
+      if (!file) return alert('이미지를 선택해주세요.');
+
+      alert('커버 이미지 업로드 기능은 현재 개발 중입니다. Storage 연동이 필요합니다.');
+      console.log("선택된 파일:", file.name, "월드 ID:", worldId);
+    };
+  }
 }
