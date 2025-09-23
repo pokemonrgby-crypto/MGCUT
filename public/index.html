@@ -36,97 +36,97 @@
     </section>
 
     <section id="app-frame" class="app-center" style="display:none">
-  <div data-view="home" style="display:none">
-    <div class="hscroll"></div>
-    <div class="section-h">추천 세계관</div>
-    <div class="list" style="padding:0 16px 16px"></div>
-  </div>
-
-  <div data-view="create" style="display:none">
-    <div class="section-h">무엇을 만들까요?</div>
-    <div class="grid3"></div>
-  </div>
-
-  <div data-view="create-world" style="display:none">
-    <div class="section-h">세계관 생성</div>
-    <div class="card pad" style="margin:0 16px;">
-      <div class="small" style="margin-bottom:6px">세계관 이름</div>
-      <input type="text" id="world-create-name" placeholder="새로운 세계의 이름" style="margin-bottom:12px">
-      <div class="small" style="margin-bottom:6px">추가 요청사항 (선택)</div>
-      <textarea id="world-create-input" rows="4" placeholder="예: '사이버펑크와 동양 판타지를 섞어주세요'"></textarea>
-      <button class="btn full" id="btn-world-generate-ai" style="margin-top:12px">AI로 세계관 생성</button>
-      <div class="small" style="margin-top:8px; text-align:center;">* 브라우저에 저장된 Gemini 키로 AI를 호출합니다.</div>
-    </div>
-  </div>
-
-  <div data-view="create-character" style="display:none">
-      <div class="section-h">캐릭터 생성</div>
-      <div class="card pad" style="margin:16px;">
-        <input type="text" id="char-world" placeholder="worldId" style="margin-bottom:6px;">
-        <div class="small" style="margin:6px 0">프롬프트 ID 또는 직접 프롬프트 중 하나만 입력</div>
-        <input type="text" id="char-prompt" placeholder="promptId (선택)" style="margin-bottom:6px;">
-        <textarea id="char-custom" rows="5" placeholder="직접 프롬프트 (선택)" style="margin-bottom:6px;"></textarea>
-        <textarea id="char-input" rows="6" maxlength="1000" placeholder="사용자 입력(최대 1000자)" style="margin-bottom:8px;"></textarea>
-        <button class="btn full" id="btn-char-create">생성</button>
+      <div data-view="home" style="display:none">
+        <div class="hscroll"></div>
+        <div class="section-h">추천 세계관</div>
+        <div class="list" style="padding:0 16px 16px"></div>
       </div>
-  </div>
 
-  <div data-view="create-prompt" style="display:none">
-    <div class="section-h">프롬프트 업로드</div>
-    <div class="card pad" style="margin:16px;">
-      <input type="text" id="p-title" placeholder="제목(최대 80자)" style="margin-bottom:6px;">
-      <textarea id="p-content" rows="8" placeholder="프롬프트 내용" style="margin-bottom:8px;"></textarea>
-      <button class="btn full" id="btn-prompt-upload">업로드</button>
-      <div class="small" style="margin-top:12px;">* 검증 기능은 다음 업데이트에 추가될 예정입니다.</div>
-    </div>
-  </div>
-
-  <div data-view="adventure" style="display:none">
-    <div class="section-h">모험</div>
-    <div class="list" style="padding:0 16px 16px"></div>
-  </div>
-
-  <div data-view="info" style="display:none">
-    <div class="section-h">내 정보</div>
-    <div class="card" style="margin:0 16px 12px">
-      <div class="kv kv-uid"><div class="k">UID</div><div class="v small">-</div></div>
-    </div>
-    <div class="card pad" style="margin:0 16px 12px">
-      <div class="small" style="margin-bottom:6px">Gemini API Key (브라우저 저장)</div>
-      <input id="gemini-key" type="text" placeholder="AIza...">
-      <div style="display:flex; gap:8px; margin-top:10px">
-        <button class="btn" id="btn-save-key">저장</button>
-        <button class="btn secondary" id="btn-logout">로그아웃</button>
+      <div data-view="create" style="display:none">
+        <div class="section-h">무엇을 만들까요?</div>
+        <div class="grid3"></div>
       </div>
-    </div>
-  </div>
 
-<div data-view="world-detail" style="display:none;">
-  <div class="detail-header">
-    <div class="grad"></div>
-    <h2 class="shadow-title" id="world-detail-name"></h2>
-  </div>
+      <div data-view="create-world" style="display:none">
+        <div class="section-h">세계관 생성</div>
+        <div class="card pad" style="margin:0 16px;">
+          <div class="small" style="margin-bottom:6px">세계관 이름</div>
+          <input type="text" id="world-create-name" placeholder="새로운 세계의 이름" style="margin-bottom:12px">
+          <div class="small" style="margin-bottom:6px">추가 요청사항 (선택)</div>
+          <textarea id="world-create-input" rows="4" placeholder="예: '사이버펑크와 동양 판타지를 섞어주세요'"></textarea>
+          <button class="btn full" id="btn-world-generate-ai" style="margin-top:12px">AI로 세계관 생성</button>
+          <div class="small" style="margin-top:8px; text-align:center;">* 브라우저에 저장된 Gemini 키로 AI를 호출합니다.</div>
+        </div>
+      </div>
 
-  <div class="detail-content">
-    <div id="world-admin-panel" style="display:none; margin-bottom: 16px;">
-      <button class="btn secondary full">콘텐츠 추가/수정</button>
-    </div>
+      <div data-view="create-character" style="display:none">
+        <div id="cc-step1-world-selection">
+          <div class="section-h">1. 생성할 세계관 선택</div>
+          <div style="padding: 0 16px 12px; display: flex; gap: 8px;">
+            <input type="text" id="cc-world-search" placeholder="세계관 이름 검색..." style="flex-grow:1;">
+          </div>
+          <div class="list" id="cc-world-list" style="padding:0 16px 16px"></div>
+        </div>
 
-    <div class="detail-tabs-nav">
-      <button class="tab-btn active" data-tab="intro">소개</button>
-      <button class="tab-btn" data-tab="factions">세력</button>
-      <button class="tab-btn" data-tab="npcs">주요 인물</button>
-      <button class="tab-btn" data-tab="episodes">에피소드</button>
-    </div>
+        <div id="cc-step2-prompt-selection" style="display:none;">
+          <button class="btn secondary" id="cc-btn-back-to-step1" style="margin:16px 16px 0;">‹ 다른 세계관 선택</button>
+          <div id="cc-selected-world-info" style="margin: 16px;"></div>
+          <div class="section-h" style="padding-top:0;">2. 캐릭터 생성 프롬프트 선택</div>
+          <div class="list" id="cc-prompt-list" style="padding:0 16px 16px"></div>
+        </div>
 
-    <div class="tab-content" id="tab-intro"></div>
-    <div class="tab-content" id="tab-factions" style="display: none;"></div>
-    <div class="tab-content" id="tab-npcs" style="display: none;"></div>
-    <div class="tab-content" id="tab-episodes" style="display: none;"></div>
-  </div>
-</div>
-<div data-view="episode-detail" style="display:none;"></div>
-</section>
+        <div id="cc-step3-character-input" style="display:none;">
+          <button class="btn secondary" id="cc-btn-back-to-step2" style="margin:16px 16px 0;">‹ 다른 프롬프트 선택</button>
+          <div class="card pad" style="margin:16px;">
+            <div class="small" style="margin-bottom:6px">캐릭터 이미지 (선택)</div>
+            <input type="file" id="cc-char-image" accept="image/*" style="margin-bottom:12px; width:100%;">
+            
+            <div class="small" style="margin-bottom:6px">캐릭터 이름</div>
+            <input type="text" id="cc-char-name" placeholder="새로운 캐릭터의 이름" style="margin-bottom:12px">
+
+            <div class="small" style="margin-bottom:6px">추가 요청사항 (1000자 이하)</div>
+            <textarea id="cc-char-input" rows="4" maxlength="1000" placeholder="예: '말수가 적고 신비로운 암살자 컨셉으로'"></textarea>
+            
+            <button class="btn full" id="btn-char-create-final" style="margin-top:12px">캐릭터 생성</button>
+            <div class="small" style="margin-top:8px; text-align:center;">* 브라우저에 저장된 Gemini 키로 AI를 호출합니다.</div>
+          </div>
+        </div>
+      </div>
+
+      <div data-view="create-prompt" style="display:none">
+        <div class="section-h">프롬프트 업로드</div>
+        <div class="card pad" style="margin:16px;">
+          <input type="text" id="p-title" placeholder="제목(최대 80자)" style="margin-bottom:6px;">
+          <textarea id="p-content" rows="8" placeholder="프롬프트 내용" style="margin-bottom:8px;"></textarea>
+          <button class="btn full" id="btn-prompt-upload">업로드</button>
+          <div class="small" style="margin-top:12px;">* 검증 기능은 다음 업데이트에 추가될 예정입니다.</div>
+        </div>
+      </div>
+
+      <div data-view="adventure" style="display:none">
+        <div class="section-h">모험</div>
+        <div class="list" style="padding:0 16px 16px"></div>
+      </div>
+
+      <div data-view="info" style="display:none">
+        <div class="section-h">내 정보</div>
+        <div class="card" style="margin:0 16px 12px">
+          <div class="kv kv-uid"><div class="k">UID</div><div class="v small">-</div></div>
+        </div>
+        <div class="card pad" style="margin:0 16px 12px">
+          <div class="small" style="margin-bottom:6px">Gemini API Key (브라우저 저장)</div>
+          <input id="gemini-key" type="text" placeholder="AIza...">
+          <div style="display:flex; gap:8px; margin-top:10px">
+            <button class="btn" id="btn-save-key">저장</button>
+            <button class="btn secondary" id="btn-logout">로그아웃</button>
+          </div>
+        </div>
+      </div>
+
+      <div data-view="world-detail" style="display:none;"></div>
+      
+      <div data-view="episode-detail" style="display:none;"></div>
+    </section>
 
     <div id="bottom-bar">
       <div class="nav5">
@@ -159,7 +159,6 @@
           }
         });
       }
-      // DOM 로드 후 실행 보장
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initLoginButton);
       } else {
