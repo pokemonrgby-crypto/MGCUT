@@ -1,5 +1,4 @@
 // public/js/api.js
-
 import {
   getAuth,
   onAuthStateChanged,
@@ -7,9 +6,7 @@ import {
   signInWithPopup,
   signOut,
 } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js';
-// [추가] Firebase Storage import
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-storage.js';
-
 
 export const auth = {
   get currentUser(){ return getAuth().currentUser; },
@@ -21,7 +18,6 @@ export const auth = {
   },
 };
 
-// [추가] 스토리지 헬퍼
 export const storage = {
   async uploadImage(path, file) {
     const storageRef = ref(getStorage(), `${path}/${Date.now()}_${file.name}`);
@@ -29,7 +25,6 @@ export const storage = {
     return await getDownloadURL(snapshot.ref);
   }
 };
-
 
 async function idToken() {
   const u = auth.currentUser;
@@ -60,16 +55,17 @@ export const api = {
   likeWorld: (id) => call('POST', `/api/worlds/${id}/like`),
   getMyCharacters: () => call('GET', '/api/my-characters'),
   createSite: (worldId, siteData) => call('POST', `/api/worlds/${worldId}/sites`, siteData),
-  // [추가] 명소 이미지 업데이트 API
   updateSiteImage: (worldId, siteName, imageUrl) => call('PATCH', `/api/worlds/${worldId}/siteImage`, { siteName, imageUrl }),
-  // [추가] 세계관 요소 추가/삭제 API
   addWorldElement: (worldId, type, data) => call('POST', `/api/worlds/${worldId}/elements`, { type, data }),
   deleteWorldElement: (worldId, type, name) => call('DELETE', `/api/worlds/${worldId}/elements`, { type, name }),
-
+  getWorldCharacters: (worldId) => call('GET', `/api/worlds/${worldId}/characters`), // [추가]
 
   // characters
-  saveCharacter: ({ worldId, promptId, characterData }) =>
-    call('POST', '/api/characters/save', { worldId, promptId, characterData }),
+  saveCharacter: ({ worldId, promptId, characterData, imageUrl }) =>
+    call('POST', '/api/characters/save', { worldId, promptId, characterData, imageUrl }),
+  getCharacter: (id) => call('GET', `/api/characters/${id}`), // [추가]
+  updateElo: (winnerId, loserId) => call('POST', '/api/characters/elo', { winnerId, loserId }), // [추가]
+
 
   // prompts
   getSystemPrompt: (name) => call('GET', `/api/system-prompts/${name}`),
@@ -77,4 +73,8 @@ export const api = {
   uploadPrompt: ({ title, content }) => call('POST', '/api/prompts', { title, content }),
   validatePrompt: (id) => call('POST', `/api/prompts/${id}/validate`),
   reportPrompt: (id, reason) => call('POST', `/api/prompts/${id}/report`, { reason }),
+
+  // [신규] rankings
+  getCharacterRanking: () => call('GET', '/api/rankings/characters'),
+  getWorldRanking: () => call('GET', '/api/rankings/worlds'),
 };
