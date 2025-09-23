@@ -24,34 +24,40 @@ function cardHTML(side, c){
     </div>`;
 }
 
-async function render(meId, opId){
+// (수정된 결과)
+async function render(meId) { // [수정] opId 인자 제거
   const root = document.querySelector(ROOT);
   if (!root) return;
 
   root.innerHTML = `
     <div class="section-h">전투 준비</div>
     <div class="compare-wrap">
-      <div class="compare-row" id="cmp-row"><div class="spinner"></div></div>
+      <div class="compare-row" id="cmp-row"><div class="spinner"></div><div class="small" style="text-align:center;width:100%;">상대를 찾고 있습니다...</div></div>
     </div>
-    <div class="card pad" style="margin:12px 16px">
-      <button id="btn-start-battle" class="btn full">전투 시작</button>
-      <div class="small" style="opacity:.8;margin-top:6px">개인 API 키는 [내정보]에 저장된 값을 사용합니다.</div>
-    </div>
+    <div id="battle-btn-area" style="margin:12px 16px"></div>
   `;
 
   try {
     const me = (await api.getCharacter(meId))?.data;
     if (!me) throw new Error('내 캐릭터를 찾을 수 없습니다.');
 
-    if (!opId) {
-      const matchResult = await api.findMatch(meId);
-      opId = matchResult?.data?.opponentId;
-      if (!opId) throw new Error('비슷한 점수대의 상대를 찾을 수 없습니다.');
-    }
+    // [수정] URL이 아닌 서버를 통해 상대방을 찾습니다.
+    const matchResult = await api.findMatch(meId);
+    const opId = matchResult?.data?.opponentId;
+    if (!opId) throw new Error('비슷한 점수대의 상대를 찾을 수 없습니다.');
 
     const op = (await api.getCharacter(opId))?.data;
     if (!op) throw new Error('상대 캐릭터 정보를 가져올 수 없습니다.');
 
+    const row = document.getElementById('cmp-row');
+    row.innerHTML = cardHTML('나', me) + cardHTML('상대', op);
+
+    // [수정] 버튼 생성 로직을 별도 영역으로 분리
+    document.getElementById('battle-btn-area').innerHTML = `
+      <div class="card pad">
+        <button id="btn-start-battle" class="btn full">전투 시작</button>
+        <div class="small" style="opacity:.8;margin-top:6px">개인 API 키는 [내정보]에 저장된 값을 사용합니다.</div>
+      </div>`;
 
     const row = document.getElementById('cmp-row');
     row.innerHTML = cardHTML('나', me) + cardHTML('상대', op);
@@ -83,7 +89,8 @@ function onRoute(){
   root.style.display = m ? '' : 'none';
   if (!m) return;
   const q = new URLSearchParams(m[1]||'');
-  render(q.get('me'), q.get('op'));
+  // [수정] opId를 URL에서 가져오지 않습니다.
+  render(q.get('me'));
 }
 
 window.addEventListener('hashchange', onRoute);
