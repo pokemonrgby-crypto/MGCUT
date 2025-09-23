@@ -31,10 +31,7 @@ async function idToken() {
   return u ? await u.getIdToken() : null;
 }
 
-// [교체] 응답이 HTML일 때 BAD_JSON 대신 깔끔히 에러 던지기
 async function call(method, path, body, extraHeaders = {}) {
-
-  // [추가] Firebase ID 토큰을 Authorization 헤더에 실어 보낸다
   let token = null;
   try { token = await idToken(); } catch {}
 
@@ -42,20 +39,14 @@ async function call(method, path, body, extraHeaders = {}) {
   if (body) headers['Content-Type'] = 'application/json';
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-
-const res = await fetch(path, {
-  method,
-  headers, // 위에서 만든 headers(Authorization / Content-Type / extraHeaders 다 포함)
-  body: body ? JSON.stringify(body) : undefined,
-  credentials: 'include'
-});
-
-
+  const res = await fetch(path, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
 
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('application/json')) {
-    // 서버에서 404/에러로 index.html 같은 걸 돌려준 케이스
-    const text = await res.text();
     throw new Error(`NETWORK_NON_JSON: ${res.status} ${res.statusText}`);
   }
 
@@ -63,7 +54,7 @@ const res = await fetch(path, {
   if (!res.ok || json?.ok === false) {
     throw new Error(json?.error || `HTTP_${res.status}`);
   }
-  return json; // { ok:true, data: ... }
+  return json;
 }
 
 
@@ -83,8 +74,7 @@ export const api = {
   // characters
   saveCharacter: ({ worldId, promptId, characterData, imageUrl }) =>
     call('POST', '/api/characters/save', { worldId, promptId, characterData, imageUrl }),
-  getCharacter: (id) => call('GET', `/api/characters/${id}`), // [추가]
-
+  getCharacter: (id) => call('GET', `/api/characters/${id}`),
 
   // prompts
   getSystemPrompt: (name) => call('GET', `/api/system-prompts/${name}`),
@@ -93,38 +83,21 @@ export const api = {
   validatePrompt: (id) => call('POST', `/api/prompts/${id}/validate`),
   reportPrompt: (id, reason) => call('POST', `/api/prompts/${id}/report`, { reason }),
 
+  getWorldCharacters: (worldId) =>
+    call('GET', `/api/characters?worldId=${encodeURIComponent(worldId)}&sort=elo_desc&limit=50`),
+  getCharacterRanking: ({ limit=50 }={}) =>
+    call('GET', `/api/rankings/characters?limit=${limit}`),
+  getWorldRanking: ({ limit=50 }={}) =>
+    call('GET', `/api/rankings/worlds?limit=${limit}`),
+  
+  // ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
+  findMatch: (charId) => call('POST', '/api/matchmaking/find', { charId }),
+  createBattle: (meId, opId) => call('POST', '/api/battle/create', { meId, opId }),
+  battleSimulate: (battleId, userApiKey) => call('POST', '/api/battle/simulate', { battleId }, { 'X-User-Api-Key': userApiKey || '' }),
+  // ▲▲▲ [수정] 여기까지 추가 ▲▲▲
 
-// 세계관에 소속된 캐릭터를 Elo 내림차순으로
-getWorldCharacters: (worldId) =>
-  call('GET', `/api/characters?worldId=${encodeURIComponent(worldId)}&sort=elo_desc&limit=50`),
-
-// 랭킹 탭
-getCharacterRanking: ({ limit=50 }={}) =>
-  call('GET', `/api/rankings/characters?limit=${limit}`),
-
-getWorldRanking: ({ limit=50 }={}) =>
-  call('GET', `/api/rankings/worlds?limit=${limit}`),
-
-findMatch: (charId) => call('POST', '/api/matchmaking/find', { charId }),
-
-
-  // skills/items 저장
-  updateAbilitiesEquipped: (id, chosen /* string[] 또는 number[] */) =>
+  updateAbilitiesEquipped: (id, chosen) =>
     call('POST', `/api/characters/${encodeURIComponent(id)}/abilities`, { chosen }),
-
-  updateItemsEquipped: (id, equipped /* (string|null)[] 길이=3 */) =>
+  updateItemsEquipped: (id, equipped) =>
     call('POST', `/api/characters/${encodeURIComponent(id)}/items`, { equipped }),
-
-  // 배틀 준비/턴
-  createBattle: (meId, opId) =>
-    call('POST', '/api/battle/create', { meId, opId }),
-
-
-  battleSimulate: (battleId, userApiKey) =>
-    call('POST', '/api/battle/simulate', { battleId }, { 'X-User-Api-Key': userApiKey || '' }),
-
-    
-// Elo 매치(선택 기능)
-reportMatch: (aId, bId, result /* 'A'|'B'|'DRAW' */) =>
-  call('POST', `/api/match`, { aId, bId, result }),
 };
