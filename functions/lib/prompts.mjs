@@ -44,7 +44,8 @@ export async function loadWorldSystemPrompt() {
 }
 
 규칙:
-- factions, npcs, sites, episodes 배열은 최소 2개 이상의 요소를 포함해야 합니다.
+- factions, npcs, episodes 배열은 최소 2개 이상의 요소를 포함해야 합니다.
+- [중요] sites 배열은 반드시 3개 이상의 독창적인 명소를 포함해야 합니다.
 - introLong, factions.description, npcs.description, episodes.content는 풍부한 서사가 느껴지도록 상세하게 작성해야 합니다.
 `
   );
