@@ -33,12 +33,21 @@ async function idToken() {
 
 // [교체] 응답이 HTML일 때 BAD_JSON 대신 깔끔히 에러 던지기
 async function call(method, path, body) {
+  // [추가] Firebase ID 토큰을 Authorization 헤더에 실어 보낸다
+  let token = null;
+  try { token = await idToken(); } catch {}
+
+  const headers = {};
+  if (body) headers['Content-Type'] = 'application/json';
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const res = await fetch(path, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
     credentials: 'include'
   });
+
 
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('application/json')) {
@@ -81,8 +90,6 @@ export const api = {
   validatePrompt: (id) => call('POST', `/api/prompts/${id}/validate`),
   reportPrompt: (id, reason) => call('POST', `/api/prompts/${id}/report`, { reason }),
 
-  // [추가] 랭킹/캐릭터/세계관 상세용
-getCharacter: (id) => call('GET', `/api/characters/${id}`),
 
 // 세계관에 소속된 캐릭터를 Elo 내림차순으로
 getWorldCharacters: (worldId) =>
@@ -95,8 +102,6 @@ getCharacterRanking: ({ limit=50 }={}) =>
 getWorldRanking: ({ limit=50 }={}) =>
   call('GET', `/api/rankings/worlds?limit=${limit}`),
 
-// 좋아요(기존에 있다면 생략)
-likeWorld: (id) => call('POST', `/api/worlds/${id}/like`),
 
 // Elo 매치(선택 기능)
 reportMatch: (aId, bId, result /* 'A'|'B'|'DRAW' */) =>
