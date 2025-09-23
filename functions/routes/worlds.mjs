@@ -2,12 +2,11 @@
 import { db, FieldValue } from '../lib/firebase.mjs';
 import { toKstDay } from '../lib/kst.mjs';
 import { getUserFromReq } from '../lib/auth.mjs';
-// TODO: 새로운 스키마에 맞는 validateWorld 함수를 schemas.mjs에 만들어야 함
+// TODO: 새로운 스키마에 맞는 validateWorld, validateSite 함수를 schemas.mjs에 만들어야 함
 
 export function mountWorlds(app){
-  // ... (기존 GET, POST /like, PATCH /cover 코드는 동일) ...
 
-  // [POST] 생성 -> [POST] 저장 (클라이언트에서 생성한 데이터를 받아 저장)
+  // [POST] 월드 생성
   app.post('/api/worlds', async (req,res)=>{
     try{
       const user = await getUserFromReq(req);
@@ -23,8 +22,6 @@ export function mountWorlds(app){
 
       const worldData = req.body || {};
       
-      // [중요] 서버 측에서 데이터 유효성 검사를 수행해야 함
-      // 예: if (!validateWorld(worldData).ok) { return res.status(400).json(...) }
       if (!worldData.name || !worldData.introShort) {
         return res.status(400).json({ ok: false, error: 'REQUIRED_FIELDS_MISSING' });
       }
@@ -38,15 +35,13 @@ export function mountWorlds(app){
         coverUrl: ''
       });
       
-      // 생성 횟수 제한 업데이트
       await metaRef.set({ lastWorldCreateDay: today }, { merge:true });
       
       res.status(201).json({ ok:true, data: { id: ref.id } });
     }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
   });
   
-  // ... (기존 GET, POST /like, PATCH /cover 코드는 동일) ...
-  // [GET] 목록 (공개 최신 30)
+  // [GET] 월드 목록
   app.get('/api/worlds', async (req,res)=>{
     try{
       const qs = await db.collection('worlds')
@@ -56,7 +51,7 @@ export function mountWorlds(app){
     }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
   });
 
-  // [GET] 단건
+  // [GET] 월드 단건
   app.get('/api/worlds/:id', async (req,res)=>{
     try{
       const doc = await db.collection('worlds').doc(req.params.id).get();
@@ -105,5 +100,36 @@ export function mountWorlds(app){
       await ref.update({ coverUrl: String(coverUrl) });
       res.json({ ok:true });
     }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
+  });
+  
+  // [추가] 명소(site) 추가
+  app.post('/api/worlds/:id/sites', async (req,res)=>{
+    try {
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+      const siteData = req.body || {};
+      // TODO: schemas.mjs에 validateSite 만들어서 검증
+      if (!siteData.name || !siteData.description || !siteData.difficulty) {
+        return res.status(400).json({ ok: false, error: 'REQUIRED_FIELDS_MISSING' });
+      }
+
+      const ref = db.collection('worlds').doc(req.params.id);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+      if (snap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'FORBIDDEN' });
+
+      await ref.update({
+        sites: FieldValue.arrayUnion({
+          name: String(siteData.name),
+          description: String(siteData.description),
+          difficulty: String(siteData.difficulty),
+          imageUrl: String(siteData.imageUrl || '')
+        })
+      });
+      res.json({ ok: true });
+    } catch(e) {
+      res.status(500).json({ ok: false, error: String(e) });
+    }
   });
 }
