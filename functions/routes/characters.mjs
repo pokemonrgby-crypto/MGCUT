@@ -1,6 +1,7 @@
 // /functions/routes/characters.mjs
 import { db, FieldValue } from '../lib/firebase.mjs';
 import { getUserFromReq } from '../lib/auth.mjs';
+import { validateCharacter } from '../lib/schemas.mjs';
 
 // Elo 계산
 const K = 32;
