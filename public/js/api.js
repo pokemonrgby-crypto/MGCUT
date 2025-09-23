@@ -102,6 +102,7 @@ getCharacterRanking: ({ limit=50 }={}) =>
 getWorldRanking: ({ limit=50 }={}) =>
   call('GET', `/api/rankings/worlds?limit=${limit}`),
 
+findMatch: (charId) => call('POST', '/api/matchmaking/find', { charId }),
 
 // Elo 매치(선택 기능)
 reportMatch: (aId, bId, result /* 'A'|'B'|'DRAW' */) =>
