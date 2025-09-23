@@ -3,21 +3,22 @@ import { api } from '../api.js';
 
 const rootSel = '[data-view="episode-detail"]';
 
-// [신규] 리치 텍스트 파싱 함수
 function parseRichText(text) {
   if (!text) return '';
   return text
     .replace(/<대사>/g, '<div class="dialogue">')
     .replace(/<\/대사>/g, '</div>')
     .replace(/<서술>/g, '<div class="narrative">')
-    .replace(/<\/서술>/g, '</div>');
+    .replace(/<\/서술>/g, '</div>')
+    .replace(/<강조>/g, '<strong class="emphasis">')
+    .replace(/<\/강조>/g, '</strong>');
 }
 
 export async function mount(worldId, episodeTitle) {
   const root = document.querySelector(rootSel);
   if (!root || !worldId || !episodeTitle) return;
 
-  root.innerHTML = '<div class="spinner"></div>'; // 로딩 표시
+  root.innerHTML = '<div class="spinner"></div>';
 
   try {
     const worldRes = await api.getWorld(worldId);
