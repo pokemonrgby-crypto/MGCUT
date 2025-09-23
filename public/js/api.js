@@ -94,7 +94,9 @@ export const api = {
   findMatch: (charId) => call('POST', '/api/matchmaking/find', { charId }),
   createBattle: (meId, opId) => call('POST', '/api/battle/create', { meId, opId }),
   battleSimulate: (battleId, userApiKey) => call('POST', '/api/battle/simulate', { battleId }, { 'X-User-Api-Key': userApiKey || '' }),
-  // ▲▲▲ [수정] 여기까지 추가 ▲▲▲
+  battleFinish: (battleId, winner) => call('POST', '/api/battle/finish', { battleId, winner }), // [추가] battle.js에서 사용하므로 명시적으로 추가
+ 
+      // ▲▲▲ [수정] 여기까지 추가 ▲▲▲
 
   updateAbilitiesEquipped: (id, chosen) =>
     call('POST', `/api/characters/${encodeURIComponent(id)}/abilities`, { chosen }),
