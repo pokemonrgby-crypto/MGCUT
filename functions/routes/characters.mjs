@@ -96,75 +96,6 @@ export function mountCharacters(app) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-// [신규] 배틀 1회 시뮬레이션
-app.post('/api/battle/simulate', async (req, res) => {
-  try {
-    const user = await getUserFromReq(req);
-    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
-
-    const apiKey = String(req.get('X-User-Api-Key') || req.get('X-OpenAI-Key') || '').trim();
-    if (!apiKey) return res.status(400).json({ ok:false, error:'USER_API_KEY_REQUIRED' });
-
-    const { battleId } = req.body || {};
-    if (!battleId) return res.status(400).json({ ok:false, error:'battleId required' });
-
-    const bRef = db.collection('battles').doc(battleId);
-    const bSnap = await bRef.get();
-    if (!bSnap.exists) return res.status(404).json({ ok:false, error:'BATTLE_NOT_FOUND' });
-    const b = bSnap.data();
-    const { meId, opId } = b;
-
-    const [meSnap, opSnap] = await Promise.all([
-      db.collection('characters').doc(meId).get(),
-      db.collection('characters').doc(opId).get(),
-    ]);
-    if (!meSnap.exists || !opSnap.exists) return res.status(404).json({ ok:false, error:'CHAR_NOT_FOUND' });
-    const me = meSnap.data(), op = opSnap.data();
-
-    // 세계관(가능하면 me.worldId 기준)
-    let world = null;
-    try {
-      const wid = me.worldId || op.worldId;
-      if (wid) {
-        const wSnap = await db.collection('worlds').doc(wid).get();
-        if (wSnap.exists) world = wSnap.data();
-      }
-    } catch {}
-
-    // 프롬프트 준비
-    const prompt = buildOneShotBattlePrompt({ me, op, world });
-
-    // === 실제 모델 호출 자리 ===
-    //  - apiKey 사용 (저장 금지)
-    //  - 여기서 provider SDK로 prompt를 보내고, 마크다운 결과를 받아온다.
-    // 지금은 데모용으로 간단 마크다운만 생성
-    const markdown = [
-      `**요약**: ${me.name}와(과) ${op.name}의 승부가 벌어진다.`,
-      ``,
-      `### 전개`,
-      `- ${me.name}의 기술이 번뜩인다.`,
-      `- ${op.name}도 만만치 않다.`,
-      `- 격전 끝에 균형이 깨진다.`,
-      ``,
-      `승자: ${me.elo >= op.elo ? 'A' : 'B'}`  // 임시 룰 (모델 붙이면 제거)
-    ].join('\n');
-
-    const winner = /승자:\s*(A|B|무승부)/.exec(markdown)?.[1] || 'A';
-
-    // 결과 저장
-    await bRef.update({
-      status: 'done',
-      updatedAt: FieldValue.serverTimestamp(),
-      logMd: markdown,
-      winner: winner === '무승부' ? 'DRAW' : winner
-    });
-
-    return res.json({ ok:true, data:{ winner, markdown }});
-  } catch (e) {
-    return res.status(500).json({ ok:false, error:String(e) });
-  }
-});
-
 
   // [신규] 스킬 선택 저장 (characters/:id/abilities)
 app.post('/api/characters/:id/abilities', async (req, res) => {
@@ -246,38 +177,6 @@ app.post('/api/battle/create', async (req, res) => {
   }catch(e){ return res.status(500).json({ ok:false, error:String(e) }); }
 });
 
-  // [신규] 배틀 턴 (리치텍스트 로그 추가)
-// body: { battleId, action } , header: X-OpenAI-Key
-app.post('/api/battle/turn', async (req, res) => {
-  try{
-    const user = await getUserFromReq(req);
-    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
-
-    const apiKey = String(req.get('X-User-Api-Key') || req.get('X-OpenAI-Key') || '').trim();
-
-    if (!apiKey) return res.status(400).json({ ok:false, error:'OPENAI_KEY_REQUIRED' });
-
-    const { battleId, action } = req.body || {};
-    if (!battleId || !action) return res.status(400).json({ ok:false, error:'ARGS_REQUIRED' });
-
-    const bRef = db.collection('battles').doc(battleId);
-    const bSnap = await bRef.get();
-    if (!bSnap.exists) return res.status(404).json({ ok:false, error:'BATTLE_NOT_FOUND' });
-
-    // === TODO: 여기서 apiKey를 사용해 실제 모델 호출 ===
-    // 리치텍스트(마크다운) 형태의 응답을 가정한 샘플 로그
-    const now = FieldValue.serverTimestamp();
-    const turnRef = await db.collection('battles').doc(battleId).collection('turns').add({
-      ts: now,
-      actor: 'system',
-      text: `**행동**: ${String(action)}\n\n> (샘플) 모델 응답 자리 — 실제 연결 시 여기에 리치텍스트를 넣어주세요.`,
-    });
-
-    await bRef.update({ updatedAt: now, status: 'ongoing' });
-
-    return res.json({ ok:true, data:{ turnId: turnRef.id }});
-  }catch(e){ return res.status(500).json({ ok:false, error:String(e) }); }
-});
 
   
   // [신규] 매칭 후보 찾기: 자기 자신 제외 + Elo 근접
@@ -320,27 +219,6 @@ app.post('/api/matchmaking/find', async (req, res) => {
     return res.json({ ok:true, data:{ opponentId: opponent.id }});
   }catch(e){
     return res.status(500).json({ ok:false, error:String(e) });
-  }
-});
-
-
-// [신규] 내 캐릭터 목록 (최신 50개)
-app.get('/api/my-characters', async (req, res) => {
-  try {
-    const user = await getUserFromReq(req);
-    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
-
-    // 인덱스 없이도 안전하게: createdAt 기준 내림차순
-    const snap = await db.collection('characters')
-      .where('ownerUid', '==', user.uid)
-      .orderBy('createdAt', 'desc')
-      .limit(50)
-      .get();
-
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    res.json({ ok:true, data });
-  } catch (e) {
-    res.status(500).json({ ok:false, error:String(e) });
   }
 });
 
