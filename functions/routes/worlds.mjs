@@ -132,4 +132,31 @@ export function mountWorlds(app){
       res.status(500).json({ ok: false, error: String(e) });
     }
   });
+  app.patch('/api/worlds/:id/siteImage', async (req, res) => {
+    try {
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+      const { siteName, imageUrl } = req.body || {};
+      if (!siteName || !imageUrl) return res.status(400).json({ ok: false, error: 'REQUIRED' });
+
+      const worldRef = db.collection('worlds').doc(req.params.id);
+      const worldSnap = await worldRef.get();
+      if (!worldSnap.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+
+      const worldData = worldSnap.data();
+      if (worldData.ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'FORBIDDEN' });
+      
+      const sites = worldData.sites || [];
+      const siteIndex = sites.findIndex(s => s.name === siteName);
+      if (siteIndex === -1) return res.status(404).json({ ok: false, error: 'SITE_NOT_FOUND' });
+
+      sites[siteIndex].imageUrl = String(imageUrl);
+
+      await worldRef.update({ sites });
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e) });
+    }
+  });
 }
