@@ -23,13 +23,21 @@ body{
 @keyframes cardIn{to{transform:translateY(0);opacity:1}}
 .card.pad{padding:18px}
 .card + .card{margin-top:12px}
+/* [FIX] 홈 세계관 카드: 입장 애니메이션으로 생기는 Y-오프셋 제거 */
+.card.world-card{
+  transform: none;
+  animation: none;
+}
+
 .world-card{
-  position: relative;     /* 부모 기준점 지정 */
+  position: relative;
   height: 180px;
   cursor: pointer;
   border-radius: var(--radius);
-  overflow: hidden;       /* 배경/이펙트 삐져나옴 방지 */
+  overflow: hidden;
+  contain: paint;          /* 내부 절대배치 레이어 드리프트 방지 */
 }
+
 
 .world-card .bg{
   position: absolute;
@@ -38,6 +46,9 @@ body{
   filter: saturate(1.1) contrast(1.05);
   transition: transform .3s ease;
   pointer-events: none;  /* 클릭 막지 않도록 */
+  transform: translateZ(0);     /* GPU 합성층 고정 */
+  backface-visibility: hidden;  /* 서브픽셀 흔들림 완화 */
+
 }
 
 .world-card:hover .bg {transform: scale(1.05);}
