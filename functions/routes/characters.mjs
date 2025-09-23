@@ -25,6 +25,29 @@ export function mountCharacters(app) {
   });
 
 
+// [신규] 내 캐릭터 목록 (최신 50개)
+app.get('/api/my-characters', async (req, res) => {
+  try {
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+
+    // 인덱스 없이도 안전하게: createdAt 기준 내림차순
+    const snap = await db.collection('characters')
+      .where('ownerUid', '==', user.uid)
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .get();
+
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.json({ ok:true, data });
+  } catch (e) {
+    res.status(500).json({ ok:false, error:String(e) });
+  }
+});
+
+  
+
+
     // [신규] 내 캐릭터 목록(최신 50개)
   app.get('/api/my-characters', async (req, res) => {
     try {
