@@ -32,14 +32,16 @@ async function idToken() {
 }
 
 // [교체] 응답이 HTML일 때 BAD_JSON 대신 깔끔히 에러 던지기
-async function call(method, path, body) {
+async function call(method, path, body, extraHeaders = {}) {
+
   // [추가] Firebase ID 토큰을 Authorization 헤더에 실어 보낸다
   let token = null;
   try { token = await idToken(); } catch {}
 
-  const headers = {};
+  const headers = { ...(extraHeaders||{}) };
   if (body) headers['Content-Type'] = 'application/json';
   if (token) headers['Authorization'] = `Bearer ${token}`;
+
 
   const res = await fetch(path, {
     method,
@@ -104,6 +106,23 @@ getWorldRanking: ({ limit=50 }={}) =>
 
 findMatch: (charId) => call('POST', '/api/matchmaking/find', { charId }),
 
+
+  // skills/items 저장
+  updateAbilitiesEquipped: (id, chosen /* string[] 또는 number[] */) =>
+    call('POST', `/api/characters/${encodeURIComponent(id)}/abilities`, { chosen }),
+
+  updateItemsEquipped: (id, equipped /* (string|null)[] 길이=3 */) =>
+    call('POST', `/api/characters/${encodeURIComponent(id)}/items`, { equipped }),
+
+  // 배틀 준비/턴
+  createBattle: (meId, opId) =>
+    call('POST', '/api/battle/create', { meId, opId }),
+
+  battleTurn: (battleId, action, userOpenAIKey) =>
+    call('POST', '/api/battle/turn', { battleId, action }, { 'X-OpenAI-Key': userOpenAIKey || '' }),
+
+
+    
 // Elo 매치(선택 기능)
 reportMatch: (aId, bId, result /* 'A'|'B'|'DRAW' */) =>
   call('POST', `/api/match`, { aId, bId, result }),
