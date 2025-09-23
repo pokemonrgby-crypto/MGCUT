@@ -8,13 +8,22 @@ import { validateCharacter } from '../lib/schemas.mjs';
 function getGeminiKeyFromHeaders(req,fallback){
   return req.headers['x-gemini-key'] ? String(req.headers['x-gemini-key']) : fallback;
 }
+
+// [수정된 부분] AI에게 더 풍부한 세계관 정보를 전달하도록 수정
 function buildWorldText(w){
-  const sites=(w?.detail?.sites||[]).map(s=>`- ${s.name}: ${s.description}`).join('\n');
-  const orgs=(w?.detail?.orgs||[]).map(o=>`- ${o.name}: ${o.description}`).join('\n');
-  const npcs=(w?.detail?.npcs||[]).map(n=>`- ${n.name}: ${n.role}`).join('\n');
+  const sites=(w?.sites||[]).map(s=>`- ${s.name}: ${s.description}`).join('\n');
+  const orgs=(w?.factions||[]).map(o=>`- ${o.name}: ${o.description}`).join('\n');
+  const npcs=(w?.npcs||[]).map(n=>`- ${n.name}: ${n.description}`).join('\n');
+  // 최신 에피소드 1개의 내용만 간략히 전달
+  const latestEpisode = (w?.episodes||[]).slice(-1).map(e=>`* ${e.title}: ${e.content.replace(/<[^>]+>/g, "").substring(0,200)}...`).join('\n');
+
   return [
-    `세계: ${w?.name||''}`, `소개: ${w?.intro||''}`, `배경: ${w?.detail?.lore||''}`,
-    `명소:\n${sites}`, `조직:\n${orgs}`, `NPC:\n${npcs}`,
+    `세계 이름: ${w?.name||''}`,
+    `세계관 한 줄 소개: ${w?.introShort||''}`,
+    `주요 명소:\n${sites}`,
+    `주요 세력/조직:\n${orgs}`,
+    `주요 NPC:\n${npcs}`,
+    `최근 발생한 사건:\n${latestEpisode}`
   ].join('\n\n');
 }
 
@@ -44,10 +53,10 @@ export function mountCharacters(app){
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
 
-      const { worldId, promptId, customPrompt, userInput } = req.body || {};
+      // [수정된 부분] customPrompt 제거, userInput만 사용
+      const { worldId, promptId, userInput } = req.body || {};
       if (!worldId) return res.status(400).json({ ok:false, error:'REQUIRED_WORLD' });
-      if (!((promptId && !customPrompt) || (!promptId && customPrompt)))
-        return res.status(400).json({ ok:false, error:'PROMPT_CHOOSE_ONE' });
+      if (!promptId) return res.status(400).json({ ok:false, error:'REQUIRED_PROMPT' });
       if (String(userInput||'').length > 1000)
         return res.status(400).json({ ok:false, error:'USER_INPUT_TOO_LONG' });
 
@@ -57,25 +66,26 @@ export function mountCharacters(app){
       const wdata = wsnap.data();
 
       let promptText = '';
-      if (promptId){
-        const psnap = await db.collection('prompts').doc(promptId).get();
-        if (!psnap.exists) return res.status(404).json({ ok:false, error:'PROMPT_NOT_FOUND' });
-        const pdata = psnap.data();
-        if (pdata.status !== 'public' && pdata.ownerUid !== user.uid)
-          return res.status(403).json({ ok:false, error:'PROMPT_FORBIDDEN' });
-        promptText = String(pdata.content);
-        psnap.ref.update({ usageCount: FieldValue.increment(1) }).catch(()=>{});
-      }else{
-        promptText = String(customPrompt);
-      }
+      const psnap = await db.collection('prompts').doc(promptId).get();
+      if (!psnap.exists) return res.status(404).json({ ok:false, error:'PROMPT_NOT_FOUND' });
+      const pdata = psnap.data();
+      // [수정된 부분] 검증된 프롬프트만 사용하도록 서버에서도 확인 (선택사항이지만 권장)
+      if (!pdata.lastValidatedAt) return res.status(403).json({ok:false, error: 'PROMPT_NOT_VALIDATED'});
+      if (pdata.status !== 'public' && pdata.ownerUid !== user.uid)
+        return res.status(403).json({ ok:false, error:'PROMPT_FORBIDDEN' });
+      promptText = String(pdata.content);
+      psnap.ref.update({ usageCount: FieldValue.increment(1) }).catch(()=>{});
 
       const basePrompt = await loadCharacterBasePrompt();
-      const worldText = wdata.worldText || buildWorldText(wdata);
+      const worldText = buildWorldText(wdata); // 수정된 함수 사용
       const composedUser = [
-        `worldText:\n${worldText}`,
-        `prompt:\n${promptText}`,
-        `userInput:\n${String(userInput||'').trim()}`,
-        `\n\n반드시 위 JSON 스키마로만 출력. 설명/코드펜스 금지.`,
+        `### 세계관 정보`,
+        worldText,
+        `### 생성 프롬프트`,
+        promptText,
+        `### 사용자 요청`,
+        `${String(userInput||'').trim()}`,
+        `\n\n위 정보를 바탕으로 JSON 스키마에 맞춰 캐릭터를 생성해줘.`,
       ].join('\n\n');
 
       const { primary } = pickModels();
