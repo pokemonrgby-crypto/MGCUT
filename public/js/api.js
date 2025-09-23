@@ -1,14 +1,40 @@
 import {
   getAuth,
-  // ... (기존 import와 동일)
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
 } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js';
 
 export const auth = {
-  // ... (기존 auth 객체와 동일)
+  get currentUser(){ return getAuth().currentUser; },
+  onAuthStateChanged(cb){ return onAuthStateChanged(getAuth(), cb); },
+  async signOut(){ return signOut(getAuth()); },
+  async signInWithGoogle(){
+    const provider = new GoogleAuthProvider();
+    return signInWithPopup(getAuth(), provider);
+  },
 };
 
-async function idToken() { /* ... */ }
-async function call(method, path, body) { /* ... */ }
+async function idToken() {
+  const u = auth.currentUser;
+  return u ? await u.getIdToken() : null;
+}
+
+async function call(method, path, body) {
+  const headers = { 'content-type': 'application/json' };
+  
+  const t = await idToken();
+  if (t) headers['authorization'] = 'Bearer ' + t;
+
+  const res = await fetch(path, {
+    method, headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const json = await res.json().catch(()=>({ ok:false, error:'BAD_JSON' }));
+  if (!res.ok || !json.ok) throw new Error(json.error || json.details?.join(', ') || res.statusText);
+  return json;
+}
 
 export const api = {
   // worlds
@@ -18,7 +44,7 @@ export const api = {
   getWorld: (id) => call('GET', `/api/worlds/${id}`),
   likeWorld: (id) => call('POST', `/api/worlds/${id}/like`),
   getMyCharacters: () => call('GET', '/api/my-characters'),
-  createSite: (worldId, siteData) => call('POST', `/api/worlds/${worldId}/sites`, siteData), // [추가]
+  createSite: (worldId, siteData) => call('POST', `/api/worlds/${worldId}/sites`, siteData),
 
   // characters
   saveCharacter: ({ worldId, promptId, characterData }) =>
