@@ -14,29 +14,57 @@ function updateElo(a, b, scoreA) {
   return [Math.round(a + K * (sa - ea)), Math.round(b + K * (sb - eb))];
 }
 
-// === One-shot Battle Prompt (캐릭터 + 세계관) ===
+
+
+
+
+// 랜덤 시드용
+function randomId() { return db.collection('_').doc().id; }
+// Elo 근접 후보 뽑기 (자기/같은 소유자 제외)
+async function findOpponentByElo({ elo, excludeCharId, excludeUid, band = 150 }) {
+  const minE = Math.max(0, Math.floor((elo ?? 1000) - band));
+  const maxE = Math.floor((elo ?? 1000) + band);
+
+  // 1차: 범위 내, Elo 정렬
+  let ref = db.collection('characters')
+    .where('elo','>=',minE).where('elo','<=',maxE).orderBy('elo','asc').limit(60);
+  const qs = await ref.get();
+  let cands = qs.docs.map(d => ({ id:d.id, ...d.data()}))
+    .filter(x => x.id !== excludeCharId && x.ownerUid !== excludeUid);
+
+  // 2차: 없으면 완화(±300)
+  if (!cands.length) {
+    const ref2 = db.collection('characters')
+      .where('elo','>=', Math.max(0,(elo??1000)-300))
+      .where('elo','<=', (elo??1000)+300)
+      .orderBy('elo','asc').limit(60);
+    const qs2 = await ref2.get();
+    cands = qs2.docs.map(d => ({ id:d.id, ...d.data()}))
+      .filter(x => x.id !== excludeCharId && x.ownerUid !== excludeUid);
+  }
+  if (!cands.length) return null;
+
+  // 교본처럼 "가장 가까운 Elo + 약간의 랜덤성"
+  cands.sort((a,b)=> Math.abs((a.elo??1000)-(elo??1000)) - Math.abs((b.elo??1000)-(elo??1000)));
+  const top = cands.slice(0, Math.min(6, cands.length));
+  return top[Math.floor(Math.random()*top.length)];
+}
+
+// 프롬프트(세계관 포함, 1회 시뮬 전용)
 function buildOneShotBattlePrompt({ me, op, world }) {
   const pick = (c) => {
     const chosen = Array.isArray(c.chosen) ? c.chosen : [];
     const skills = Array.isArray(c.abilities) ? c.abilities : [];
-    const picked = chosen.map(x =>
-      skills[x]?.name || skills.find(s => s?.id===x || s?.name===x)?.name
-    ).filter(Boolean);
+    const picked = chosen.map(x => skills[x]?.name || skills.find(s=>s?.id===x||s?.name===x)?.name).filter(Boolean);
     const items = (Array.isArray(c.items)?c.items:[]).map(i=>i?.name).filter(Boolean);
     const intro = String(c.introShort || '').slice(0, 180);
-    return { name: c.name || '', elo: Number(c.elo ?? 1000), picked, items, intro };
+    return { name:c.name||'', elo:Number(c.elo??1000), picked, items, intro };
   };
   const A = pick(me), B = pick(op);
-
   const worldName = world?.name || me?.worldName || me?.worldId || '-';
-  const worldDesc = (String(world?.description || world?.introShort || '')).slice(0, 300);
+  const worldDesc  = String(world?.description || world?.introShort || '').slice(0, 300);
 
   return [
-    `# 전투 규칙`,
-    `- 단일 시뮬레이션. 결과와 전개를 한국어 마크다운으로 출력.`,
-    `- **굵게**, *기울임*, \`코드\`, > 인용 등 기본 마크다운 사용.`,
-    `- 과장된 표현 OK, 잔혹/선정 수위는 자제. 한 문단당 2~3문장.`,
-    ``,
     `# 세계관`,
     `- 이름: ${worldName}`,
     worldDesc ? `- 개요: ${worldDesc}` : `- 개요: (생략)`,
@@ -45,18 +73,17 @@ function buildOneShotBattlePrompt({ me, op, world }) {
     `- A: ${A.name} (Elo ${A.elo})`,
     `  - 스킬: ${A.picked.join(' · ') || '-'}`,
     `  - 아이템: ${A.items.join(' · ') || '-'}`,
-    `  - 소개: ${A.intro || '-'}`,
     `- B: ${B.name} (Elo ${B.elo})`,
     `  - 스킬: ${B.picked.join(' · ') || '-'}`,
     `  - 아이템: ${B.items.join(' · ') || '-'}`,
-    `  - 소개: ${B.intro || '-'}`,
     ``,
     `# 출력 형식`,
-    `1) 한 문단 요약(2~3문장)`,
-    `2) 전투 전개(마크다운, 3~6문단)`,
-    `3) 마지막 줄에 '승자: A' 또는 '승자: B' 또는 '승자: 무승부'만 단독 줄로 표기`,
+    `1) 한 문단 요약`,
+    `2) 전개 3~6 문단 (마크다운)`,
+    `3) 마지막 줄 단독으로 '승자: A' | '승자: B' | '승자: 무승부'`,
   ].join('\n');
 }
+
 
 
 export function mountCharacters(app) {
@@ -441,34 +468,200 @@ app.post('/api/characters/save', async (req, res) => {
 
 
   
+// 스킬(3개) 저장
+app.post('/api/characters/:id/abilities', async (req, res) => {
+  try{
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+    const id = req.params.id;
+    const { chosen } = req.body || {};
+    if (!Array.isArray(chosen) || chosen.length !== 3)
+      return res.status(400).json({ ok:false, error:'CHOSEN_3_REQUIRED' });
 
-  // 매치 결과 반영 (Elo 업데이트)
-  // body: { aId, bId, result }  // result: 'A' | 'B' | 'DRAW'
-  app.post('/api/match', async (req, res) => {
-    try {
-      const user = await getUserFromReq(req);
-      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+    const ref = db.collection('characters').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ ok:false, error:'NOT_FOUND' });
+    if ((snap.data().ownerUid||'') !== user.uid) return res.status(403).json({ ok:false, error:'NOT_OWNER' });
 
-      const { aId, bId, result } = req.body || {};
-      if (!aId || !bId || !['A','B','DRAW'].includes(result)) {
-        return res.status(400).json({ ok: false, error: 'INVALID_ARGS' });
+    await ref.update({ chosen, updatedAt: FieldValue.serverTimestamp() });
+    res.json({ ok:true, data:{ id, chosen }});
+  }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
+});
+
+// 아이템(3칸) 저장
+app.post('/api/characters/:id/items', async (req, res) => {
+  try{
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+    const id = req.params.id;
+    const { equipped } = req.body || {};
+    if (!Array.isArray(equipped) || equipped.length !== 3)
+      return res.status(400).json({ ok:false, error:'EQUIPPED_3_REQUIRED' });
+
+    const ref = db.collection('characters').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ ok:false, error:'NOT_FOUND' });
+    const c = snap.data();
+    if ((c.ownerUid||'') !== user.uid) return res.status(403).json({ ok:false, error:'NOT_OWNER' });
+
+    const inv = (Array.isArray(c.items)?c.items:[]).map(x=>String(x?.name||''));
+    const norm = equipped.map(n => (n && inv.includes(String(n))) ? String(n) : null);
+
+    await ref.update({ equipped:norm, updatedAt: FieldValue.serverTimestamp() });
+    res.json({ ok:true, data:{ id, equipped:norm }});
+  }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
+});
+
+// 매칭: 자기 제외 + 같은 소유자 제외 + Elo 근접
+app.post('/api/matchmaking/find', async (req, res) => {
+  try{
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+    const { charId } = req.body || {};
+    if (!charId) return res.status(400).json({ ok:false, error:'charId required' });
+
+    const meRef = db.collection('characters').doc(charId);
+    const meSnap = await meRef.get();
+    if (!meSnap.exists) return res.status(404).json({ ok:false, error:'CHAR_NOT_FOUND' });
+    const me = meSnap.data();
+    if ((me.ownerUid||'') !== user.uid) return res.status(403).json({ ok:false, error:'NOT_OWNER' });
+
+    const opp = await findOpponentByElo({ elo: me.elo ?? 1000, excludeCharId: charId, excludeUid: user.uid });
+    return res.json({ ok:true, data:{ opponentId: opp?.id || null }});
+  }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
+});
+
+// 배틀 생성 (ready)
+app.post('/api/battle/create', async (req, res) => {
+  try{
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+    const { meId, opId } = req.body || {};
+    if (!meId || !opId) return res.status(400).json({ ok:false, error:'ARGS_REQUIRED' });
+
+    const [aSnap, bSnap] = await Promise.all([
+      db.collection('characters').doc(meId).get(),
+      db.collection('characters').doc(opId).get(),
+    ]);
+    if (!aSnap.exists || !bSnap.exists) return res.status(404).json({ ok:false, error:'CHAR_NOT_FOUND' });
+    if ((aSnap.data().ownerUid||'') !== user.uid) return res.status(403).json({ ok:false, error:'NOT_OWNER' });
+
+    const now = FieldValue.serverTimestamp();
+    const doc = await db.collection('battles').add({
+      meId, opId, eloMe: aSnap.data().elo ?? 1000, eloOp: bSnap.data().elo ?? 1000,
+      status:'ready', createdAt: now, updatedAt: now
+    });
+    res.json({ ok:true, data:{ id: doc.id }});
+  }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
+});
+
+// 1회 시뮬레이션 (사용자 키로 AI 호출) + 타임라인 기록
+app.post('/api/battle/simulate', async (req, res) => {
+  try{
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+
+    const apiKey = String(req.get('X-User-Api-Key') || req.get('X-OpenAI-Key') || '').trim();
+    if (!apiKey) return res.status(400).json({ ok:false, error:'USER_API_KEY_REQUIRED' });
+
+    const { battleId } = req.body || {};
+    if (!battleId) return res.status(400).json({ ok:false, error:'battleId required' });
+
+    const bRef = db.collection('battles').doc(battleId);
+    const bSnap = await bRef.get();
+    if (!bSnap.exists) return res.status(404).json({ ok:false, error:'BATTLE_NOT_FOUND' });
+    const b = bSnap.data();
+    const [meSnap, opSnap] = await Promise.all([
+      db.collection('characters').doc(b.meId).get(),
+      db.collection('characters').doc(b.opId).get(),
+    ]);
+    const me = meSnap.data(), op = opSnap.data();
+
+    // 세계관 로드(있으면)
+    let world = null;
+    try{
+      const wid = me.worldId || op.worldId;
+      if (wid) {
+        const w = await db.collection('worlds').doc(wid).get();
+        if (w.exists) world = w.data();
       }
+    }catch{}
 
-      const aRef = db.collection('characters').doc(aId);
-      const bRef = db.collection('characters').doc(bId);
-      const [aSnap, bSnap] = await Promise.all([aRef.get(), bRef.get()]);
-      if (!aSnap.exists || !bSnap.exists) return res.status(404).json({ ok: false, error: 'CHAR_NOT_FOUND' });
+    const prompt = buildOneShotBattlePrompt({ me, op, world });
 
-      const a = aSnap.data(), b = bSnap.data();
-      const sa = result === 'A' ? 1 : result === 'DRAW' ? 0.5 : 0;
-      const [newA, newB] = updateElo(a.elo ?? 1000, b.elo ?? 1000, sa);
+    // === Gemini 호출 (사용자 키) ===
+    const model = 'gemini-2.0-flash'; // 가벼운 기본
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const body = {
+      systemInstruction: { role:'system', parts:[{ text:'당신은 판타지 전투 해설가다. 출력은 한국어 마크다운.' }]},
+      contents: [{ role:'user', parts:[{ text: prompt }] }],
+      generationConfig: { temperature: 0.9, maxOutputTokens: 2048, responseMimeType: 'text/markdown' }
+    };
+    const resAI = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+    if (!resAI.ok) {
+      const t = await resAI.text().catch(()=> '');
+      throw new Error(`Gemini ${resAI.status} ${t.slice(0,200)}`);
+    }
+    const j = await resAI.json();
+    const markdown =
+      j?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      j?.candidates?.[0]?.content?.parts?.[0]?.raw_text || '**오류**: 결과 없음';
 
-      await Promise.all([
-        aRef.update({ elo: newA, updatedAt: FieldValue.serverTimestamp() }),
-        bRef.update({ elo: newB, updatedAt: FieldValue.serverTimestamp() })
-      ]);
+    const m = /승자:\s*(A|B|무승부)/.exec(markdown);
+    const winTag = m ? m[1] : ( (me.elo??1000) >= (op.elo??1000) ? 'A' : 'B' );
 
-      res.json({ ok: true, data: { a: { id:aId, elo:newA }, b: { id:bId, elo:newB } } });
-    } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
-  });
-}
+    const now = FieldValue.serverTimestamp();
+    await bRef.update({ status:'done', updatedAt: now, logMd: markdown, winner: winTag });
+
+    // 타임라인(양쪽)
+    const preview = markdown.split('\n').slice(0,4).join(' ').slice(0, 280);
+    await Promise.all([
+      db.collection('characters').doc(b.meId).collection('timeline').add({
+        ts: now, type:'battle', battleId, opponentId: b.opId,
+        result: winTag==='A' ? 'WIN' : (winTag==='B' ? 'LOSE' : 'DRAW'),
+        preview, worldId: me.worldId || null
+      }),
+      db.collection('characters').doc(b.opId).collection('timeline').add({
+        ts: now, type:'battle', battleId, opponentId: b.meId,
+        result: winTag==='B' ? 'WIN' : (winTag==='A' ? 'LOSE' : 'DRAW'),
+        preview, worldId: op.worldId || null
+      })
+    ]);
+
+    res.json({ ok:true, data:{ winner: winTag, markdown }});
+  }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
+});
+
+// 배틀 종료 → Elo 반영
+app.post('/api/battle/finish', async (req, res) => {
+  try{
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+
+    const { battleId, result } = req.body || {};
+    if (!battleId || !['A','B','DRAW'].includes(result))
+      return res.status(400).json({ ok:false, error:'ARGS_REQUIRED' });
+
+    const bRef = db.collection('battles').doc(battleId);
+    const bSnap = await bRef.get();
+    if (!bSnap.exists) return res.status(404).json({ ok:false, error:'BATTLE_NOT_FOUND' });
+    const b = bSnap.data();
+
+    const [aSnap, oSnap] = await Promise.all([
+      db.collection('characters').doc(b.meId).get(),
+      db.collection('characters').doc(b.opId).get(),
+    ]);
+    const a = aSnap.data(), o = oSnap.data();
+
+    const sa = (result==='A') ? 1 : (result==='DRAW' ? 0.5 : 0);
+    const [newA, newB] = updateElo(a.elo ?? 1000, o.elo ?? 1000, sa);
+
+    await Promise.all([
+      db.collection('characters').doc(b.meId).update({ elo: newA, updatedAt: FieldValue.serverTimestamp() }),
+      db.collection('characters').doc(b.opId).update({ elo: newB, updatedAt: FieldValue.serverTimestamp() }),
+      bRef.update({ eloMeAfter:newA, eloOpAfter:newB, updatedAt: FieldValue.serverTimestamp() })
+    ]);
+
+    res.json({ ok:true, data:{ eloMe:newA, eloOp:newB }});
+  }catch(e){ res.status(500).json({ ok:false, error:String(e) }); }
+});
