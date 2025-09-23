@@ -5,19 +5,19 @@ import { withBlocker } from '../ui/frame.js';
 const rootSel = '[data-view="world-detail"]';
 
 // [추가] 명소 카드 렌더링 헬퍼
+// [통일] 명소 카드: 세계관 카드와 동일한 구조(.bg, .grad, .title)
 function siteCard(s) {
-  const img = s?.imageUrl || s?.img || '';          // imageUrl 없으면 img도 허용
+  const img = s?.imageUrl || s?.img || '';
   const name = s?.name || '';
-  const diff = s?.difficulty || s?.level || '';
   return `
     <div class="card site-card h-card" data-site-name="${name}">
       <div class="bg" style="${img ? `background-image:url('${img}')` : ''}"></div>
       <div class="grad"></div>
       <div class="title shadow-title">${name}</div>
-      ${diff ? `<div class="tag small">난이도: ${diff}</div>` : ``}
     </div>
   `;
 }
+
 
 
 function parseRichText(text) {
@@ -94,7 +94,11 @@ function render(world) {
   `;
   
   root.querySelector('#tab-intro').innerHTML = `<div class="card pad"><p style="white-space: pre-wrap;">${world.introLong || world.introShort}</p></div>`;
-  root.querySelector('#tab-sites').innerHTML = (world.sites || []).map(siteCard).join('') || '<div class="card pad small">정보가 없습니다.</div>';
+  root.querySelector('#tab-sites').innerHTML =
+  '<div class="grid3">' +
+  ((world.sites || []).map(siteCard).join('') || '<div class="card pad small">정보가 없습니다.</div>') +
+  '</div>';
+
   root.querySelector('#tab-factions').innerHTML = (world.factions || []).map(f => infoCard(f.name, f.description)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
   root.querySelector('#tab-npcs').innerHTML = (world.npcs || []).map(n => infoCard(n.name, n.description)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
   root.querySelector('#tab-episodes').innerHTML = (world.episodes || []).map(e => episodeCard(e, world.id)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
