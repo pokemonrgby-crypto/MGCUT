@@ -43,7 +43,8 @@ async function render(battleId){
   function push(text){ const d = document.createElement('div'); d.className='log-line'; d.innerHTML = md(text); log.appendChild(d); log.scrollTop = log.scrollHeight; }
 
   async function doTurn(){
-    const key = localStorage.getItem('OPENAI_KEY') || '';
+    const key = localStorage.getItem('GEMINI_KEY') || '';
+
     if (!key) { alert('Matching 화면에서 OpenAI 키를 저장해줘!'); auto=false; btnAuto.textContent='자동 OFF'; return; }
     const act = actionInput.value.trim() || '기본 공격';
     actionInput.value = '';
