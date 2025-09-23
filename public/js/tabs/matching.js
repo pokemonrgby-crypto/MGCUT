@@ -83,7 +83,8 @@ async function render(meId) { // [수정] opId 인자 제거
 
 export function mount() {
   // [수정] onRoute 함수를 mount로 이름을 바꾸고 export 합니다.
-  const m = location.hash.match(/#\/matching\??(.*)$/);
+  const m = location.hash.match(/#\/?matching\??(.*)$/);
+
   if (!m) return; // 매칭 URL이 아니면 아무것도 하지 않음
   const q = new URLSearchParams(m[1] || '');
   const meId = q.get('me');
