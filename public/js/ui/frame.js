@@ -91,7 +91,6 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   bindBottomBar();
-  handleRouteChange();
 });
 
 function updateAuthUI(user) {
