@@ -24,9 +24,12 @@ function renderHub() {
       <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18v2H3V5zm0 4h18v2H3V9zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/></svg></div>
       <div><div class="t">프롬프트 업로드</div><div class="s">캐릭터 생성 규칙 공유</div></div>
     </div>
+    <div class="card create-card" data-nav-to="#create-site">
+      <div class="icon"><svg class="ico"><use href="#i-compass"/></svg></div>
+      <div><div class="t">명소 생성</div><div class="s">탐험할 장소 추가하기</div></div>
+    </div>
   `;
 
-  // 카드 클릭 시 해시 변경으로 라우팅을 트리거합니다.
   document.querySelectorAll(`${rootSel} [data-nav-to]`).forEach(b => {
     b.onclick = () => {
       window.location.hash = b.dataset.navTo;
