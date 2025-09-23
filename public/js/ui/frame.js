@@ -13,7 +13,6 @@ import * as WorldDetail from '../tabs/world-detail.js';
 import * as EpisodeDetail from '../tabs/episode-detail.js';
 import * as CharacterDetail from '../tabs/character-detail.js';
 
-
 export const ui = {
   blocker: null,
   busy(v = true) {
@@ -26,7 +25,6 @@ export const ui = {
     const el = document.querySelector(`[data-view="${name}"]`);
     if (el) el.style.display = '';
   },
-  // [추가] 네비게이션 함수
   navTo(path) {
     window.location.hash = `#${path}`;
   }
@@ -49,7 +47,7 @@ function handleRouteChange() {
     'create-site': { parentView: 'create', view: 'create-site' },
     'world': { parentView: 'home', view: 'world-detail', mount: () => WorldDetail.mount(param1) },
     'character': { parentView: 'home', view: 'character-detail', mount: () => CharacterDetail.mount(param1) },
-    'episode': { parentView: 'home', view: 'episode-detail', mount: () => EpisodeDetail.mount(param1, decodeURIComponent(param2)) }
+    'episode': { parentView: 'home', view: 'episode-detail', mount: () => EpisodeDetail.mount(param1, decodeURIComponent(param2 || '')) }
   };
 
   const route = routes[path];
@@ -61,22 +59,35 @@ function handleRouteChange() {
     document.querySelectorAll('#bottom-bar button').forEach(b => {
       b.classList.toggle('active', b.dataset.tab === activeTab);
     });
+  } else {
+    // 알 수 없는 해시 → 홈으로
+    ui.showView('home');
+    Home.mount?.();
+    document.querySelectorAll('#bottom-bar button').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === 'home');
+    });
   }
 }
 
 window.addEventListener('hashchange', handleRouteChange);
 window.addEventListener('DOMContentLoaded', () => {
+  // 서브뷰들 초기 mount
   CreateWorld.mount();
   CreateCharacter.mount();
   CreatePrompt.mount();
   CreateSite.mount();
 
-  auth.onAuthStateChanged?.((user) => {
+  // 🔧 auth 객체 안전 처리 (auth가 없을 때도 크래시 안 나게)
+  const fbAuth = auth || window.__FBAPP__?.auth;
+  fbAuth?.onAuthStateChanged?.((user) => {
     updateAuthUI(user);
-    handleRouteChange(); 
+    handleRouteChange();
   });
 
   bindBottomBar();
+
+  // 🔧 초기 라우트 강제 렌더 (onAuthStateChanged 보다 먼저 필요할 수 있음)
+  handleRouteChange();
 });
 
 function updateAuthUI(user) {
