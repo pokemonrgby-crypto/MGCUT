@@ -9,7 +9,6 @@ async function tryLoadFromConfigs(key) {
   } catch { return null; }
 }
 
-// [수정] 월드 생성용 프롬프트 (클라이언트 측에서 사용할 프롬프트의 기반)
 export async function loadWorldSystemPrompt() {
   return (
     (await tryLoadFromConfigs('world_system')) ||
@@ -59,12 +58,12 @@ export async function loadCharacterBasePrompt() {
   "narratives": [
     {
       "title": "서사 제목 (예: 과거, 목표)",
-      "content": "캐릭터의 배경 이야기를 담은 서사. 등장인물의 대사는 <대사> 태그로, 상황이나 배경 묘사는 <서술> 태그로 감싸야 합니다.",
-      "summary": "서사 내용을 1~2 문장으로 요약한 버전."
+      "long": "캐릭터의 배경 이야기를 담은 긴 서사. 등장인물의 대사는 <대사> 태그로, 상황이나 배경 묘사는 <서술> 태그로 감싸야 합니다.",
+      "short": "서사 내용을 1~2 문장으로 요약한 버전."
     }
   ],
   "abilities": [
-    { "name": "어빌리티 이름", "effect": "어빌리티의 효과와 기능에 대한 설명." }
+    { "name": "어빌리티 이름", "description": "어빌리티의 효과와 기능에 대한 설명." }
   ],
   "chosen": ["선택한 어빌리티 3개의 이름(문자열)"],
   "items": [
@@ -77,6 +76,7 @@ export async function loadCharacterBasePrompt() {
 - abilities 배열은 정확히 6개여야 합니다.
 - chosen 배열은 abilities 중 3개를 골라 그 이름으로 채워야 합니다.
 - items 배열은 캐릭터가 소지할 만한 아이템 2개를 포함해야 합니다.
+- 각 필드의 내용은 풍부하고 상세하게 작성해야 합니다.
 `
   );
 }
