@@ -19,6 +19,23 @@ function siteCard(s) {
   `;
 }
 
+function characterListCard(c) {
+  return `
+    <div class="card info-card character-list-card" data-nav-to="#character/${c.id}" style="cursor:pointer">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="image-box" style="width:50px; height:50px; border-radius:12px; background:url('${c.imageUrl}') center/cover; flex-shrink:0;"></div>
+        <div style="flex-grow:1;">
+          <div class="name">${c.name}</div>
+          <div class="small">${c.introShort}</div>
+        </div>
+        <div style="text-align:right;">
+          <div>ELO</div>
+          <div style="font-weight:700; font-size:16px;">${c.elo}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
 
 function parseRichText(text) {
@@ -57,7 +74,7 @@ export async function mount(worldId) {
   }
 }
 
-function render(world) {
+async function render(world) {
   const root = document.querySelector(rootSel);
   const contentArea = root.querySelector('.detail-content');
   if (!contentArea) return;
@@ -73,6 +90,7 @@ function render(world) {
   contentArea.innerHTML = `
     <div class="detail-tabs-nav">
       <button class="tab-btn active" data-tab="intro">소개</button>
+      <button class="tab-btn" data-tab="characters">캐릭터</button>
       <button class="tab-btn" data-tab="sites">명소</button>
       <button class="tab-btn" data-tab="factions">세력</button>
       <button class="tab-btn" data-tab="npcs">주요 인물</button>
@@ -81,6 +99,7 @@ function render(world) {
     </div>
     <div class="tab-content-wrapper">
       <div class="tab-content" id="tab-intro"></div>
+      <div class="tab-content" id="tab-characters" style="display: none;"></div>
       <div class="tab-content" id="tab-sites" style="display: none;"></div>
       <div class="tab-content" id="tab-factions" style="display: none;"></div>
       <div class="tab-content" id="tab-npcs" style="display: none;"></div>
@@ -102,6 +121,19 @@ function render(world) {
   if (isOwner) {
     renderAdminTab(root.querySelector('#tab-admin'), world);
   }
+  
+  const charactersTab = root.querySelector('#tab-characters');
+  charactersTab.innerHTML = '<div class="spinner"></div>';
+  try {
+    const charRes = await api.getWorldCharacters(world.id);
+    if (charRes.data && charRes.data.length > 0) {
+      charactersTab.innerHTML = '<div class="list" style="padding:0 16px;">' + charRes.data.map(characterListCard).join('') + '</div>';
+    } else {
+      charactersTab.innerHTML = '<div class="card pad small" style="margin:0 16px;">이 세계관에 속한 캐릭터가 없습니다.</div>';
+    }
+  } catch (e) {
+      charactersTab.innerHTML = `<div class="card pad err" style="margin:0 16px;">캐릭터 로딩 실패: ${e.message}</div>`;
+  }
 
 
   bindEvents(root, world);
@@ -118,7 +150,7 @@ function infoCard(name, description) {
 function episodeCard(episode, worldId) {
     const summary = (episode.content || '').replace(/<[^>]+>/g, ' ').substring(0, 120);
     return `
-    <div class="info-card episode-card" data-world-id="${worldId}" data-episode-title="${episode.title}" style="margin: 0 16px 12px;">
+    <div class="info-card episode-card" data-world-id="${worldId}" data-episode-title="${episode.title}" style="margin: 0 16px 12px; cursor:pointer;">
       <div class="name">${episode.title || ''}</div>
       <div class="desc">${summary}${summary.length >= 120 ? '...' : ''}</div>
     </div>
@@ -141,6 +173,12 @@ function bindEvents(container, world) {
   };
 
   container.addEventListener('click', (e) => {
+    const navTo = e.target.closest('[data-nav-to]');
+    if (navTo) {
+      window.location.hash = navTo.dataset.navTo;
+      return;
+    }
+      
     const card = e.target.closest('.episode-card');
     if (card) {
       const worldId = card.dataset.worldId;
