@@ -8,6 +8,7 @@ import * as CreateWorld from '../tabs/create-world.js';
 import * as CreateCharacter from '../tabs/create-character.js';
 import * as CreatePrompt from '../tabs/create-prompt.js';
 import * as WorldDetail from '../tabs/world-detail.js';
+import * as EpisodeDetail from '../tabs/episode-detail.js';
 
 export const ui = {
   blocker: null,
@@ -28,7 +29,8 @@ window.ui = ui;
 // [수정] 해시 기반 라우터 (핵심 로직)
 function handleRouteChange() {
   const hash = window.location.hash || '#home';
-  const [path, param] = hash.slice(1).split('/');
+  // [수정] 파라미터를 2개까지 받을 수 있도록 변경
+  const [path, param1, param2] = hash.slice(1).split('/');
 
   const routes = {
     'home': { view: 'home', mount: Home.mount },
@@ -39,6 +41,7 @@ function handleRouteChange() {
     'create-character': { parentView: 'create', view: 'create-character' },
     'create-prompt': { parentView: 'create', view: 'create-prompt' },
     'world': { parentView: 'home', view: 'world-detail', mount: () => WorldDetail.mount(param) }
+    'episode': { parentView: 'home', view: 'episode-detail', mount: () => EpisodeDetail.mount(param1, decodeURIComponent(param2)) }
   };
 
   const route = routes[path];
