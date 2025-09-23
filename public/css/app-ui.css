@@ -264,32 +264,41 @@ select.select-box {
 .char-hero .title{ position:absolute; left:16px; right:16px; bottom:12px; font-weight:700; font-size:18px; text-shadow:0 2px 10px rgba(0,0,0,.7); }
 
 .tabs-char{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:8px 16px; }
-.tabs-char button{ padding:10px 8px; border-radius:10px; background:rgba(17,21,30,0.33); color:#cfd6e6; border:0; cursor:pointer; font-weight:700; }
-.tabs-char button.active{ background:rgba(255,255,255,0.1); color:#fff; }
+.tabs-char button{
+  padding:10px 8px; border-radius:10px; background:rgba(30, 36, 50, 0.6);
+  color:#a9b5d8; border: 1px solid rgba(170, 183, 255, 0.1);
+  cursor:pointer; font-weight:700; transition: all .2s ease;
+}
+.tabs-char button.active{
+  background:rgba(255,255,255,0.1); color:#fff;
+  border-color: rgba(170, 183, 255, 0.3);
+}
 
 .tab-panels{ padding:0 16px 16px; }
 .panel{ display:none; opacity:0; transform:translateY(6px); transition:opacity .12s ease, transform .12s ease; }
 .panel.active{ display:block; opacity:1; transform:translateY(0); }
 
+/* [수정] 서사 카드 대비 향상 */
 .story-card{
-  padding:14px; border-radius:14px; background:rgba(15, 20, 36, 0.9);
-  border:1px solid rgba(170, 183, 255, 0.18); box-shadow: 0 6px 18px rgba(0,0,0,.25);
+  padding:14px; border-radius:14px; background:rgba(20, 26, 42, 0.9);
+  border:1px solid rgba(170, 183, 255, 0.25); box-shadow: 0 6px 18px rgba(0,0,0,.25);
 }
 
 .skills-head{ display:flex; align-items:center; gap:8px; margin:6px 0 8px; }
 .skills-head .count{ font-size:12px; opacity:.85; }
 
-/* [수정] .skill 내부에 있던 .skills-list.vlist 규칙을 밖으로 분리 */
 .skills-list.vlist{ display:flex; flex-direction:column; gap:10px; }
 .skills-list.vlist .skill{ width:100%; }
 
+/* [수정] 스킬 버튼 대비 향상 */
 .skill{
-  padding:12px; border-radius:12px; border:1px solid rgba(159, 180, 255, 0.2);
-  background:rgba(17, 25, 41, 0.8); cursor:pointer; text-align:left;
+  padding:12px; border-radius:12px; border:1px solid rgba(159, 180, 255, 0.3);
+  background:rgba(25, 34, 56, 0.8); cursor:pointer; text-align:left;
   box-shadow: 0 6px 18px rgba(0,0,0,.25);
 }
 .skill.selected{
   outline:2px solid #88aaff; background:#18243b; box-shadow: 0 8px 22px rgba(23,105,255,.20);
+  border-color: #88aaff;
 }
 .skill .small{ display:block; margin-top:6px; line-height:1.35; }
 
