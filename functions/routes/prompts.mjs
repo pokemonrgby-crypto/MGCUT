@@ -1,14 +1,14 @@
 // functions/routes/prompts.mjs
 import { db, FieldValue } from '../lib/firebase.mjs';
 import { getUserFromReq } from '../lib/auth.mjs';
-import { pickModels, callGemini } from '../lib/gemini.mjs';
-import { loadCharacterBasePrompt, loadWorldSystemPrompt } from '../lib/prompts.mjs'; // loadWorldSystemPrompt 추가
-import { validateCharacter } from '../lib/schemas.mjs';
+// [제거] 서버 사이드 AI 호출 관련 import 제거
+// import { pickModels, callGemini } from '../lib/gemini.mjs';
+// import { loadCharacterBasePrompt } from '../lib/prompts.mjs';
+// import { validateCharacter } from '../lib/schemas.mjs';
+import { loadWorldSystemPrompt, loadCharacterBasePrompt } from '../lib/prompts.mjs';
 
 
-function getGeminiKeyFromHeaders(req,fallback){
-  return req.headers['x-gemini-key'] ? String(req.headers['x-gemini-key']) : fallback;
-}
+// [제거] getGeminiKeyFromHeaders 함수 제거
 
 export function mountPrompts(app){
 
@@ -28,8 +28,6 @@ export function mountPrompts(app){
     }
   });
 
-
-  
   // [GET] 공개 목록
   app.get('/api/prompts', async (req,res)=>{
     try{
@@ -41,7 +39,7 @@ export function mountPrompts(app){
     }catch(e){ res.status(400).json({ ok:false, error:e.message||'ERR_PROMPTS_LIST' }); }
   });
 
-  // [POST] 업로드 (하루 1개 제한은 클라가 아니라 서버 정책으로 하고 싶다면 user_meta에 비슷하게 추가 가능)
+  // [POST] 업로드
   app.post('/api/prompts', async (req,res)=>{
     try{
       const user = await getUserFromReq(req);
@@ -61,7 +59,7 @@ export function mountPrompts(app){
     }catch(e){ res.status(400).json({ ok:false, error:e.message||'ERR_PROMPT_UPLOAD' }); }
   });
 
-  // [POST] 검증(작성자 전용)
+  // [수정] 검증 API에서 AI 호출 로직 제거
   app.post('/api/prompts/:id/validate', async (req,res)=>{
     try{
       const user = await getUserFromReq(req);
@@ -73,24 +71,10 @@ export function mountPrompts(app){
       const data = snap.data();
       if (data.ownerUid !== user.uid) return res.status(403).json({ ok:false, error:'FORBIDDEN' });
 
-      const basePrompt = await loadCharacterBasePrompt();
-      const sampleWorldText = `세계: 샘플월드
-소개: 샘플 소개
-배경: 샘플 배경
-명소: - 샘플명소
-조직: - 샘플조직
-NPC: - 샘플NPC`;
-      const userInput = `worldText:\n${sampleWorldText}\n\nprompt:\n${data.content}\n\nuserInput:\n(검증용 샘플)`;
-
-      const { primary } = pickModels();
-      const apiKey = getGeminiKeyFromHeaders(req, process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
-      const out = await callGemini({ key: apiKey, model: primary, system: basePrompt, user: userInput });
-      const test = out.json;
-      const v = validateCharacter(test);
-      if (!v.ok) return res.status(400).json({ ok:false, error:'SCHEMA_FAIL', details:v.errors });
-
+      // AI 호출 로직을 모두 제거하고, 단순히 검증 시간만 업데이트.
+      // 실제 검증은 향후 클라이언트 사이드에서 구현해야 함.
       await ref.update({ lastValidatedAt: FieldValue.serverTimestamp() });
-      res.json({ ok:true, data:{ preview:test } });
+      res.json({ ok:true, data: { message: "Validation timestamp updated." } });
     }catch(e){ res.status(400).json({ ok:false, error:e.message||'ERR_PROMPT_VALIDATE' }); }
   });
 
