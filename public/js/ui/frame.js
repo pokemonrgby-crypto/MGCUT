@@ -7,12 +7,22 @@ import * as Adventure from '../tabs/adventure.js';
 import * as CreateWorld from '../tabs/create-world.js';
 import * as CreateCharacter from '../tabs/create-character.js';
 import * as CreatePrompt from '../tabs/create-prompt.js';
-import * as CreateSite from '../tabs/create-site.js'; // [추가]
+import * as CreateSite from '../tabs/create-site.js';
 import * as WorldDetail from '../tabs/world-detail.js';
 import * as EpisodeDetail from '../tabs/episode-detail.js';
 
 export const ui = {
-  // ... (기존 ui 객체 내용과 동일)
+  blocker: null,
+  busy(v = true) {
+    this.blocker ??= document.getElementById('ui-blocker');
+    if (!this.blocker) return;
+    this.blocker.classList.toggle('show', !!v);
+  },
+  showView(name) {
+    document.querySelectorAll('[data-view]').forEach(v => v.style.display = 'none');
+    const el = document.querySelector(`[data-view="${name}"]`);
+    if (el) el.style.display = '';
+  },
 };
 window.ui = ui;
 
@@ -28,14 +38,20 @@ function handleRouteChange() {
     'create-world': { parentView: 'create', view: 'create-world' },
     'create-character': { parentView: 'create', view: 'create-character' },
     'create-prompt': { parentView: 'create', view: 'create-prompt' },
-    'create-site': { parentView: 'create', view: 'create-site' }, // [추가]
+    'create-site': { parentView: 'create', view: 'create-site' },
     'world': { parentView: 'home', view: 'world-detail', mount: () => WorldDetail.mount(param1) },
     'episode': { parentView: 'home', view: 'episode-detail', mount: () => EpisodeDetail.mount(param1, decodeURIComponent(param2)) }
   };
 
   const route = routes[path];
   if (route) {
-    // ... (기존 라우팅 로직과 동일)
+    ui.showView(route.view);
+    if (route.mount) route.mount();
+
+    const activeTab = route.parentView || path;
+    document.querySelectorAll('#bottom-bar button').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === activeTab);
+    });
   }
 }
 
@@ -44,13 +60,41 @@ window.addEventListener('DOMContentLoaded', () => {
   CreateWorld.mount();
   CreateCharacter.mount();
   CreatePrompt.mount();
-  CreateSite.mount(); // [추가]
+  CreateSite.mount();
 
   auth.onAuthStateChanged?.((user) => {
-    // ... (기존 인증 로직과 동일)
+    updateAuthUI(user);
+    handleRouteChange(); 
   });
 
   bindBottomBar();
 });
 
-// ... (나머지 함수들은 기존과 동일)
+function updateAuthUI(user) {
+  const authScreen = document.getElementById('auth-screen');
+  const appFrame = document.getElementById('app-frame');
+  const bottomBar = document.getElementById('bottom-bar');
+
+  const showApp = !!user;
+  authScreen.style.display = showApp ? 'none' : '';
+  appFrame.style.display = showApp ? '' : 'none';
+  bottomBar.style.display = showApp ? '' : 'none';
+}
+
+function bindBottomBar() {
+  document.querySelectorAll('#bottom-bar button').forEach(btn => {
+    btn.onclick = () => { window.location.hash = btn.dataset.tab; };
+  });
+}
+
+export async function withBlocker(task) {
+  ui.busy(true);
+  try {
+    return await task();
+  } catch (e) {
+    console.error(e);
+    throw e;
+  } finally {
+    ui.busy(false);
+  }
+}
