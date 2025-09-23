@@ -44,11 +44,14 @@ async function call(method, path, body, extraHeaders = {}) {
 
 
   const res = await fetch(path, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: 'include'
-  });
+  method,
+  headers: body
+    ? { 'Content-Type': 'application/json', ...(extraHeaders||{}) }
+    : (Object.keys(extraHeaders||{}).length ? { ...(extraHeaders||{}) } : undefined),
+  body: body ? JSON.stringify(body) : undefined,
+  credentials: 'include'
+});
+
 
 
   const ct = res.headers.get('content-type') || '';
