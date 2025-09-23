@@ -1,17 +1,20 @@
-// 배틀 화면 (리치텍스트 로그)
+// /public/js/tabs/battle.js — 1회 시뮬 버전
 import { api } from '../api.js';
 
 const ROOT = '[data-view="battle"]';
 
-// 아주 간단한 마크다운 렌더(굵게/기울임/인용/코드)
 const esc = s => String(s??'').replace(/[&<>"]/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 function md(s){
   let t = esc(s);
+  t = t.replace(/^### (.+)$/gm,'<h3>$1</h3>');
   t = t.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
   t = t.replace(/\*(.+?)\*/g,'<i>$1</i>');
   t = t.replace(/`(.+?)`/g,'<code>$1</code>');
   t = t.replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>');
-  t = t.replace(/\n/g,'<br>');
+  t = t.replace(/^- (.+)$/gm,'<li>$1</li>');
+  t = t.replace(/\n{2,}/g,'</p><p>');
+  t = `<p>${t}</p>`;
+  t = t.replace(/<p><li>/g,'<ul><li>').replace(/<\/li><\/p>/g,'</li></ul>');
   return t;
 }
 
@@ -20,53 +23,62 @@ async function render(battleId){
   if (!root) return;
   root.innerHTML = `
     <div class="section-h">배틀</div>
-    <div class="battle-head card" style="margin:0 16px 12px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center">
+    <div class="card pad" style="margin:0 16px 12px">
       <div class="small">ID: ${battleId}</div>
-      <div>
-        <button class="btn small" id="btn-auto">자동 OFF</button>
-      </div>
     </div>
-    <div class="battle-log card" style="margin:0 16px 12px; padding:12px; max-height:50vh; overflow:auto"></div>
-    <div class="card pad" style="margin:0 16px 16px">
-      <div class="small" style="margin-bottom:6px">행동 입력(리치텍스트는 AI가 생성)</div>
-      <input id="action" type="text" placeholder="예: 은신 후 일격" style="width:100%">
-      <button id="btn-turn" class="btn" style="margin-top:10px">다음 턴</button>
+    <div class="card pad sim-loading" style="margin:0 16px 12px">
+      <div class="dots">시뮬레이션 중<span>.</span><span>.</span><span>.</span></div>
+      <div class="small" style="opacity:.8">AI는 내정보에 저장된 키로 호출돼.</div>
+    </div>
+    <div class="card pad md-body" style="margin:0 16px 16px; display:none"></div>
+    <div style="display:flex; gap:8px; margin:0 16px 16px">
+      <button id="btn-rematch" class="btn">다시 매칭</button>
+      <button id="btn-resim" class="btn">다시 시뮬</button>
     </div>
   `;
 
-  const log = root.querySelector('.battle-log');
-  const actionInput = root.querySelector('#action');
-  const btnTurn = root.querySelector('#btn-turn');
-  const btnAuto = root.querySelector('#btn-auto');
-  let auto = false, timer = null;
-
-  function push(text){ const d = document.createElement('div'); d.className='log-line'; d.innerHTML = md(text); log.appendChild(d); log.scrollTop = log.scrollHeight; }
-
-  async function doTurn(){
-    const key = localStorage.getItem('GEMINI_KEY') || '';
-
-    if (!key) { alert('Matching 화면에서 OpenAI 키를 저장해줘!'); auto=false; btnAuto.textContent='자동 OFF'; return; }
-    const act = actionInput.value.trim() || '기본 공격';
-    actionInput.value = '';
-    try{
-      await api.battleTurn(battleId, act, key);
-      push(`**행동**: ${act}\n\n> (서버 응답) 모델 응답 샘플이 추가되었습니다.`);
-    }catch(e){ push(`오류: ${e.message||e}`); auto=false; btnAuto.textContent='자동 OFF'; }
+  const key = localStorage.getItem('GEMINI_KEY') || '';
+  if (!key) {
+    const l = root.querySelector('.sim-loading .small');
+    l.innerHTML = '내정보에서 API 키를 먼저 저장해줘!';
+    return;
   }
 
-  btnTurn.onclick = doTurn;
-  btnAuto.onclick = ()=>{
-    auto = !auto;
-    btnAuto.textContent = auto ? '자동 ON' : '자동 OFF';
-    if (auto){
-      timer = setInterval(doTurn, 2000);
-    }else{
-      if (timer) clearInterval(timer);
+  try{
+    const r = await api.battleSimulate(battleId, key);
+    const markdown = r?.data?.markdown || '**오류**: 결과 없음';
+    const out = root.querySelector('.md-body');
+    out.innerHTML = md(markdown);
+    out.style.display = '';
+
+    // 로딩 박스 숨김
+    root.querySelector('.sim-loading')?.remove();
+
+    // 승자 뱃지 강조
+    const m = /승자:\s*(A|B|무승부)/.exec(markdown);
+    if (m) {
+      const b = document.createElement('div');
+      b.className = 'winner-badge';
+      b.textContent = `결과: ${m[1]}`;
+      out.prepend(b);
     }
+
+  }catch(e){
+    const l = root.querySelector('.sim-loading .small');
+    l.innerHTML = '시뮬 실패: ' + (e.message||e);
+  }
+
+  // 버튼
+  root.querySelector('#btn-rematch').onclick = ()=>{
+    // 이전 matching 화면으로 복귀
+    history.back(); // 또는: location.hash = '#/matching'
+  };
+  root.querySelector('#btn-resim').onclick = ()=>{
+    // 현재 id로 다시 시뮬
+    render(battleId);
   };
 }
 
-// 라우팅 훅
 function onRoute(){
   const m = location.hash.match(/#\/battle\??(.*)$/);
   const root = document.querySelector(ROOT);
