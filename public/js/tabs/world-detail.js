@@ -94,7 +94,7 @@ function render(world) {
   `;
   
   root.querySelector('#tab-intro').innerHTML = `<div class="card pad"><p style="white-space: pre-wrap;">${world.introLong || world.introShort}</p></div>`;
-  root.querySelector('#tab-sites').innerHTML = (world.sites || []).map(s => siteCard(s, isOwner)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
+  root.querySelector('#tab-sites').innerHTML = (world.sites || []).map(siteCard).join('') || '<div class="card pad small">정보가 없습니다.</div>';
   root.querySelector('#tab-factions').innerHTML = (world.factions || []).map(f => infoCard(f.name, f.description)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
   root.querySelector('#tab-npcs').innerHTML = (world.npcs || []).map(n => infoCard(n.name, n.description)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
   root.querySelector('#tab-episodes').innerHTML = (world.episodes || []).map(e => episodeCard(e, world.id)).join('') || '<div class="card pad small">정보가 없습니다.</div>';
