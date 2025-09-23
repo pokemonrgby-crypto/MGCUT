@@ -11,6 +11,7 @@ import * as CreateSite from '../tabs/create-site.js';
 import * as WorldDetail from '../tabs/world-detail.js';
 import * as EpisodeDetail from '../tabs/episode-detail.js';
 
+
 export const ui = {
   blocker: null,
   busy(v = true) {
@@ -23,6 +24,10 @@ export const ui = {
     const el = document.querySelector(`[data-view="${name}"]`);
     if (el) el.style.display = '';
   },
+  // [추가] 네비게이션 함수
+  navTo(path) {
+    window.location.hash = `#${path}`;
+  }
 };
 window.ui = ui;
 
