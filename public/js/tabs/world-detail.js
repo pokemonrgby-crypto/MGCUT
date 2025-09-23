@@ -4,6 +4,22 @@ import { withBlocker } from '../ui/frame.js';
 
 const rootSel = '[data-view="world-detail"]';
 
+// [추가] 명소 카드 렌더링 헬퍼
+function siteCard(s) {
+  const img = s?.imageUrl || s?.img || '';          // imageUrl 없으면 img도 허용
+  const name = s?.name || '';
+  const diff = s?.difficulty || s?.level || '';
+  return `
+    <div class="card site-card h-card" data-site-name="${name}">
+      <div class="bg" style="${img ? `background-image:url('${img}')` : ''}"></div>
+      <div class="grad"></div>
+      <div class="title shadow-title">${name}</div>
+      ${diff ? `<div class="tag small">난이도: ${diff}</div>` : ``}
+    </div>
+  `;
+}
+
+
 function parseRichText(text) {
   if (!text) return '';
   return text
