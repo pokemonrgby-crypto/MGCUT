@@ -14,6 +14,51 @@ function updateElo(a, b, scoreA) {
   return [Math.round(a + K * (sa - ea)), Math.round(b + K * (sb - eb))];
 }
 
+// === One-shot Battle Prompt (캐릭터 + 세계관) ===
+function buildOneShotBattlePrompt({ me, op, world }) {
+  const pick = (c) => {
+    const chosen = Array.isArray(c.chosen) ? c.chosen : [];
+    const skills = Array.isArray(c.abilities) ? c.abilities : [];
+    const picked = chosen.map(x =>
+      skills[x]?.name || skills.find(s => s?.id===x || s?.name===x)?.name
+    ).filter(Boolean);
+    const items = (Array.isArray(c.items)?c.items:[]).map(i=>i?.name).filter(Boolean);
+    const intro = String(c.introShort || '').slice(0, 180);
+    return { name: c.name || '', elo: Number(c.elo ?? 1000), picked, items, intro };
+  };
+  const A = pick(me), B = pick(op);
+
+  const worldName = world?.name || me?.worldName || me?.worldId || '-';
+  const worldDesc = (String(world?.description || world?.introShort || '')).slice(0, 300);
+
+  return [
+    `# 전투 규칙`,
+    `- 단일 시뮬레이션. 결과와 전개를 한국어 마크다운으로 출력.`,
+    `- **굵게**, *기울임*, \`코드\`, > 인용 등 기본 마크다운 사용.`,
+    `- 과장된 표현 OK, 잔혹/선정 수위는 자제. 한 문단당 2~3문장.`,
+    ``,
+    `# 세계관`,
+    `- 이름: ${worldName}`,
+    worldDesc ? `- 개요: ${worldDesc}` : `- 개요: (생략)`,
+    ``,
+    `# 참가자`,
+    `- A: ${A.name} (Elo ${A.elo})`,
+    `  - 스킬: ${A.picked.join(' · ') || '-'}`,
+    `  - 아이템: ${A.items.join(' · ') || '-'}`,
+    `  - 소개: ${A.intro || '-'}`,
+    `- B: ${B.name} (Elo ${B.elo})`,
+    `  - 스킬: ${B.picked.join(' · ') || '-'}`,
+    `  - 아이템: ${B.items.join(' · ') || '-'}`,
+    `  - 소개: ${B.intro || '-'}`,
+    ``,
+    `# 출력 형식`,
+    `1) 한 문단 요약(2~3문장)`,
+    `2) 전투 전개(마크다운, 3~6문단)`,
+    `3) 마지막 줄에 '승자: A' 또는 '승자: B' 또는 '승자: 무승부'만 단독 줄로 표기`,
+  ].join('\n');
+}
+
+
 export function mountCharacters(app) {
   // 단건 조회
   app.get('/api/characters/:id', async (req, res) => {
@@ -24,6 +69,74 @@ export function mountCharacters(app) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
+// [신규] 배틀 1회 시뮬레이션
+app.post('/api/battle/simulate', async (req, res) => {
+  try {
+    const user = await getUserFromReq(req);
+    if (!user) return res.status(401).json({ ok:false, error:'UNAUTHENTICATED' });
+
+    const apiKey = String(req.get('X-User-Api-Key') || req.get('X-OpenAI-Key') || '').trim();
+    if (!apiKey) return res.status(400).json({ ok:false, error:'USER_API_KEY_REQUIRED' });
+
+    const { battleId } = req.body || {};
+    if (!battleId) return res.status(400).json({ ok:false, error:'battleId required' });
+
+    const bRef = db.collection('battles').doc(battleId);
+    const bSnap = await bRef.get();
+    if (!bSnap.exists) return res.status(404).json({ ok:false, error:'BATTLE_NOT_FOUND' });
+    const b = bSnap.data();
+    const { meId, opId } = b;
+
+    const [meSnap, opSnap] = await Promise.all([
+      db.collection('characters').doc(meId).get(),
+      db.collection('characters').doc(opId).get(),
+    ]);
+    if (!meSnap.exists || !opSnap.exists) return res.status(404).json({ ok:false, error:'CHAR_NOT_FOUND' });
+    const me = meSnap.data(), op = opSnap.data();
+
+    // 세계관(가능하면 me.worldId 기준)
+    let world = null;
+    try {
+      const wid = me.worldId || op.worldId;
+      if (wid) {
+        const wSnap = await db.collection('worlds').doc(wid).get();
+        if (wSnap.exists) world = wSnap.data();
+      }
+    } catch {}
+
+    // 프롬프트 준비
+    const prompt = buildOneShotBattlePrompt({ me, op, world });
+
+    // === 실제 모델 호출 자리 ===
+    //  - apiKey 사용 (저장 금지)
+    //  - 여기서 provider SDK로 prompt를 보내고, 마크다운 결과를 받아온다.
+    // 지금은 데모용으로 간단 마크다운만 생성
+    const markdown = [
+      `**요약**: ${me.name}와(과) ${op.name}의 승부가 벌어진다.`,
+      ``,
+      `### 전개`,
+      `- ${me.name}의 기술이 번뜩인다.`,
+      `- ${op.name}도 만만치 않다.`,
+      `- 격전 끝에 균형이 깨진다.`,
+      ``,
+      `승자: ${me.elo >= op.elo ? 'A' : 'B'}`  // 임시 룰 (모델 붙이면 제거)
+    ].join('\n');
+
+    const winner = /승자:\s*(A|B|무승부)/.exec(markdown)?.[1] || 'A';
+
+    // 결과 저장
+    await bRef.update({
+      status: 'done',
+      updatedAt: FieldValue.serverTimestamp(),
+      logMd: markdown,
+      winner: winner === '무승부' ? 'DRAW' : winner
+    });
+
+    return res.json({ ok:true, data:{ winner, markdown }});
+  } catch (e) {
+    return res.status(500).json({ ok:false, error:String(e) });
+  }
+});
 
 
   // [신규] 스킬 선택 저장 (characters/:id/abilities)
