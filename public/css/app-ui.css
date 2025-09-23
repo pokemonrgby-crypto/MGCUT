@@ -25,7 +25,7 @@ body{
 .world-card, .site-card, .character-card{
 
   position: relative;
-  height: 180px;ㄴ
+  height: 180px;
   cursor: pointer;
   border-radius: var(--radius);
   overflow: hidden;
