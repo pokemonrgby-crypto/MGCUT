@@ -117,7 +117,7 @@
           <textarea id="site-description" rows="5" placeholder="이 장소의 역사, 특징, 위험 요소 등을 설명합니다."></textarea>
 
           <div class="small" style="margin:12px 0 6px">난이도</div>
-          <select id="site-difficulty" style="width:100%; padding:10px; border-radius:12px; background:#0f1420; border:1px solid #273248; color:var(--text);">
+          <select id="site-difficulty" class="select-box">
             <option value="easy">Easy</option>
             <option value="normal">Normal</option>
             <option value="hard">Hard</option>
@@ -125,6 +125,9 @@
             <option value="impossible">Impossible</option>
           </select>
           
+          <div class="small" style="margin:12px 0 6px">대표 이미지 (선택)</div>
+          <input type="file" id="site-image" accept="image/*" style="width:100%;">
+
           <button class="btn full" id="btn-site-create" style="margin-top:12px">생성</button>
         </div>
       </div>
@@ -133,20 +136,13 @@
         <div class="section-h">모험</div>
         <div class="list" style="padding:0 16px 16px"></div>
       </div>
-<div data-view="matching" style="display:none"></div>
-<div data-view="battle" style="display:none"></div>
 
-
+      <div data-view="matching" style="display:none"></div>
+      <div data-view="battle" style="display:none"></div>
       <div data-view="ranking" style="display:none;">
         <div class="section-h">랭킹</div>
-        <div class="detail-tabs-nav" style="margin: 0 16px 16px;">
-          <button class="tab-btn active" data-tab="characters">캐릭터</button>
-          <button class="tab-btn" data-tab="worlds">세계관</button>
-        </div>
-        <div class="list" id="ranking-list" style="padding:0 16px 16px"></div>
+        <div class="list" style="padding:0 16px 16px"></div>
       </div>
-
-
       
       <div data-view="info" style="display:none">
         <div class="section-h">내 정보</div>
@@ -184,8 +180,7 @@
 
   <script type="module" src="/js/ui/frame.js"></script>
   <script type="module" src="/js/tabs/matching.js"></script>
-<script type="module" src="/js/tabs/battle.js"></script>
-
+  <script type="module" src="/js/tabs/battle.js"></script>
   <script>
     (function(){
       function initLoginButton(){
