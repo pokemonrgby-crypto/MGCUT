@@ -110,7 +110,8 @@ async function render(battleId){
 }
 export function mount() {
   // [수정] onRoute를 mount로 변경하고 export
-  const m = location.hash.match(/#\/battle\??(.*)$/);
+  const m = location.hash.match(/#\/?battle\??(.*)$/);
+
   if (!m) return;
   const q = new URLSearchParams(m[1] || '');
   const id = q.get('id');
