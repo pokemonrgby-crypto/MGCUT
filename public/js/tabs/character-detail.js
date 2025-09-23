@@ -264,25 +264,10 @@ if (storyWrap){
     const currentUid = window.__FBAPP__?.auth?.currentUser?.uid;
     if (currentUid && c.ownerUid && currentUid === c.ownerUid) {
       fab.hidden = false;
-      fab.addEventListener('click', async ()=>{
-  try{
-    // 서버에 매칭 후보 요청(자기 자신 제외 + Elo 근접)
-    const r = await api.findMatch(c.id);
-    const opId = r?.data?.opponentId;
-    if (!opId) {
-      alert('지금은 비슷한 점수대의 상대가 없어요. 잠시 후 다시 시도해줘!');
-      return;
-    }
-    // 매칭 탭으로 이동(hash 라우터 기준)
-    if (document.querySelector('[data-view="matching"]')) {
-      location.hash = `#/matching?me=${encodeURIComponent(c.id)}&op=${encodeURIComponent(opId)}`;
-    } else {
-      // 매칭 탭이 없다면 임시로 모험 탭으로
-      location.hash = `#/adventure?me=${encodeURIComponent(c.id)}&op=${encodeURIComponent(opId)}`;
-    }
-  }catch(e){
-    alert('매칭 요청 실패: ' + (e.message||e));
-  }
+     fab.addEventListener('click', ()=>{
+  // [수정] 상대방을 미리 찾지 않고, 내 캐릭터 ID만 가지고 매칭 화면으로 이동합니다.
+  // 이렇게 하면 URL에 상대방 ID가 노출되지 않습니다.
+  location.hash = `#/matching?me=${encodeURIComponent(c.id)}`;
 });
 
     } else {
