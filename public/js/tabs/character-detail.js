@@ -267,7 +267,8 @@ if (storyWrap){
      fab.addEventListener('click', ()=>{
   // [수정] 상대방을 미리 찾지 않고, 내 캐릭터 ID만 가지고 매칭 화면으로 이동합니다.
   // 이렇게 하면 URL에 상대방 ID가 노출되지 않습니다.
-  location.hash = `#/matching?me=${encodeURIComponent(c.id)}`;
+  location.hash = `#matching?me=${encodeURIComponent(c.id)}`;
+
 });
 
     } else {
