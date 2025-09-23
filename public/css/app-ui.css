@@ -106,9 +106,14 @@ input[type="text"]:focus, textarea:focus{border-color:#3a5a9d}
   border:1px solid rgba(255,255,255,.08);
   border-radius:18px; box-shadow:0 20px 40px rgba(0,0,0,.5);
   backdrop-filter: blur(10px); z-index: 1000;
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+
 }
-.nav5{display:grid; grid-template-columns:repeat(4,1fr)}
+.nav5{display:grid; grid-template-columns:repeat(5,1fr)}
+
 .nav5 button{
+    min-height: 56px; /* 모바일 터치 타깃 */
   appearance:none; background:transparent; color:#8a98bb; border:0; padding:12px 8px; 
   display:grid; place-items:center; gap:4px; cursor:pointer; transition: color .2s ease;
 }
