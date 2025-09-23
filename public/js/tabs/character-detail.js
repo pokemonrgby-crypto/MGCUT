@@ -3,9 +3,12 @@ import { api } from '../api.js';
 
 const ROOT = '[data-view="character-detail"]';
 function itemBadge(it){
-  const r = (it?.rarity || 'N').toUpperCase(); // N/R/SR/SSR/UR
-  return `<span class="chip ${r}">${it.name || '-'} · ${r}</span>`;
+  const raw = String(it?.rarity || it?.grade || 'N').toUpperCase();
+  const map = { COMMON:'N', NORMAL:'N', RARE:'R', EPIC:'SR', LEGENDARY:'UR', SSR:'SSR', UR:'UR' };
+  const r = map[raw] || raw;
+  return `<span class="chip ${r}">${it?.name || '-'} · ${r}</span>`;
 }
+
 
 export async function mount(characterId){
   const root = document.querySelector(ROOT);
