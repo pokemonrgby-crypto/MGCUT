@@ -67,13 +67,11 @@ export const api = {
   updateSiteImage: (worldId, siteName, imageUrl) => call('PATCH', `/api/worlds/${worldId}/siteImage`, { siteName, imageUrl }),
   addWorldElement: (worldId, type, data) => call('POST', `/api/worlds/${worldId}/elements`, { type, data }),
   deleteWorldElement: (worldId, type, name) => call('DELETE', `/api/worlds/${worldId}/elements`, { type, name }),
-  getWorldCharacters: (worldId) => call('GET', `/api/worlds/${worldId}/characters`), // [추가]
 
   // characters
   saveCharacter: ({ worldId, promptId, characterData, imageUrl }) =>
     call('POST', '/api/characters/save', { worldId, promptId, characterData, imageUrl }),
   getCharacter: (id) => call('GET', `/api/characters/${id}`), // [추가]
-  updateElo: (winnerId, loserId) => call('POST', '/api/characters/elo', { winnerId, loserId }), // [추가]
 
 
   // prompts
