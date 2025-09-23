@@ -43,11 +43,9 @@ async function call(method, path, body, extraHeaders = {}) {
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
 
-  const res = await fetch(path, {
+const res = await fetch(path, {
   method,
-  headers: body
-    ? { 'Content-Type': 'application/json', ...(extraHeaders||{}) }
-    : (Object.keys(extraHeaders||{}).length ? { ...(extraHeaders||{}) } : undefined),
+  headers, // 위에서 만든 headers(Authorization / Content-Type / extraHeaders 다 포함)
   body: body ? JSON.stringify(body) : undefined,
   credentials: 'include'
 });
