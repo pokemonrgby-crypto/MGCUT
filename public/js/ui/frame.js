@@ -10,7 +10,7 @@ import * as CreatePrompt from '../tabs/create-prompt.js';
 import * as CreateSite from '../tabs/create-site.js';
 import * as WorldDetail from '../tabs/world-detail.js';
 import * as EpisodeDetail from '../tabs/episode-detail.js';
-
+import * as CharacterDetail from '../tabs/character-detail.js';
 
 export const ui = {
   blocker: null,
