@@ -112,6 +112,7 @@ export function mountCharacters(app, db, getUserFromReq) {
   });
 
   // --- [신규] 캐릭터 배틀 로그 조회 ---
+  // --- [신규] 캐릭터 배틀 로그 조회 ---
   app.get('/api/characters/:id/battle-logs', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
