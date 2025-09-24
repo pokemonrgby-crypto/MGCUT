@@ -63,7 +63,10 @@ async function render(meId) {
         await withBlocker(async () => {
           const battleRes = await api.createBattle(meId, opId);
           if (battleRes.ok) {
-            ui.navTo(`battle?id=${battleRes.data.id}`);
+            // 전투 페이지로 이동 시, 캐릭터 이름을 URL 파라미터로 넘겨줍니다.
+            const meName = encodeURIComponent(me.name || '');
+            const opName = encodeURIComponent(op.name || '');
+            ui.navTo(`battle?id=${battleRes.data.id}&me=${meName}&op=${opName}`);
           } else {
             throw new Error(battleRes.error || '배틀 생성 실패');
           }
