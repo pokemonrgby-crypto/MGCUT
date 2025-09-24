@@ -84,13 +84,28 @@ export function mount() {
         await withBlocker(async () => {
             const worldRes = await api.getWorld(worldId);
             selectedWorld = worldRes.data;
+            
+            // [수정] 선택된 세계관 정보를 1:1 이미지 카드로 렌더링
             selectedWorldInfoEl.innerHTML = `
-                <div class="card" style="padding:12px; text-align:center;">
-                    <div style="font-weight:700;">${selectedWorld.name}</div>
-                    <div class="small" style="opacity:0.8; margin-top:4px;">${selectedWorld.introShort}</div>
-                </div>`;
+                <div 
+                    class="card world-image-card" 
+                    data-id="${selectedWorld.id}" 
+                    style="aspect-ratio: 1/1; background: url('${selectedWorld.coverUrl || ''}') center/cover; cursor:pointer;" 
+                    title="클릭하여 세계관 정보 보기"
+                ></div>
+                <h3 style="margin-top:12px;">${selectedWorld.name}</h3>
+                <p class="small" style="opacity:0.8; line-height:1.6;">${selectedWorld.introShort}</p>
+            `;
         });
         changeStep(2);
+    };
+    
+    // [추가] 2단계에서 세계관 이미지 클릭 시 상세 페이지로 이동하는 이벤트 핸들러
+    selectedWorldInfoEl.onclick = (e) => {
+        const card = e.target.closest('.world-image-card');
+        if (card && card.dataset.id) {
+            window.location.hash = `#world/${card.dataset.id}`;
+        }
     };
 
     // --- 2단계 로직: 프롬프트 선택 ---
@@ -134,7 +149,6 @@ export function mount() {
                     imageUrl = await storage.uploadImage(`characters/${userId}`, imageFile);
                 }
 
-                // 서버의 `generateCharacter` API를 호출합니다.
                 const res = await api.generateCharacter({
                     worldId: selectedWorld.id,
                     promptId: selectedPrompt.id === 'default-basic' ? null : selectedPrompt.id,
