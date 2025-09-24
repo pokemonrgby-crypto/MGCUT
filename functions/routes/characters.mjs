@@ -1,6 +1,8 @@
 // (수정된 결과)
 // ===== characters.mjs — SAFE BLOCK (routes only) =====
 import { FieldValue } from 'firebase-admin/firestore';
+import { callGemini, pickModels } from '../lib/gemini.mjs'; // [추가]
+
 // 노드 런타임이 18 미만이면 주석 해제: import fetch from 'node-fetch';
 
 function updateElo(a, b, Sa, K = 32) {
@@ -274,79 +276,66 @@ export function mountCharacters(app, db, getUserFromReq) {
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
       const { battleId } = req.body || {};
       if (!battleId) return res.status(400).json({ ok: false, error: 'battleId required' });
+      
+      const geminiKey = req.headers['x-gemini-key'];
+      if (!geminiKey) return res.status(400).json({ ok: false, error: 'X-Gemini-Key header required' });
 
       const bRef = db.collection('battles').doc(battleId);
       const bSnap = await bRef.get();
       if (!bSnap.exists) return res.status(404).json({ ok: false, error: 'BATTLE_NOT_FOUND' });
       const b = bSnap.data();
+      if (b.status === 'finished') return res.status(400).json({ ok: false, error: 'BATTLE_ALREADY_FINISHED' });
 
-      const meSnapForOwnerCheck = await db.collection('characters').doc(b.meId).get();
-      if (meSnapForOwnerCheck.data().ownerUid !== user.uid) {
-        return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
-      }
+      const meSnap = await db.collection('characters').doc(b.meId).get();
+      if (meSnap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
       
-      const [meSnap, opSnap] = await Promise.all([
-        meSnapForOwnerCheck,
-        db.collection('characters').doc(b.opId).get(),
-      ]);
+      const opSnap = await db.collection('characters').doc(b.opId).get();
       const me = meSnap.data(), op = opSnap.data();
-
+      
       let world = null;
-      try {
-        const wid = me.worldId || op.worldId;
-        if (wid) {
-          const w = await db.collection('worlds').doc(wid).get();
+      if (me.worldId) {
+          const w = await db.collection('worlds').doc(me.worldId).get();
           if (w.exists) world = w.data();
-        }
-      } catch {}
+      }
 
       const prompt = buildOneShotBattlePrompt({ me, op, world });
-      res.json({ ok: true, data: { promptForClient: prompt } });
+      
+      const { primary } = pickModels();
+      const aiRes = await callGemini({
+        key: geminiKey,
+        model: primary,
+        user: prompt,
+        responseMimeType: "text/plain"
+      });
+      const markdown = aiRes.text;
+
+      const m = /승자:\s*(A|B)/.exec(markdown);
+      const winner = m ? m[1] : null;
+
+      if (winner) {
+        const a = me, o = op;
+        const Sa = (winner === 'A') ? 1 : 0;
+        const [newA, newB] = updateElo(a.elo ?? 1000, o.elo ?? 1000, Sa);
+        const now = FieldValue.serverTimestamp();
+
+        await Promise.all([
+          db.collection('characters').doc(b.meId).update({ elo: newA, updatedAt: now }),
+          db.collection('characters').doc(b.opId).update({ elo: newB, updatedAt: now }),
+          bRef.update({
+            status: 'finished',
+            winner: winner,
+            log: markdown,
+            eloMeAfter: newA,
+            eloOpAfter: newB,
+            updatedAt: now,
+          })
+        ]);
+      }
+
+      res.json({ ok: true, data: { markdown, winner } });
 
     } catch (e) { 
       res.status(500).json({ ok: false, error: String(e) }); 
     }
-  });
-  
-  // [수정] 전투 종료 시 로그(log)를 함께 받도록 수정
-  app.post('/api/battle/finish', async (req, res) => {
-    try {
-      const user = await getUserFromReq(req);
-      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-
-      const { battleId, winner, log } = req.body || {};
-      if (!battleId || !['A', 'B'].includes(winner) || !log)
-        return res.status(400).json({ ok: false, error: 'ARGS_REQUIRED (battleId, winner, log)' });
-
-      const bRef = db.collection('battles').doc(battleId);
-      const bSnap = await bRef.get();
-      if (!bSnap.exists) return res.status(404).json({ ok: false, error: 'BATTLE_NOT_FOUND' });
-      const b = bSnap.data();
-
-      const [aSnap, oSnap] = await Promise.all([
-        db.collection('characters').doc(b.meId).get(),
-        db.collection('characters').doc(b.opId).get(),
-      ]);
-      const a = aSnap.data(), o = oSnap.data();
-      const Sa = (winner === 'A') ? 1 : 0;
-      const [newA, newB] = updateElo(a.elo ?? 1000, o.elo ?? 1000, Sa);
-      
-      const now = FieldValue.serverTimestamp();
-
-      await Promise.all([
-        db.collection('characters').doc(b.meId).update({ elo: newA, updatedAt: now }),
-        db.collection('characters').doc(b.opId).update({ elo: newB, updatedAt: now }),
-        bRef.update({
-          status: 'finished', // [추가] 상태 변경
-          winner: winner,      // [추가] 승자 기록
-          log: log,            // [추가] 로그 저장
-          eloMeAfter: newA,
-          eloOpAfter: newB,
-          updatedAt: now,
-        })
-      ]);
-
-      res.json({ ok: true, data: { eloMe: newA, eloOp: newB } });
-    } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 }
