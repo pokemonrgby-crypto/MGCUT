@@ -5,6 +5,19 @@ import { getUserFromReq } from '../lib/auth.mjs';
 import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { loadCharacterBasePrompt } from '../lib/prompts.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
+import { decryptWithPassword } from '../lib/crypto.mjs';
+
+// 헬퍼 함수: UID와 비밀번호로 암호화된 API 키를 가져와 복호화합니다.
+async function getDecryptedKey(uid, password) {
+    if (!password) throw new Error('PASSWORD_REQUIRED');
+    const userDoc = await db.collection('users').doc(uid).get();
+    const encryptedKey = userDoc.exists ? userDoc.data().encryptedKey : null;
+    if (!encryptedKey) throw new Error('ENCRYPTED_KEY_NOT_FOUND: 내 정보 탭에서 API 키를 먼저 저장해주세요.');
+    
+    const decryptedKey = decryptWithPassword(encryptedKey, password);
+    if (!decryptedKey) throw new Error('DECRYPTION_FAILED: 비밀번호가 올바르지 않거나 키가 손상되었습니다.');
+    return decryptedKey;
+}
 
 function updateElo(a, b, Sa, K = 32) {
   const Ea = 1 / (1 + Math.pow(10, (b - a) / 400));
@@ -143,10 +156,11 @@ export function mountCharacters(app) {
       
       await checkAndUpdateCooldown(db, user.uid, 'generateCharacter', 300);
 
-      const { geminiKey, worldId, promptId, userInput, imageUrl } = req.body;
-      if (!geminiKey) return res.status(400).json({ ok: false, error: 'GEMINI_KEY_REQUIRED' });
+      const { password, worldId, promptId, userInput, imageUrl } = req.body;
       if (!worldId || !userInput || !userInput.name) return res.status(400).json({ ok: false, error: 'ARGS_REQUIRED' });
       
+      const geminiKey = await getDecryptedKey(user.uid, password);
+
       const [worldSnap, promptSnap] = await Promise.all([
         db.collection('worlds').doc(worldId).get(),
         promptId ? db.collection('prompts').doc(promptId).get() : Promise.resolve(null)
@@ -287,16 +301,20 @@ export function mountCharacters(app) {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-      const { battleId, geminiKey } = req.body || {};
+      const { battleId, password } = req.body || {};
       if (!battleId) return res.status(400).json({ ok: false, error: 'battleId required' });
-      if (!geminiKey) return res.status(400).json({ ok: false, error: 'GEMINI_KEY_REQUIRED' });
+      
+      const geminiKey = await getDecryptedKey(user.uid, password);
+
       const bRef = db.collection('battles').doc(battleId);
       const bSnap = await bRef.get();
       if (!bSnap.exists) return res.status(404).json({ ok: false, error: 'BATTLE_NOT_FOUND' });
       const b = bSnap.data();
       if (b.status === 'finished') return res.status(400).json({ ok: false, error: 'BATTLE_ALREADY_FINISHED' });
+      
       const meSnap = await db.collection('characters').doc(b.meId).get();
       if (meSnap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
+      
       const opSnap = await db.collection('characters').doc(b.opId).get();
       const me = meSnap.data(), op = opSnap.data();
       let world = null;
@@ -304,23 +322,28 @@ export function mountCharacters(app) {
           const w = await db.collection('worlds').doc(me.worldId).get();
           if (w.exists) world = w.data();
       }
+      
       const prompt = buildOneShotBattlePrompt({ me, op, world });
       const { primary } = pickModels();
       const aiRes = await callGemini({ key: geminiKey, model: primary, user: prompt, responseMimeType: "text/plain" });
       const markdown = aiRes.text;
+      
       const m = /승자:\s*(A|B)/.exec(markdown);
       const winner = m ? m[1] : null;
+      
       if (winner) {
-        const a = me, o = op;
         const Sa = (winner === 'A') ? 1 : 0;
-        const [newA, newB] = updateElo(a.elo ?? 1000, o.elo ?? 1000, Sa);
+        const [newA, newB] = updateElo(me.elo ?? 1000, op.elo ?? 1000, Sa);
         const now = FieldValue.serverTimestamp();
         await Promise.all([
           db.collection('characters').doc(b.meId).update({ elo: newA, updatedAt: now }),
           db.collection('characters').doc(b.opId).update({ elo: newB, updatedAt: now }),
           bRef.update({ status: 'finished', winner: winner, log: markdown, eloMeAfter: newA, eloOpAfter: newB, updatedAt: now, })
         ]);
+      } else {
+        await bRef.update({ status: 'finished', winner: null, log: markdown, updatedAt: FieldValue.serverTimestamp() });
       }
+
       res.json({ ok: true, data: { markdown, winner } });
     } catch (e) { 
       res.status(500).json({ ok: false, error: String(e) }); 
