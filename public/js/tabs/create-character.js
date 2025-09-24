@@ -126,9 +126,8 @@ export function mount() {
         if (!characterName) return alert('캐릭터 이름을 입력해주세요.');
 
         try {
+            const password = await sessionKeyManager.getPassword();
             await withBlocker(async () => {
-                const decryptedKey = await sessionKeyManager.getDecryptedKey();
-                
                 const imageFile = root.querySelector('#cc-char-image').files[0];
                 let imageUrl = '';
                 if (imageFile) {
@@ -147,18 +146,15 @@ export function mount() {
                     imageUrl: imageUrl
                 };
                 
-                const res = await api.generateCharacter(payload, decryptedKey);
+                const res = await api.generateCharacter(payload, password);
 
                 alert(`캐릭터 생성 성공! (ID: ${res.data.id})`);
                 ui.navTo(`character/${res.data.id}`);
             });
         } catch (e) {
-            if (e.message.includes('COOLDOWN')) {
-                alert('캐릭터를 너무 자주 생성하고 있습니다. 잠시 후 다시 시도해주세요.');
-            } else {
+            if (!e.message.includes('사용자가')) {
                 alert(`생성 실패: ${e.message}`);
             }
-            console.error(e);
         }
     };
 
