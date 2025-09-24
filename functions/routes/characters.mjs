@@ -1,7 +1,7 @@
 // functions/routes/characters.mjs
 import { FieldValue } from 'firebase-admin/firestore';
-import { db } from '../lib/firebase.mjs'; // [추가] db import
-import { getUserFromReq } from '../lib/auth.mjs'; // [추가] getUserFromReq import
+import { db } from '../lib/firebase.mjs';
+import { getUserFromReq } from '../lib/auth.mjs';
 import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { loadCharacterBasePrompt } from '../lib/prompts.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
@@ -78,7 +78,6 @@ function buildOneShotBattlePrompt({ me, op, world }) {
 }
 
 export function mountCharacters(app) {
-  // --- 내 캐릭터 목록 ---
   app.get('/api/my-characters', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
@@ -89,7 +88,6 @@ export function mountCharacters(app) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-  // --- 캐릭터 단건 조회 ---
   app.get('/api/characters/:id', async (req, res) => {
     try {
       const d = await db.collection('characters').doc(req.params.id).get();
@@ -98,7 +96,6 @@ export function mountCharacters(app) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-  // --- 캐릭터 배틀 로그 조회 ---
   app.get('/api/characters/:id/battle-logs', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
@@ -126,7 +123,6 @@ export function mountCharacters(app) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
   
-  // --- 세계관 소속 캐릭터 목록 ---
   app.get('/api/characters', async (req, res) => {
     try {
       const { worldId, sort = 'elo_desc', limit = 50 } = req.query;
@@ -140,7 +136,6 @@ export function mountCharacters(app) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-  // --- AI 캐릭터 생성 ---
   app.post('/api/characters/generate', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
@@ -148,10 +143,8 @@ export function mountCharacters(app) {
       
       await checkAndUpdateCooldown(db, user.uid, 'generateCharacter', 300);
 
-      const geminiKey = req.headers['x-gemini-key'];
-      if (!geminiKey) return res.status(400).json({ ok: false, error: 'X-Gemini-Key header required' });
-
-      const { worldId, promptId, userInput, imageUrl } = req.body;
+      const { geminiKey, worldId, promptId, userInput, imageUrl } = req.body;
+      if (!geminiKey) return res.status(400).json({ ok: false, error: 'GEMINI_KEY_REQUIRED' });
       if (!worldId || !userInput || !userInput.name) return res.status(400).json({ ok: false, error: 'ARGS_REQUIRED' });
       
       const [worldSnap, promptSnap] = await Promise.all([
@@ -205,7 +198,6 @@ export function mountCharacters(app) {
     }
   });
 
-  // --- 스킬 저장 ---
   app.post('/api/characters/:id/abilities', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
@@ -223,7 +215,6 @@ export function mountCharacters(app) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-  // --- 아이템 저장 ---
   app.post('/api/characters/:id/items', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
@@ -245,7 +236,6 @@ export function mountCharacters(app) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-  // --- 매칭 ---
   app.post('/api/matchmaking/find', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
@@ -262,7 +252,6 @@ export function mountCharacters(app) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-  // --- 배틀 생성 ---
   app.post('/api/battle/create', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
@@ -294,15 +283,13 @@ export function mountCharacters(app) {
     }
   });
 
-  // --- 배틀 시뮬레이션 ---
   app.post('/api/battle/simulate', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-      const { battleId } = req.body || {};
+      const { battleId, geminiKey } = req.body || {};
       if (!battleId) return res.status(400).json({ ok: false, error: 'battleId required' });
-      const geminiKey = req.headers['x-gemini-key'];
-      if (!geminiKey) return res.status(400).json({ ok: false, error: 'X-Gemini-Key header required' });
+      if (!geminiKey) return res.status(400).json({ ok: false, error: 'GEMINI_KEY_REQUIRED' });
       const bRef = db.collection('battles').doc(battleId);
       const bSnap = await bRef.get();
       if (!bSnap.exists) return res.status(404).json({ ok: false, error: 'BATTLE_NOT_FOUND' });
@@ -340,7 +327,6 @@ export function mountCharacters(app) {
     }
   });
   
-  // --- 캐릭터 이미지 업데이트 ---
   app.patch('/api/characters/:id/image', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
@@ -358,7 +344,6 @@ export function mountCharacters(app) {
     }
   });
 
-  // --- 캐릭터 삭제 ---
   app.delete('/api/characters/:id', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
