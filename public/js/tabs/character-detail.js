@@ -1,18 +1,12 @@
 // /public/js/tabs/character-detail.js
 import { api, auth, storage } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
+import * as NarrativeTab from './character-narrative.js';
+import * as BattleLogTab from './character-battlelog.js';
 
 const ROOT = '[data-view="character-detail"]';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-
-function storyCard(s, index) {
-  const content = esc(s?.long || '').replace(/\n/g, ' ');
-  return `<div class="story-card" data-story-index="${index}" style="cursor:pointer;">
-    <div class="story-title small">${esc(s?.title || '서사')}</div>
-    <div class="story-content multiline-ellipsis">${content}</div>
-  </div>`;
-}
 
 function parseRichText(text) {
   if (!text) return '';
@@ -48,33 +42,9 @@ function itemChip(it){
     <div class="small" style="opacity:.85;margin-top:3px">등급: ${r}</div>
   </div>`;
 }
+
 function slotBox(content='', idx=0){
   return `<div class="slot" data-slot="${idx}">${content || '<span class="small" style="opacity:.7">빈 슬롯</span>'}</div>`;
-}
-
-function battleLogCard(log, currentCharId) {
-    const isMeA = log.meId === currentCharId;
-    const result = log.winner === (isMeA ? 'A' : 'B') ? '승리' : '패배';
-    const resultClass = result === '승리' ? 'ok' : 'err';
-    const myEloAfter = isMeA ? log.eloMeAfter : log.eloOpAfter;
-    const eloChange = myEloAfter - (isMeA ? log.eloMe : log.eloOp);
-    const eloChangeStr = eloChange >= 0 ? `+${eloChange}` : eloChange;
-    const opponentName = isMeA ? log.opName : log.meName;
-    const opponentImageUrl = isMeA ? log.opImageUrl : log.meImageUrl;
-    const date = new Date((log.createdAt?.seconds || 0) * 1000).toLocaleString();
-    return `
-    <div class="battle-log-char-card">
-        <div class="bg" style="${opponentImageUrl ? `background-image:url('${esc(opponentImageUrl)}')` : ''}"></div>
-        <div class="grad"></div>
-        <div class="info-overlay">
-            <div class="opponent-name">vs ${esc(opponentName)}</div>
-            <div class="result-line">
-                <span class="${resultClass}">${result}</span>
-                (Elo ${myEloAfter} <span class="small ${resultClass}">(${eloChangeStr})</span>)
-            </div>
-            <div class="date">${date}</div>
-        </div>
-    </div>`;
 }
 
 function renderAdminPanel(container) {
@@ -122,14 +92,18 @@ export async function mount(characterId){
 
       <div class="tab-panels">
         <div class="panel about active"><div class="info-card"><div class="name">${esc(c.name||'')}</div><div class="desc">${parseRichText(esc(c.introLong||c.introShort||''))}</div></div><div class="info-card"><div class="kv"><div class="k">소속 세계관</div><div class="v small">${esc(c.worldName || c.worldId || '-')}</div></div><div class="kv"><div class="k">Elo</div><div class="v"><b>${c.elo ?? 1000}</b></div></div></div></div>
-        <div class="panel narrative"><div class="story-cards v-list">${ Array.isArray(c.narratives) && c.narratives.length ? c.narratives.map((n, i) => storyCard(n, i)).join('') : `<div class="small" style="opacity:.8">아직 서사가 없어요.</div>` }</div></div>
+        <div class="panel narrative"></div>
         <div class="panel skills"><div class="skills-head"><span class="count">0/3</span><div style="flex:1"></div><button class="btn small" id="btn-save-skills">저장</button></div><div class="skills-list vlist">${ Array.isArray(c.abilities) && c.abilities.length ? c.abilities.map(skillChip).join('') : `<div class="small" style="opacity:.8">등록된 스킬이 없어요.</div>` }</div></div>
         <div class="panel items"><div class="small" style="opacity:.9;margin:6px 0 8px">장착 슬롯 (3칸)</div><div class="slots">${[0,1,2].map(i=>slotBox('', i)).join('')}</div><div style="display:flex;gap:8px;margin:10px 0 12px"><button class="btn small" id="btn-clear-slots">슬롯 비우기</button><button class="btn small" id="btn-save-items">저장</button></div><div class="small" style="opacity:.9;margin:10px 0 6px">인벤토리</div><div class="inventory grid3">${ Array.isArray(c.items) && c.items.length ? c.items.map(itemChip).join('') : `<div class="small" style="opacity:.8">아이템이 없어요.</div>` }</div></div>
-        <div class="panel battle-log"><div class="spinner"></div></div>
+        <div class="panel battle-log"></div>
         ${isOwner ? '<div class="panel admin"></div>' : ''}
       </div>
       <button class="fab-battle" hidden aria-label="배틀 시작">⚔</button>
     `;
+
+    // 각 탭 컨텐츠 렌더링
+    NarrativeTab.render(root.querySelector('.panel.narrative'), c);
+    BattleLogTab.render(root.querySelector('.panel.battle-log'), c.id);
 
     const tabs = Array.from(root.querySelectorAll('.tabs-char button[data-tab]'));
     const panelContainer = root.querySelector('.tab-panels');
@@ -140,31 +114,6 @@ export async function mount(characterId){
         panelContainer.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
         panelContainer.querySelector(`.panel.${btn.dataset.tab}`)?.classList.add('active');
       };
-    });
-
-    root.querySelector('.panel.narrative').addEventListener('click', (e) => {
-      const card = e.target.closest('.story-card');
-      if (!card) return;
-      const story = c.narratives[parseInt(card.dataset.storyIndex, 10)];
-      if (!story) return;
-      const modal = document.createElement('div');
-      modal.className = 'modal-layer';
-      modal.innerHTML = `<div class="modal-card"><button class="modal-close">×</button><div class="modal-body"><h3>${esc(story.title)}</h3><div>${parseRichText(esc(story.long))}</div></div></div>`;
-      document.body.appendChild(modal);
-      modal.addEventListener('click', (ev) => {
-        if (ev.target === modal || ev.target.classList.contains('modal-close')) modal.remove();
-      });
-    });
-
-    const battleLogPanel = root.querySelector('.panel.battle-log');
-    api.getCharacterBattleLogs(characterId).then(logRes => {
-        if (logRes.ok && logRes.data.length > 0) {
-            battleLogPanel.innerHTML = '<div class="list">' + logRes.data.map(log => battleLogCard(log, characterId)).join('') + '</div>';
-        } else {
-            battleLogPanel.innerHTML = '<div class="card pad small">아직 전투 기록이 없습니다.</div>';
-        }
-    }).catch(e => {
-        battleLogPanel.innerHTML = `<div class="card pad err">로그 로딩 실패: ${e.message}</div>`;
     });
 
     if (isOwner) {
@@ -290,7 +239,7 @@ export async function mount(characterId){
       fab.hidden = true;
     }
 
-  }catch(e){
+  } catch(e) {
     console.error(e);
     root.innerHTML = `<div class="card pad err">캐릭터를 불러오지 못했어: ${e.message}</div>`;
   }
