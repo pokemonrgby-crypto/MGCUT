@@ -1,5 +1,7 @@
 // public/js/tabs/battle.js
 import { api } from '../api.js';
+import { sessionKeyManager } from '../session-key-manager.js';
+import { withBlocker } from '../ui/frame.js';
 
 const ROOT = '[data-view="battle"]';
 
@@ -39,7 +41,8 @@ async function render(battleId){
   `;
 
   try {
-    const res = await api.battleSimulate(battleId);
+    const decryptedKey = await sessionKeyManager.getDecryptedKey();
+    const res = await api.battleSimulate(battleId, decryptedKey);
     const { markdown, winner } = res.data;
 
     if (!markdown) {
@@ -59,7 +62,6 @@ async function render(battleId){
       b.className = 'winner-badge';
       b.textContent = `결과: ${winner} 승리`;
       out.prepend(b);
-      // 서버에서 이미 Elo 업데이트 및 로그 저장이 완료되었으므로 battleFinish 호출은 불필요.
     } else {
       const b = document.createElement('div');
       b.className = 'winner-badge err';
@@ -77,7 +79,7 @@ async function render(battleId){
     history.back();
   };
   root.querySelector('#btn-resim').onclick = () => {
-    render(battleId);
+    withBlocker(() => render(battleId));
   };
 }
 
@@ -86,5 +88,5 @@ export function mount() {
   if (!m) return;
   const q = new URLSearchParams(m[1] || '');
   const id = q.get('id');
-  if (id) render(id);
+  if (id) withBlocker(() => render(id));
 }
