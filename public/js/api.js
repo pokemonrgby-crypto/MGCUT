@@ -84,8 +84,10 @@ export const api = {
   // characters
   generateCharacter: (payload) => call('POST', '/api/characters/generate', payload),
   getCharacter: (id) => call('GET', `/api/characters/${id}`),
+  getCharacterBattleLogs: (id) => call('GET', `/api/characters/${id}/battle-logs`), // [추가] 이 줄을 추가하세요.
   updateCharacterImage: (id, imageUrl) => call('PATCH', `/api/characters/${id}/image`, { imageUrl }),
   deleteCharacter: (id) => call('DELETE', `/api/characters/${id}`),
+
 
   // prompts
   getSystemPrompt: (name) => call('GET', `/api/system-prompts/${name}`),
