@@ -1,6 +1,7 @@
 // public/js/tabs/create-character.js
 import { api, storage, auth } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
+import { sessionKeyManager } from '../session-key-manager.js';
 
 const rootSel = '[data-view="create-character"]';
 let worldsCache = [];
@@ -8,11 +9,6 @@ let promptsCache = [];
 let selectedWorld = null;
 let selectedPrompt = null;
 
-/**
- * 세계관 선택 카드 HTML을 생성합니다.
- * @param {object} w - 세계관 데이터
- * @returns {string} HTML 문자열
- */
 function worldCardTemplate(w) {
     const desc = (w.introShort || '');
     const shortDesc = desc.substring(0, 80);
@@ -26,11 +22,6 @@ function worldCardTemplate(w) {
     </div>`;
 }
 
-/**
- * 프롬프트 선택 카드 HTML을 생성합니다.
- * @param {object} p - 프롬프트 데이터
- * @returns {string} HTML 문자열
- */
 function promptCardTemplate(p) {
     return `
     <div class="card info-card prompt-select-card" data-id="${p.id}">
@@ -58,7 +49,6 @@ export function mount() {
         step3.style.display = (targetStep === 3) ? '' : 'none';
     };
 
-    // --- 1단계 로직: 세계관 선택 ---
     const renderWorlds = () => {
         const term = searchInput.value.toLowerCase();
         const filtered = term ? worldsCache.filter(w => w.name.toLowerCase().includes(term)) : worldsCache;
@@ -85,7 +75,6 @@ export function mount() {
             const worldRes = await api.getWorld(worldId);
             selectedWorld = worldRes.data;
             
-            // [수정] 선택된 세계관 정보를 1:1 이미지 카드로 렌더링
             selectedWorldInfoEl.innerHTML = `
                 <div 
                     class="card world-image-card" 
@@ -100,7 +89,6 @@ export function mount() {
         changeStep(2);
     };
     
-    // [추가] 2단계에서 세계관 이미지 클릭 시 상세 페이지로 이동하는 이벤트 핸들러
     selectedWorldInfoEl.onclick = (e) => {
         const card = e.target.closest('.world-image-card');
         if (card && card.dataset.id) {
@@ -108,7 +96,6 @@ export function mount() {
         }
     };
 
-    // --- 2단계 로직: 프롬프트 선택 ---
     const loadPrompts = async () => {
         const defaultPrompt = {
             id: 'default-basic',
@@ -133,7 +120,6 @@ export function mount() {
         changeStep(3);
     };
 
-    // --- 3단계 로직: 정보 입력 및 생성 ---
     root.querySelector('#btn-char-create-final').onclick = async () => {
         if (!selectedWorld || !selectedPrompt) return alert('세계관과 프롬프트가 올바르게 선택되지 않았습니다.');
         const characterName = root.querySelector('#cc-char-name').value.trim();
@@ -141,6 +127,8 @@ export function mount() {
 
         try {
             await withBlocker(async () => {
+                const decryptedKey = await sessionKeyManager.getDecryptedKey();
+                
                 const imageFile = root.querySelector('#cc-char-image').files[0];
                 let imageUrl = '';
                 if (imageFile) {
@@ -149,7 +137,7 @@ export function mount() {
                     imageUrl = await storage.uploadImage(`characters/${userId}`, imageFile);
                 }
 
-                const res = await api.generateCharacter({
+                const payload = {
                     worldId: selectedWorld.id,
                     promptId: selectedPrompt.id === 'default-basic' ? null : selectedPrompt.id,
                     userInput: {
@@ -157,13 +145,15 @@ export function mount() {
                       request: root.querySelector('#cc-char-input').value.trim(),
                     },
                     imageUrl: imageUrl
-                });
+                };
+                
+                const res = await api.generateCharacter(payload, decryptedKey);
 
                 alert(`캐릭터 생성 성공! (ID: ${res.data.id})`);
                 ui.navTo(`character/${res.data.id}`);
             });
         } catch (e) {
-            if (e.message === 'COOLDOWN') {
+            if (e.message.includes('COOLDOWN')) {
                 alert('캐릭터를 너무 자주 생성하고 있습니다. 잠시 후 다시 시도해주세요.');
             } else {
                 alert(`생성 실패: ${e.message}`);
@@ -172,11 +162,9 @@ export function mount() {
         }
     };
 
-    // 뒤로가기 버튼
     root.querySelector('#cc-btn-back-to-step1').onclick = () => changeStep(1);
     root.querySelector('#cc-btn-back-to-step2').onclick = () => changeStep(2);
 
-    // 뷰 활성화 시 초기화
     const observer = new MutationObserver(() => {
         if (root.style.display !== 'none') {
             changeStep(1);
