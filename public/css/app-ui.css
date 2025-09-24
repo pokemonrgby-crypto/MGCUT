@@ -470,3 +470,25 @@ span.err { color: var(--err); }
   font-size: 12px;
   opacity: .8;
 }
+
+/* --- [추가] 아이템 탭 버튼 가시성 개선 --- */
+.panel.items .btn {
+  color: #FFFFFF !important; /* 저장, 슬롯 비우기 버튼 텍스트를 흰색으로 */
+}
+
+/* --- [추가] 탭 패널 컨텐츠 애니메이션 --- */
+.panel .v-list, .panel .grid3 {
+  animation: cardFadeIn 0.5s ease forwards;
+}
+
+/* --- [추가] 관리 탭 스타일 --- */
+.admin-panel-section {
+  margin-bottom: 12px;
+}
+.admin-panel-section .small {
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.btn-danger {
+    background: linear-gradient(135deg, #ff6b6b, #d93d3d);
+}
