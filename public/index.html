@@ -150,14 +150,25 @@
         <div class="card" style="margin:0 16px 12px">
           <div class="kv kv-uid"><div class="k">UID</div><div class="v small">-</div></div>
         </div>
-        <div class="card pad" style="margin:0 16px 12px">
-          <div class="small" style="margin-bottom:6px">Gemini API Key (브라우저 저장)</div>
-          <input id="gemini-key" type="text" placeholder="AIza...">
-          <div style="display:flex; gap:8px; margin-top:10px">
-            <button class="btn" id="btn-save-key">저장</button>
-            <button class="btn secondary" id="btn-logout">로그아웃</button>
-          </div>
-        </div>
+<div class="card pad" style="margin:0 16px 12px">
+  <div class="small" style="margin-bottom:6px">Gemini API Key</div>
+  <input id="gemini-key" type="password" placeholder="AIza..." style="margin-bottom:12px">
+  
+  <div class="small" style="margin-bottom:6px">암호화 비밀번호</div>
+  <input id="gemini-key-password" type="password" placeholder="키를 암호화할 비밀번호" style="margin-bottom:12px">
+
+  <div class="small" style="margin-bottom:6px">비밀번호 확인</div>
+  <input id="gemini-key-password-confirm" type="password" placeholder="비밀번호 다시 입력">
+
+  <div class="small" style="margin-top:12px; opacity: 0.8; line-height: 1.5;">
+    * 입력한 키는 여기서 설정한 비밀번호로 암호화되어 서버에 저장됩니다. **이 비밀번호는 서버에 저장되지 않으므로, 절대 잊어버리지 마세요.**
+  </div>
+  
+  <div style="display:flex; gap:8px; margin-top:16px">
+    <button class="btn full" id="btn-save-key">저장 또는 갱신</button>
+    <button class="btn secondary" id="btn-logout">로그아웃</button>
+  </div>
+</div>
       </div>
 
       <div data-view="world-detail" style="display:none;"></div>
