@@ -40,10 +40,6 @@ async function call(method, path, body, extraHeaders = {}) {
   if (body) headers['Content-Type'] = 'application/json';
   if (token) headers['Authorization'] = `Bearer ${token}`;
   
-  const geminiKey = localStorage.getItem('GEMINI_KEY');
-  if (geminiKey) {
-    headers['X-Gemini-Key'] = geminiKey;
-  }
 
   const res = await fetch(path, {
     method,
@@ -70,7 +66,7 @@ async function call(method, path, body, extraHeaders = {}) {
 
 export const api = {
   // worlds
-  generateWorld: (worldName, userInput) => call('POST', '/api/worlds/generate', { worldName, userInput }),
+  generateWorld: (payload, geminiKey) => call('POST', '/api/worlds/generate', { ...payload, geminiKey }),
   listWorlds: () => call('GET', '/api/worlds'),
   updateWorldCover: (id, coverUrl) => call('PATCH', `/api/worlds/${id}/cover`, { coverUrl }),
   getWorld: (id) => call('GET', `/api/worlds/${id}`),
@@ -78,11 +74,11 @@ export const api = {
   getMyCharacters: () => call('GET', '/api/my-characters'),
   createSite: (worldId, siteData) => call('POST', `/api/worlds/${worldId}/sites`, siteData),
   updateSiteImage: (worldId, siteName, imageUrl) => call('PATCH', `/api/worlds/${worldId}/siteImage`, { siteName, imageUrl }),
-  addWorldElement: (worldId, type, data) => call('POST', `/api/worlds/${worldId}/elements`, { type, data }),
+  addWorldElement: (worldId, type, data, geminiKey) => call('POST', `/api/worlds/${worldId}/elements`, { type, data, geminiKey }),
   deleteWorldElement: (worldId, type, name) => call('DELETE', `/api/worlds/${worldId}/elements`, { type, name }),
 
   // characters
-  generateCharacter: (payload) => call('POST', '/api/characters/generate', payload),
+    generateCharacter: (payload, geminiKey) => call('POST', '/api/characters/generate', { ...payload, geminiKey }),
   getCharacter: (id) => call('GET', `/api/characters/${id}`),
   getCharacterBattleLogs: (id) => call('GET', `/api/characters/${id}/battle-logs`), // [추가] 이 줄을 추가하세요.
   updateCharacterImage: (id, imageUrl) => call('PATCH', `/api/characters/${id}/image`, { imageUrl }),
@@ -102,7 +98,8 @@ export const api = {
   
   findMatch: (charId) => call('POST', '/api/matchmaking/find', { charId }),
   createBattle: (meId, opId) => call('POST', '/api/battle/create', { meId, opId }),
-  battleSimulate: (battleId) => call('POST', '/api/battle/simulate', { battleId }),
+   battleSimulate: (battleId, geminiKey) => call('POST', '/api/battle/simulate', { battleId, geminiKey }),
+
 
   updateAbilitiesEquipped: (id, chosen) => call('POST', `/api/characters/${id}/abilities`, { chosen }),
   updateItemsEquipped: (id, equipped) => call('POST', `/api/characters/${id}/items`, { equipped }),
