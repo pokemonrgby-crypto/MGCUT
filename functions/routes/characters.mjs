@@ -111,30 +111,46 @@ export function mountCharacters(app, db, getUserFromReq) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-  // --- [신규] 캐릭터 배틀 로그 조회 ---
-  // --- [신규] 캐릭터 배틀 로그 조회 ---
+// --- [신규] 캐릭터 배틀 로그 조회 (이미지 정보 포함) ---
   app.get('/api/characters/:id/battle-logs', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
       const charId = req.params.id;
-      
+
       const q1 = db.collection('battles').where('meId', '==', charId).get();
       const q2 = db.collection('battles').where('opId', '==', charId).get();
-
       const [snap1, snap2] = await Promise.all([q1, q2]);
       
-      const logs = [
-        ...snap1.docs.map(d => ({ id: d.id, ...d.data() })),
-        ...snap2.docs.map(d => ({ id: d.id, ...d.data() })),
-      ];
+      const logs = [...snap1.docs.map(d => ({ id: d.id, ...d.data() })), ...snap2.docs.map(d => ({ id: d.id, ...d.data() }))];
 
-      // createdAt 기준으로 최신순 정렬 (중복 제거 포함)
       const uniqueLogs = Array.from(new Map(logs.map(log => [log.id, log])).values())
-        .filter(log => log.status === 'finished') // 완료된 전투만
+        .filter(log => log.status === 'finished')
         .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      
+      // [추가] 캐릭터 ID를 모아서 최신 이미지 URL을 가져옴
+      const charIds = new Set();
+      uniqueLogs.forEach(log => {
+        charIds.add(log.meId);
+        charIds.add(log.opId);
+      });
 
-      res.json({ ok: true, data: uniqueLogs.slice(0, 50) }); // 최근 50개
+      if (charIds.size > 0) {
+        const charSnaps = await db.getAll(...Array.from(charIds).map(id => db.collection('characters').doc(id)));
+        const charDataMap = new Map();
+        charSnaps.forEach(snap => {
+            if (snap.exists) charDataMap.set(snap.id, snap.data());
+        });
+
+        const enrichedLogs = uniqueLogs.map(log => {
+            const me = charDataMap.get(log.meId);
+            const op = charDataMap.get(log.opId);
+            return { ...log, meImageUrl: me?.imageUrl || '', opImageUrl: op?.imageUrl || '' };
+        });
+        return res.json({ ok: true, data: enrichedLogs.slice(0, 50) });
+      }
+      
+      res.json({ ok: true, data: uniqueLogs.slice(0, 50) });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e) });
     }
