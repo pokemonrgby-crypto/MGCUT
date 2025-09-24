@@ -1,18 +1,23 @@
 // public/js/session-key-manager.js
 import { ui } from './ui/frame.js';
 
+// API 키 대신, 세션 동안 유효한 비밀번호를 캐시합니다.
 let sessionPasswordCache = null;
 
+/**
+ * 사용자에게 비밀번호를 물어보는 모달 UI를 표시합니다.
+ * @returns {Promise<string>} 사용자가 입력한 비밀번호
+ */
 function promptForPassword() {
   return new Promise((resolve, reject) => {
-    // 사용자가 이미 비밀번호 입력을 보고 있다면 중복 생성 방지
+    // 이미 비밀번호 입력 창이 떠 있는지 확인하여 중복 실행을 방지합니다.
     if (document.querySelector('.modal-layer#password-prompt')) {
       return reject(new Error('Password prompt is already open.'));
     }
 
     const modal = document.createElement('div');
     modal.className = 'modal-layer';
-    modal.id = 'password-prompt'; // 중복 확인을 위한 ID 추가
+    modal.id = 'password-prompt'; // 중복 확인을 위한 ID
     modal.innerHTML = `
       <div class="modal-card" style="text-align:center;">
         <div class="modal-body">
@@ -36,8 +41,9 @@ function promptForPassword() {
     const onConfirm = () => {
       const pass = input.value;
       if (!pass) {
-          alert('비밀번호를 입력해주세요.');
-          return;
+        alert('비밀번호를 입력해주세요.');
+        input.focus();
+        return;
       }
       closeModal();
       resolve(pass);
@@ -68,10 +74,16 @@ export const sessionKeyManager = {
       return sessionPasswordCache;
     }
     
-    // ui.busy는 외부에서 처리하도록 변경 (중복 blocker 방지)
-    const password = await promptForPassword();
-    sessionPasswordCache = password; // 세션 동안 캐싱
-    return password;
+    // 비밀번호 입력창을 띄우기 전에 로딩 UI를 표시하지 않도록 변경
+    // withBlocker 등 외부에서 busy 상태를 관리해야 합니다.
+    try {
+        const password = await promptForPassword();
+        sessionPasswordCache = password; // 성공 시 세션 동안 캐싱
+        return password;
+    } catch (e) {
+        // 사용자가 취소한 경우, 에러를 다시 던져서 상위 로직에서 처리하도록 함
+        throw e;
+    }
   },
 
   /**
