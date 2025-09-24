@@ -5,7 +5,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;'
 
 function parseRichText(text) {
   if (!text) return '';
-  // [수정] HTML 태그가 변환되기 전에 리치 텍스트를 먼저 처리하도록 순서 변경
+  // [수정] HTML 태그가 변환되기 전에 리치 텍스트 를 먼저 처리하도록 순서 변경
   return text.replace(/<대사>/g, '<div class="dialogue">')
     .replace(/<\/대사>/g, '</div>')
     .replace(/<서술>/g, '<div class="narrative">')
