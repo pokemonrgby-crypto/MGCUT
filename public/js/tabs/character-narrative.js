@@ -3,8 +3,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;'
 
 function parseRichText(text) {
   if (!text) return '';
-  return text.replace(/\n/g, '<br>')
-    .replace(/<대사>/g, '<div class="dialogue">')
+  // [수정] HTML 태그가 변환되기 전에 리치 텍스트를 먼저 처리하도록 순서 변경
+  return text.replace(/<대사>/g, '<div class="dialogue">')
     .replace(/<\/대사>/g, '</div>')
     .replace(/<서술>/g, '<div class="narrative">')
     .replace(/<\/서술>/g, '</div>')
@@ -13,14 +13,15 @@ function parseRichText(text) {
     .replace(/<생각>/g, '<div class="thought">')
     .replace(/<\/생각>/g, '</div>')
     .replace(/<시스템>/g, '<div class="system">')
-    .replace(/<\/시스템>/g, '</div>');
+    .replace(/<\/시스템>/g, '</div>')
+    .replace(/\n/g, '<br>'); // 줄바꿈은 마지막에 처리
 }
 
 function storyCard(s, index) {
-  const content = esc(s?.long || '').replace(/\n/g, ' ');
+  const content = (s?.long || '').replace(/\n/g, ' ');
   return `<div class="story-card" data-story-index="${index}" style="cursor:pointer;">
     <div class="story-title small">${esc(s?.title || '서사')}</div>
-    <div class="story-content multiline-ellipsis">${content}</div>
+    <div class="story-content multiline-ellipsis">${esc(content)}</div>
   </div>`;
 }
 
@@ -50,7 +51,7 @@ export function render(container, characterData) {
         <button class="modal-close" aria-label="닫기">×</button>
         <div class="modal-body">
           <h3>${esc(story.title)}</h3>
-          <div>${parseRichText(esc(story.long))}</div>
+          <div>${parseRichText(story.long)}</div>
         </div>
       </div>`;
     document.body.appendChild(modal);
