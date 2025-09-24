@@ -9,7 +9,7 @@ import { decryptWithPassword } from '../lib/crypto.mjs';
 
 // 헬퍼 함수: UID와 비밀번호로 암호화된 API 키를 가져와 복호화합니다.
 async function getDecryptedKey(uid, password) {
-    if (!password) throw new Error('PASSWORD_REQUIRED');
+    if (!password) throw new Error('PASSWORD_REQUIRED: 비밀번호가 요청에 포함되지 않았습니다.');
     const userDoc = await db.collection('users').doc(uid).get();
     const encryptedKey = userDoc.exists ? userDoc.data().encryptedKey : null;
     if (!encryptedKey) throw new Error('ENCRYPTED_KEY_NOT_FOUND: 내 정보 탭에서 API 키를 먼저 저장해주세요.');
@@ -301,9 +301,11 @@ export function mountCharacters(app) {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-      const { battleId, password } = req.body || {};
-      if (!battleId) return res.status(400).json({ ok: false, error: 'battleId required' });
       
+      const { battleId, password } = req.body || {};
+      if (!battleId) return res.status(400).json({ ok: false, error: 'BATTLE_ID_REQUIRED' });
+      // 비밀번호가 없는 경우, getDecryptedKey 내부에서 처리되므로 여기서 별도 체크하지 않아도 됨
+
       const geminiKey = await getDecryptedKey(user.uid, password);
 
       const bRef = db.collection('battles').doc(battleId);
@@ -313,9 +315,12 @@ export function mountCharacters(app) {
       if (b.status === 'finished') return res.status(400).json({ ok: false, error: 'BATTLE_ALREADY_FINISHED' });
       
       const meSnap = await db.collection('characters').doc(b.meId).get();
+      if (!meSnap.exists) return res.status(404).json({ ok: false, error: 'CHARACTER_NOT_FOUND (ME)' });
       if (meSnap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
       
       const opSnap = await db.collection('characters').doc(b.opId).get();
+      if (!opSnap.exists) return res.status(404).json({ ok: false, error: 'CHARACTER_NOT_FOUND (OPPONENT)' });
+
       const me = meSnap.data(), op = opSnap.data();
       let world = null;
       if (me.worldId) {
@@ -346,7 +351,8 @@ export function mountCharacters(app) {
 
       res.json({ ok: true, data: { markdown, winner } });
     } catch (e) { 
-      res.status(500).json({ ok: false, error: String(e) }); 
+      // 클라이언트에 구체적인 에러 메시지를 전달하여 디버깅을 돕습니다.
+      res.status(500).json({ ok: false, error: String(e.message || e) }); 
     }
   });
   
