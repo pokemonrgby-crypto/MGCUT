@@ -1,5 +1,7 @@
 // functions/routes/characters.mjs
 import { FieldValue } from 'firebase-admin/firestore';
+import { db } from '../lib/firebase.mjs'; // [추가] db import
+import { getUserFromReq } from '../lib/auth.mjs'; // [추가] getUserFromReq import
 import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { loadCharacterBasePrompt } from '../lib/prompts.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
@@ -75,7 +77,7 @@ function buildOneShotBattlePrompt({ me, op, world }) {
   ].join('\n');
 }
 
-export function mountCharacters(app, db, getUserFromReq) {
+export function mountCharacters(app) {
   // --- 내 캐릭터 목록 ---
   app.get('/api/my-characters', async (req, res) => {
     try {
