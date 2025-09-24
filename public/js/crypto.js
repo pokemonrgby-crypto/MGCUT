@@ -1,6 +1,6 @@
-// public/js/crypto.js (새 파일)
+// public/js/crypto.js
 
-const SALT = 'your-unique-salt-for-mgc-next'; // <-- 이 부분은 다른 임의의 문자열로 변경해주세요.
+const SALT = 'your-unique-salt-for-mgc-next-project'; // 이 부분은 다른 임의의 문자열로 변경해주세요.
 
 /**
  * 비밀번호를 사용하여 텍스트를 암호화합니다.
