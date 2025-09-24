@@ -1,7 +1,9 @@
 // public/js/lib/gemini-client.js
 const MODEL_POOL = [
-  'gemini-1.5-flash-latest',
-  'gemini-pro',
+  'models/gemini-2.5-flash',
+  'models/gemini-2.0-flash',
+  'models/gemini-2.5-flash-lite',
+  'models/gemini-2.0-flash-lite',
 ];
 
 function pickModel() {
