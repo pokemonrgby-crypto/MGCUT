@@ -1,4 +1,4 @@
-// (수정된 결과)
+// public/js/tabs/info.js
 import { api, auth } from '../api.js';
 import { encryptWithPassword } from '../crypto.js';
 import { withBlocker } from '../ui/frame.js';
