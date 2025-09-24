@@ -35,34 +35,53 @@ function buildOneShotBattlePrompt({ me, op, world }) {
   const pick = (c) => {
     const chosen = Array.isArray(c.chosen) ? c.chosen : [];
     const skills = Array.isArray(c.abilities) ? c.abilities : [];
-    const picked = chosen
-      .map(x => skills[x]?.name || skills.find(s => s?.id === x || s?.name === x)?.name)
+    const pickedSkills = chosen
+      .map(x => skills[x] || skills.find(s => s?.id === x || s?.name === x))
       .filter(Boolean);
-    const items = (Array.isArray(c.items) ? c.items : []).map(i => i?.name).filter(Boolean);
-    const intro = String(c.introShort || c.description || '').slice(0, 180);
-    return { name: c.name || '', elo: Number(c.elo ?? 1000), picked, items, intro, worldId: c.worldId };
+
+    const items = (Array.isArray(c.items) ? c.items : []).map(i => ({name: i.name, description: i.description})).filter(Boolean);
+    const narrative = (Array.isArray(c.narratives) && c.narratives.length > 0) ? c.narratives[0].long : (c.introShort || c.description || '');
+
+    return {
+      name: c.name || '',
+      elo: Number(c.elo ?? 1000),
+      narrative: String(narrative).slice(0, 500),
+      skills: pickedSkills.map(s => ({name: s.name, description: s.description})),
+      items,
+    };
   };
-  const A = pick(me), B = pick(op);
-  const worldName = world?.name || me?.worldName || me?.worldId || '-';
-  const worldDesc = String(world?.description || world?.introShort || '').slice(0, 300);
+
+  const A = pick(me);
+  const B = pick(op);
+
+  const worldName = world?.name || me?.worldName || op?.worldName || '-';
+  const worldDesc = String(world?.description || world?.introShort || '').slice(0, 800);
 
   return [
-    `# 세계관`,
+    `# 세계관 정보`,
     `- 이름: ${worldName}`,
-    worldDesc ? `- 개요: ${worldDesc}` : `- 개요: (생략)`,
+    `- 개요: ${worldDesc}`,
     ``,
-    `# 참가자`,
-    `- A: ${A.name} (Elo ${A.elo})`,
-    `  - 스킬: ${A.picked.join(' · ') || '-'}`,
-    `  - 아이템: ${A.items.join(' · ') || '-'}`,
-    `- B: ${B.name} (Elo ${B.elo})`,
-    `  - 스킬: ${B.picked.join(' · ') || '-'}`,
-    `  - 아이템: ${B.items.join(' · ') || '-'}`,
+    `# A측 캐릭터: ${A.name} (Elo: ${A.elo})`,
+    `## 서사`,
+    `${A.narrative}`,
+    `## 장착 스킬`,
+    ...A.skills.map(s => `- ${s.name}: ${s.description}`),
+    `## 장착 아이템`,
+    ...A.items.map(i => `- ${i.name}: ${i.description}`),
     ``,
-    `# 출력 형식`,
-    `1) 한 문단 요약`,
-    `2) 전개 3~6 문단 (마크다운)`,
-    `3) 마지막 줄 단독으로 '승자: A' | '승자: B' | '승자: 무승부'`,
+    `# B측 캐릭터: ${B.name} (Elo: ${B.elo})`,
+    `## 서사`,
+    `${B.narrative}`,
+    `## 장착 스킬`,
+    ...B.skills.map(s => `- ${s.name}: ${s.description}`),
+    `## 장착 아이템`,
+    ...B.items.map(i => `- ${i.name}: ${i.description}`),
+    ``,
+    `# 지시사항`,
+    `위 정보를 바탕으로 두 캐릭터의 전투를 3~6문단의 흥미진진한 이야기로 묘사해줘.`,
+    `전투 과정에서 각 캐릭터의 서사, 스킬, 아이템 특징이 잘 드러나야 해.`,
+    `마지막 줄에는 반드시 '승자: A' 또는 '승자: B' 중 하나만 단독으로 출력해야 해.`,
   ].join('\n');
 }
 
