@@ -19,9 +19,10 @@ app.get('/api/ping', (req, res) => res.json({ ok: true }));
 
 // 라우트 모듈 장착
 // [수정] 모든 mount 함수에 필요한 인자를 전달합니다.
-mountWorlds(app, db, getUserFromReq);
-mountPrompts(app, db, getUserFromReq);
-mountCharacters(app, db, getUserFromReq);
-mountRankings(app, db, getUserFromReq);
+mountWorlds(app);
+mountPrompts(app);
+mountCharacters(app);
+mountRankings(app);
+
 
 export const api = onRequest({ region: 'asia-northeast3' }, app);
