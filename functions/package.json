@@ -7,6 +7,7 @@
   "dependencies": {
     "express": "^4.19.2",
     "firebase-functions": "^5.0.1",
-    "firebase-admin": "^12.5.0"
+    "firebase-admin": "^12.5.0",
+    "crypto-js": "^4.2.0"
   }
 }
