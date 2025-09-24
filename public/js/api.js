@@ -89,6 +89,10 @@ export const api = {
   uploadPrompt: ({ title, content }) => call('POST', '/api/prompts', { title, content }),
   validatePrompt: (id) => call('POST', `/api/prompts/${id}/validate`),
   reportPrompt: (id, reason) => call('POST', `/api/prompts/${id}/report`, { reason }),
+  updateCharacterImage: (id, imageUrl) =>
+    call('PATCH', `/api/characters/${id}/image`, { imageUrl }),
+  deleteCharacter: (id) =>
+    call('DELETE', `/api/characters/${id}`),
 
   getWorldCharacters: (worldId) =>
     call('GET', `/api/characters?worldId=${encodeURIComponent(worldId)}&sort=elo_desc&limit=50`),
