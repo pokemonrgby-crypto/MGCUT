@@ -34,6 +34,12 @@
         <div style="font-size:20px; font-weight:800; margin-bottom:12px;">로그인</div>
         <div class="small" style="margin-bottom:20px;">Google로 로그인 후 이용해줘</div>
         <div id="login-button-anchor"></div>
+        <div class="small" style="margin-top:20px; font-size: 11px; line-height: 1.5;">
+          로그인을 계속 진행할 경우, 서비스의
+          <a href="/terms.html" target="_blank" style="color:var(--acc); text-decoration:none;">이용약관</a> 및
+          <a href="/privacy.html" target="_blank" style="color:var(--acc); text-decoration:none;">개인정보 처리방침</a>에
+          동의하는 것으로 간주합니다.
+        </div>
       </div>
     </section>
 
@@ -57,7 +63,7 @@
           <div class="small" style="margin-bottom:6px">추가 요청사항 (선택)</div>
           <textarea id="world-create-input" rows="4" placeholder="예: '사이버펑크와 동양 판타지를 섞어주세요'"></textarea>
           <button class="btn full" id="btn-world-generate-ai" style="margin-top:12px">AI로 세계관 생성</button>
-          <div class="small" style="margin-top:8px; text-align:center;">* 브라우저에 저장된 Gemini 키로 AI를 호출합니다.</div>
+          <div class="small" style="margin-top:8px; text-align:center;">* AI 호출을 위해 암호화된 API 키를 사용합니다.</div>
         </div>
       </div>
 
@@ -90,7 +96,7 @@
             <textarea id="cc-char-input" rows="4" maxlength="1000" placeholder="예: '말수가 적고 신비로운 암살자 컨셉으로'"></textarea>
             
             <button class="btn full" id="btn-char-create-final" style="margin-top:12px">캐릭터 생성</button>
-            <div class="small" style="margin-top:8px; text-align:center;">* 브라우저에 저장된 Gemini 키로 AI를 호출합니다.</div>
+            <div class="small" style="margin-top:8px; text-align:center;">* AI 호출을 위해 암호화된 API 키를 사용합니다.</div>
           </div>
         </div>
       </div>
@@ -150,25 +156,25 @@
         <div class="card" style="margin:0 16px 12px">
           <div class="kv kv-uid"><div class="k">UID</div><div class="v small">-</div></div>
         </div>
-<div class="card pad" style="margin:0 16px 12px">
-  <div class="small" style="margin-bottom:6px">Gemini API Key</div>
-  <input id="gemini-key" type="password" placeholder="AIza..." style="margin-bottom:12px">
-  
-  <div class="small" style="margin-bottom:6px">암호화 비밀번호</div>
-  <input id="gemini-key-password" type="password" placeholder="키를 암호화할 비밀번호" style="margin-bottom:12px">
-
-  <div class="small" style="margin-bottom:6px">비밀번호 확인</div>
-  <input id="gemini-key-password-confirm" type="password" placeholder="비밀번호 다시 입력">
-
-  <div class="small" style="margin-top:12px; opacity: 0.8; line-height: 1.5;">
-    * 입력한 키는 여기서 설정한 비밀번호로 암호화되어 서버에 저장됩니다. **이 비밀번호는 서버에 저장되지 않으므로, 절대 잊어버리지 마세요.**
-  </div>
-  
-  <div style="display:flex; gap:8px; margin-top:16px">
-    <button class="btn full" id="btn-save-key">저장 또는 갱신</button>
-    <button class="btn secondary" id="btn-logout">로그아웃</button>
-  </div>
-</div>
+        <div class="card pad" style="margin:0 16px 12px">
+          <div class="small" style="margin-bottom:6px">Gemini API Key</div>
+          <input id="gemini-key" type="password" placeholder="AIza..." style="margin-bottom:12px">
+          
+          <div class="small" style="margin-bottom:6px">암호화 비밀번호</div>
+          <input id="gemini-key-password" type="password" placeholder="키를 암호화할 비밀번호" style="margin-bottom:12px">
+        
+          <div class="small" style="margin-bottom:6px">비밀번호 확인</div>
+          <input id="gemini-key-password-confirm" type="password" placeholder="비밀번호 다시 입력">
+        
+          <div class="small" style="margin-top:12px; opacity: 0.8; line-height: 1.5;">
+            * 입력한 키는 여기서 설정한 비밀번호로 암호화되어 서버에 저장됩니다. **이 비밀번호는 서버에 저장되지 않으므로, 절대 잊어버리지 마세요.**
+          </div>
+          
+          <div style="display:flex; gap:8px; margin-top:16px">
+            <button class="btn full" id="btn-save-key">저장 또는 갱신</button>
+            <button class="btn secondary" id="btn-logout">로그아웃</button>
+          </div>
+        </div>
       </div>
 
       <div data-view="world-detail" style="display:none;"></div>
