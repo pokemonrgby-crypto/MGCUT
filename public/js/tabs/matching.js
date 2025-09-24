@@ -1,6 +1,6 @@
 // public/js/tabs/matching.js
 import { api } from '../api.js';
-import { ui } from '../ui/frame.js';
+import { ui, withBlocker } from '../ui/frame.js';
 
 const ROOT = '[data-view="matching"]';
 const esc = s => String(s??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
@@ -24,8 +24,7 @@ function cardHTML(side, c){
     </div>`;
 }
 
-// (수정된 결과)
-async function render(meId) { // [수정] opId 인자 제거
+async function render(meId) {
   const root = document.querySelector(ROOT);
   if (!root) return;
 
@@ -38,40 +37,37 @@ async function render(meId) { // [수정] opId 인자 제거
   `;
 
   try {
-    const me = (await api.getCharacter(meId))?.data;
-    if (!me) throw new Error('내 캐릭터를 찾을 수 없습니다.');
+    const meRes = await api.getCharacter(meId);
+    if (!meRes.ok) throw new Error('내 캐릭터를 찾을 수 없습니다.');
+    const me = meRes.data;
 
-    // [수정] URL이 아닌 서버를 통해 상대방을 찾습니다.
     const matchResult = await api.findMatch(meId);
     const opId = matchResult?.data?.opponentId;
-    if (!opId) throw new Error('비슷한 점수대의 상대를 찾을 수 없습니다.');
+    if (!opId) throw new Error('비슷한 점수대의 상대를 찾을 수 없습니다. 잠시 후 다시 시도해주세요.');
 
-    const op = (await api.getCharacter(opId))?.data;
-    if (!op) throw new Error('상대 캐릭터 정보를 가져올 수 없습니다.');
+    const opRes = await api.getCharacter(opId);
+    if (!opRes.ok) throw new Error('상대 캐릭터 정보를 가져올 수 없습니다.');
+    const op = opRes.data;
 
     const row = document.getElementById('cmp-row');
     row.innerHTML = cardHTML('나', me) + cardHTML('상대', op);
 
-    // [수정] 버튼 생성 로직을 별도 영역으로 분리
     document.getElementById('battle-btn-area').innerHTML = `
       <div class="card pad">
         <button id="btn-start-battle" class="btn full">전투 시작</button>
-        <div class="small" style="opacity:.8;margin-top:6px">개인 API 키는 [내정보]에 저장된 값을 사용합니다.</div>
+        <div class="small" style="opacity:.8;margin-top:8px; text-align:center;">전투 시뮬레이션을 위해 API 키가 사용됩니다.</div>
       </div>`;
-
-
     
     document.getElementById('btn-start-battle').onclick = async () => {
-      const key = localStorage.getItem('GEMINI_KEY');
-      if (!key) return alert('내정보에서 Gemini API 키를 먼저 저장해주세요.');
-      
       try {
-        const battleRes = await api.createBattle(meId, opId);
-        if (battleRes.ok) {
-          ui.navTo(`battle?id=${battleRes.data.id}`);
-        } else {
-          throw new Error(battleRes.error || '배틀 생성 실패');
-        }
+        await withBlocker(async () => {
+          const battleRes = await api.createBattle(meId, opId);
+          if (battleRes.ok) {
+            ui.navTo(`battle?id=${battleRes.data.id}`);
+          } else {
+            throw new Error(battleRes.error || '배틀 생성 실패');
+          }
+        });
       } catch (e) {
         alert(`배틀 생성 실패: ${e.message}`);
       }
@@ -82,15 +78,11 @@ async function render(meId) { // [수정] opId 인자 제거
 }
 
 export function mount() {
-  // [수정] onRoute 함수를 mount로 이름을 바꾸고 export 합니다.
   const m = location.hash.match(/#\/?matching\??(.*)$/);
-
-  if (!m) return; // 매칭 URL이 아니면 아무것도 하지 않음
+  if (!m) return;
   const q = new URLSearchParams(m[1] || '');
   const meId = q.get('me');
   if (meId) {
     render(meId);
   }
 }
-
-
