@@ -5,20 +5,18 @@ const ROOT = '[data-view="character-detail"]';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
-// [수정] 서사 카드 템플릿 (세로 목록용)
-function storyCard(s, full = false) {
-  const content = esc(s?.long || '').replace(/\n/g, '<br>');
-  return `<div class="story-card">
+// [수정] 서사 카드 템플릿 - 클릭 가능하도록 변경
+function storyCard(s, index) {
+  const content = esc(s?.long || '').replace(/\n/g, ' ');
+  return `<div class="story-card" data-story-index="${index}" style="cursor:pointer;">
     <div class="story-title small">${esc(s?.title || '서사')}</div>
-    <div class="story-content ${full ? '' : 'multiline-ellipsis'}">${parseRichText(content)}</div>
+    <div class="story-content multiline-ellipsis">${content}</div>
   </div>`;
 }
 
-
-// [신규] 리치 텍스트 파서
 function parseRichText(text) {
   if (!text) return '';
-  return text
+  return text.replace(/\n/g, '<br>')
     .replace(/<대사>/g, '<div class="dialogue">')
     .replace(/<\/대사>/g, '</div>')
     .replace(/<서술>/g, '<div class="narrative">')
@@ -54,31 +52,32 @@ function slotBox(content='', idx=0){
   return `<div class="slot" data-slot="${idx}">${content || '<span class="small" style="opacity:.7">빈 슬롯</span>'}</div>`;
 }
 
-// [신규] 배틀 로그 카드 템플릿
+// [수정] 배틀 로그 카드 템플릿 (캐릭터 카드 디자인 적용)
 function battleLogCard(log, currentCharId) {
     const isMeA = log.meId === currentCharId;
     const result = log.winner === (isMeA ? 'A' : 'B') ? '승리' : '패배';
     const resultClass = result === '승리' ? 'ok' : 'err';
-
-    const myEloBefore = isMeA ? log.eloMe : log.eloOp;
+    
     const myEloAfter = isMeA ? log.eloMeAfter : log.eloOpAfter;
-    const eloChange = myEloAfter - myEloBefore;
-    const eloChangeStr = eloChange > 0 ? `+${eloChange}` : eloChange;
+    const eloChange = myEloAfter - (isMeA ? log.eloMe : log.eloOp);
+    const eloChangeStr = eloChange >= 0 ? `+${eloChange}` : eloChange;
 
     const opponentName = isMeA ? log.opName : log.meName;
+    const opponentImageUrl = isMeA ? log.opImageUrl : log.meImageUrl;
     const date = new Date((log.createdAt?.seconds || 0) * 1000).toLocaleString();
 
     return `
-    <div class="card info-card battle-log-card">
-        <div class="kv">
-            <div class="k">vs ${esc(opponentName)}</div>
-            <div class="v" style="font-weight:700;">
+    <div class="battle-log-char-card">
+        <div class="bg" style="${opponentImageUrl ? `background-image:url('${esc(opponentImageUrl)}')` : ''}"></div>
+        <div class="grad"></div>
+        <div class="info-overlay">
+            <div class="opponent-name">vs ${esc(opponentName)}</div>
+            <div class="result-line">
                 <span class="${resultClass}">${result}</span>
                 (Elo ${myEloAfter} <span class="small ${resultClass}">(${eloChangeStr})</span>)
             </div>
+            <div class="date">${date}</div>
         </div>
-        <div class="small" style="padding: 0 16px 12px; opacity: .7">${date}</div>
-        <div class="battle-log-content" style="display:none; padding: 0 16px 16px; white-space: pre-wrap; font-size: 13px; line-height: 1.6;">${parseRichText(esc(log.log))}</div>
     </div>
     `;
 }
@@ -89,7 +88,7 @@ export async function mount(characterId){
   if (!root) return;
   if (!characterId){ root.innerHTML = `<div class="card pad">캐릭터 ID가 없어요.</div>`; return; }
 
-  root.innerHTML = `<div class="spinner"></div>`; // 초기 로딩 스피너
+  root.innerHTML = `<div class="spinner"></div>`;
 
   try{
     const { ok, data:c } = await api.getCharacter(characterId);
@@ -126,7 +125,7 @@ export async function mount(characterId){
           <div class="story-cards v-list">
             ${
               Array.isArray(c.narratives) && c.narratives.length
-              ? c.narratives.map(n => storyCard(n, true)).join('')
+              ? c.narratives.map((n, i) => storyCard(n, i)).join('')
               : `<div class="small" style="opacity:.8">아직 서사가 없어요.</div>`
             }
           </div>
@@ -135,11 +134,7 @@ export async function mount(characterId){
         <div class="panel skills">
           <div class="skills-head"><span class="count">0/3</span><div style="flex:1"></div><button class="btn small" id="btn-save-skills">저장</button></div>
           <div class="skills-list vlist">
-            ${
-              Array.isArray(c.abilities) && c.abilities.length
-              ? c.abilities.map(skillChip).join('')
-              : `<div class="small" style="opacity:.8">등록된 스킬이 없어요.</div>`
-            }
+            ${ Array.isArray(c.abilities) && c.abilities.length ? c.abilities.map(skillChip).join('') : `<div class="small" style="opacity:.8">등록된 스킬이 없어요.</div>` }
           </div>
         </div>
 
@@ -152,11 +147,7 @@ export async function mount(characterId){
           </div>
           <div class="small" style="opacity:.9;margin:10px 0 6px">인벤토리</div>
           <div class="inventory grid3">
-            ${
-              Array.isArray(c.items) && c.items.length
-              ? c.items.map(itemChip).join('')
-              : `<div class="small" style="opacity:.8">아이템이 없어요.</div>`
-            }
+            ${ Array.isArray(c.items) && c.items.length ? c.items.map(itemChip).join('') : `<div class="small" style="opacity:.8">아이템이 없어요.</div>` }
           </div>
         </div>
 
@@ -184,19 +175,39 @@ export async function mount(characterId){
       };
     });
 
+    // [추가] 서사 카드 클릭 시 모달
+    const narrativePanel = root.querySelector('.panel.narrative');
+    narrativePanel.addEventListener('click', (e) => {
+      const card = e.target.closest('.story-card');
+      if (!card) return;
+      const storyIndex = parseInt(card.dataset.storyIndex, 10);
+      const story = c.narratives[storyIndex];
+      if (!story) return;
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-layer';
+      modal.innerHTML = `
+        <div class="modal-card">
+          <button class="modal-close" aria-label="닫기">×</button>
+          <div class="modal-body">
+            <h3>${esc(story.title)}</h3>
+            <div>${parseRichText(esc(story.long))}</div>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+      modal.addEventListener('click', (ev) => {
+        if (ev.target === modal || ev.target.classList.contains('modal-close')) {
+          modal.remove();
+        }
+      });
+    });
+
     // 배틀 로그 탭 렌더링
     const battleLogPanel = root.querySelector('.panel.battle-log');
     try {
         const logRes = await api.getCharacterBattleLogs(characterId);
         if (logRes.ok && logRes.data.length > 0) {
-            battleLogPanel.innerHTML = logRes.data.map(log => battleLogCard(log, characterId)).join('');
-            battleLogPanel.addEventListener('click', e => {
-                const card = e.target.closest('.battle-log-card');
-                if (card) {
-                    const content = card.querySelector('.battle-log-content');
-                    content.style.display = content.style.display === 'none' ? 'block' : 'none';
-                }
-            });
+            battleLogPanel.innerHTML = '<div class="list">' + logRes.data.map(log => battleLogCard(log, characterId)).join('') + '</div>';
         } else {
             battleLogPanel.innerHTML = '<div class="card pad small">아직 전투 기록이 없습니다.</div>';
         }
@@ -210,38 +221,32 @@ export async function mount(characterId){
     const savedSkills = new Set(c.chosen || []);
     let selected = new Set(savedSkills);
 
-    function syncSkillCount(){
-      countEl.textContent = `${selected.size}/3`;
-    }
+    function syncSkillCount(){ countEl.textContent = `${selected.size}/3`; }
 
     function syncSkillSelection(){
         skillEls.forEach(el => {
-            el.classList.toggle('selected', selected.has(el.dataset.skillId));
+            const skillIdentifier = el.dataset.skillId;
+            const isSelected = Array.from(selected).some(s => s === skillIdentifier || (typeof s === 'number' && c.abilities[s]?.name === skillIdentifier));
+            el.classList.toggle('selected', isSelected);
         });
         syncSkillCount();
     }
 
     function toggleSkill(el){
       const id = el.getAttribute('data-skill-id');
-      if (el.classList.contains('selected')) {
-        el.classList.remove('selected');
+      if (selected.has(id)) {
         selected.delete(id);
       } else {
         if (selected.size >= 3) {
           const first = selected.values().next().value;
-          if (first){
-            const old = skillEls.find(k=>k.getAttribute('data-skill-id')===first);
-            old?.classList.remove('selected');
-            selected.delete(first);
-          }
+          if (first) selected.delete(first);
         }
-        el.classList.add('selected');
         selected.add(id);
       }
-      syncSkillCount();
+      syncSkillSelection();
     }
     skillEls.forEach(el=> el.onclick = ()=> toggleSkill(el));
-    syncSkillSelection(); // 초기 선택 상태 렌더링
+    syncSkillSelection();
 
 
     // 저장(스킬)
@@ -253,7 +258,7 @@ export async function mount(characterId){
       }catch(e){ alert('저장 실패: ' + (e.message||e)); }
     });
 
-    // --- 아이템: 슬롯 3칸 간단 장착 UI ---
+    // --- 아이템, FAB 등 나머지 코드는 기존과 동일 ...
     const slots = Array.from(root.querySelectorAll('.slots .slot'));
     const invItems = Array.from(root.querySelectorAll('.inventory .item'));
     function putIntoFirstEmpty(itemHtml, itemName){
@@ -289,7 +294,6 @@ export async function mount(characterId){
       }catch(e){ alert('저장 실패: ' + (e.message||e)); }
     });
 
-    // --- FAB: 본인 소유일 때만 표시 ---
     const fab = root.querySelector('.fab-battle');
     const currentUid = auth.currentUser?.uid;
     if (currentUid && c.ownerUid && currentUid === c.ownerUid) {
