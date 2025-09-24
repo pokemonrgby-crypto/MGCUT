@@ -1,4 +1,3 @@
-// (수정된 결과)
 // /public/js/tabs/character-detail.js
 import { api, auth } from '../api.js';
 
@@ -6,14 +5,17 @@ const ROOT = '[data-view="character-detail"]';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
-function storyCard(s){
+// [수정] 서사 카드 템플릿 (세로 목록용)
+function storyCard(s, full = false) {
+  const content = esc(s?.long || '').replace(/\n/g, '<br>');
   return `<div class="story-card">
-    <div class="small" style="opacity:.8;margin-bottom:6px">${esc(s?.title||'서사')}</div>
-    <div>${esc(s?.long||'').replace(/\n/g,'<br>')}</div>
+    <div class="story-title small">${esc(s?.title || '서사')}</div>
+    <div class="story-content ${full ? '' : 'multiline-ellipsis'}">${parseRichText(content)}</div>
   </div>`;
 }
 
-// [신규] 리치 텍스트 파서 (md와 유사하지만, 여기서는 로그용으로 간단하게 만듦)
+
+// [신규] 리치 텍스트 파서
 function parseRichText(text) {
   if (!text) return '';
   return text
@@ -57,7 +59,7 @@ function battleLogCard(log, currentCharId) {
     const isMeA = log.meId === currentCharId;
     const result = log.winner === (isMeA ? 'A' : 'B') ? '승리' : '패배';
     const resultClass = result === '승리' ? 'ok' : 'err';
-    
+
     const myEloBefore = isMeA ? log.eloMe : log.eloOp;
     const myEloAfter = isMeA ? log.eloMeAfter : log.eloOpAfter;
     const eloChange = myEloAfter - myEloBefore;
@@ -101,10 +103,11 @@ export async function mount(characterId){
       </div>
 
       <div class="tabs tabs-char">
-        <button data-tab="about" class="active">소개·서사</button>
-        <button data-tab="skills">스킬(3)</button>
+        <button data-tab="about" class="active">소개</button>
+        <button data-tab="narrative">서사</button>
+        <button data-tab="skills">스킬</button>
         <button data-tab="items">아이템</button>
-        <button data-tab="timeline">타임라인</button>
+        <button data-tab="battle-log">배틀 로그</button>
       </div>
 
       <div class="tab-panels">
@@ -117,10 +120,13 @@ export async function mount(characterId){
             <div class="kv"><div class="k">소속 세계관</div><div class="v small">${esc(c.worldName || c.worldId || '-')}</div></div>
             <div class="kv"><div class="k">Elo</div><div class="v"><b>${c.elo ?? 1000}</b></div></div>
           </div>
-          <div class="story-cards rail">
+        </div>
+
+        <div class="panel narrative">
+          <div class="story-cards v-list">
             ${
               Array.isArray(c.narratives) && c.narratives.length
-              ? c.narratives.map(n => storyCard(n)).join('')
+              ? c.narratives.map(n => storyCard(n, true)).join('')
               : `<div class="small" style="opacity:.8">아직 서사가 없어요.</div>`
             }
           </div>
@@ -154,36 +160,37 @@ export async function mount(characterId){
           </div>
         </div>
 
-        <div class="panel timeline"><div class="spinner"></div></div>
+        <div class="panel battle-log"><div class="spinner"></div></div>
       </div>
       <button class="fab-battle" hidden aria-label="배틀 시작">⚔</button>
     `;
 
     // 탭 전환
-    const tabs = Array.from(root.querySelectorAll('.tabs-char [data-tab]'));
+    const tabs = Array.from(root.querySelectorAll('.tabs-char button[data-tab]'));
     const panels = {
       about: root.querySelector('.panel.about'),
+      narrative: root.querySelector('.panel.narrative'),
       skills: root.querySelector('.panel.skills'),
       items: root.querySelector('.panel.items'),
-      timeline: root.querySelector('.panel.timeline'),
+      'battle-log': root.querySelector('.panel.battle-log'),
     };
     tabs.forEach(btn=>{
       btn.onclick = ()=>{
-        tabs.forEach(b=>b.classList.toggle('active', b===btn));
+        tabs.forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
         Object.values(panels).forEach(p=>p.classList.remove('active'));
-        const t = btn.getAttribute('data-tab');
+        const t = btn.dataset.tab;
         panels[t]?.classList.add('active');
       };
     });
 
-    // [수정] 타임라인 데이터 로드 및 렌더링
-    const timelinePanel = root.querySelector('.panel.timeline');
+    // 배틀 로그 탭 렌더링
+    const battleLogPanel = root.querySelector('.panel.battle-log');
     try {
         const logRes = await api.getCharacterBattleLogs(characterId);
         if (logRes.ok && logRes.data.length > 0) {
-            timelinePanel.innerHTML = logRes.data.map(log => battleLogCard(log, characterId)).join('');
-            // 로그 카드 클릭 시 내용 토글
-            timelinePanel.addEventListener('click', e => {
+            battleLogPanel.innerHTML = logRes.data.map(log => battleLogCard(log, characterId)).join('');
+            battleLogPanel.addEventListener('click', e => {
                 const card = e.target.closest('.battle-log-card');
                 if (card) {
                     const content = card.querySelector('.battle-log-content');
@@ -191,45 +198,29 @@ export async function mount(characterId){
                 }
             });
         } else {
-            timelinePanel.innerHTML = '<div class="card pad small">아직 전투 기록이 없습니다.</div>';
+            battleLogPanel.innerHTML = '<div class="card pad small">아직 전투 기록이 없습니다.</div>';
         }
     } catch(e) {
-        timelinePanel.innerHTML = `<div class="card pad err">로그를 불러오는 데 실패했습니다: ${e.message}</div>`;
+        battleLogPanel.innerHTML = `<div class="card pad err">로그를 불러오는 데 실패했습니다: ${e.message}</div>`;
     }
-
-    // (기존 나머지 이벤트 바인딩 코드...)
-    // FAB, 스킬, 아이템, 서사 모달 등은 여기에 그대로 유지됩니다.
-    // --- 서사 카드 클릭 시 전체보기 모달 ---
-    const storyWrap = root.querySelector('.story-cards');
-    if (storyWrap){
-      storyWrap.addEventListener('click', (e)=>{
-        const card = e.target.closest('.story-card');
-        if (!card) return;
-        const html = card.innerHTML;
-        const modal = document.createElement('div');
-        modal.className = 'modal-layer';
-        modal.innerHTML = `
-          <div class="modal-card">
-            <button class="modal-close" aria-label="닫기">×</button>
-            <div class="modal-body">${parseRichText(html)}</div>
-          </div>`;
-        document.body.appendChild(modal);
-        modal.addEventListener('click', (ev)=>{
-          if (ev.target === modal || ev.target.classList.contains('modal-close')) {
-            modal.remove();
-          }
-        });
-      });
-    }
-
 
     // --- 스킬: 3개 고정 선택 ---
     const skillEls = Array.from(root.querySelectorAll('.skills-list .skill'));
     const countEl = root.querySelector('.skills-head .count');
-    const selected = new Set();
+    const savedSkills = new Set(c.chosen || []);
+    let selected = new Set(savedSkills);
+
     function syncSkillCount(){
       countEl.textContent = `${selected.size}/3`;
     }
+
+    function syncSkillSelection(){
+        skillEls.forEach(el => {
+            el.classList.toggle('selected', selected.has(el.dataset.skillId));
+        });
+        syncSkillCount();
+    }
+
     function toggleSkill(el){
       const id = el.getAttribute('data-skill-id');
       if (el.classList.contains('selected')) {
@@ -250,7 +241,8 @@ export async function mount(characterId){
       syncSkillCount();
     }
     skillEls.forEach(el=> el.onclick = ()=> toggleSkill(el));
-    syncSkillCount();
+    syncSkillSelection(); // 초기 선택 상태 렌더링
+
 
     // 저장(스킬)
     root.querySelector('#btn-save-skills')?.addEventListener('click', async ()=>{
