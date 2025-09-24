@@ -341,4 +341,43 @@ export function mountCharacters(app, db, getUserFromReq) {
       res.status(500).json({ ok: false, error: String(e) }); 
     }
   });
+
+  app.patch('/api/characters/:id/image', async (req, res) => {
+    try {
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+      const { imageUrl } = req.body;
+      if (!imageUrl) return res.status(400).json({ ok: false, error: 'IMAGE_URL_REQUIRED' });
+
+      const ref = db.collection('characters').doc(req.params.id);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+      if (snap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
+
+      await ref.update({ imageUrl, updatedAt: FieldValue.serverTimestamp() });
+      res.json({ ok: true, data: { id: req.params.id, imageUrl } });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e) });
+    }
+  });
+
+  // --- [신규] 캐릭터 삭제 ---
+  app.delete('/api/characters/:id', async (req, res) => {
+    try {
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+      const ref = db.collection('characters').doc(req.params.id);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+      if (snap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
+
+      // TODO: Firebase Storage의 이미지 파일도 함께 삭제하는 로직 추가 가능
+      await ref.delete();
+      res.json({ ok: true, data: { id: req.params.id } });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e) });
+    }
+  });
 }
