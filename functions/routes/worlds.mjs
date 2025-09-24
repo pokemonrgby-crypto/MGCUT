@@ -3,6 +3,20 @@ import { db, FieldValue } from '../lib/firebase.mjs';
 import { getUserFromReq } from '../lib/auth.mjs';
 import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { loadWorldSystemPrompt } from '../lib/prompts.mjs';
+import { decryptWithPassword } from '../lib/crypto.mjs';
+import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
+
+// 헬퍼 함수: UID와 비밀번호로 암호화된 API 키를 가져와 복호화합니다.
+async function getDecryptedKey(uid, password) {
+    if (!password) throw new Error('PASSWORD_REQUIRED');
+    const userDoc = await db.collection('users').doc(uid).get();
+    const encryptedKey = userDoc.exists ? userDoc.data().encryptedKey : null;
+    if (!encryptedKey) throw new Error('ENCRYPTED_KEY_NOT_FOUND: 내 정보 탭에서 API 키를 먼저 저장해주세요.');
+    
+    const decryptedKey = decryptWithPassword(encryptedKey, password);
+    if (!decryptedKey) throw new Error('DECRYPTION_FAILED: 비밀번호가 올바르지 않거나 키가 손상되었습니다.');
+    return decryptedKey;
+}
 
 export function mountWorlds(app) {
 
@@ -35,9 +49,12 @@ export function mountWorlds(app) {
         const user = await getUserFromReq(req);
         if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
 
-        const { name, userInput, geminiKey } = req.body;
+        await checkAndUpdateCooldown(db, user.uid, 'generateWorld', 600); // 10분 쿨다운 추가
+
+        const { name, userInput, password } = req.body;
         if (!name) return res.status(400).json({ ok: false, error: 'NAME_REQUIRED' });
-        if (!geminiKey) return res.status(400).json({ ok: false, error: 'GEMINI_KEY_REQUIRED' });
+
+        const geminiKey = await getDecryptedKey(user.uid, password);
 
         const systemPrompt = await loadWorldSystemPrompt();
         const userPrompt = `세계 이름: ${name}\n\n추가 요청사항: ${userInput || '(없음)'}`;
@@ -51,6 +68,9 @@ export function mountWorlds(app) {
         res.json({ ok: true, data: worldJson });
     } catch (e) {
         console.error('World generation failed:', e);
+        if (e.message.startsWith('COOLDOWN_ACTIVE')) {
+            return res.status(429).json({ ok: false, error: e.message });
+        }
         res.status(500).json({ ok: false, error: String(e) });
     }
   });
@@ -115,11 +135,14 @@ export function mountWorlds(app) {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-      const { type, data, geminiKey } = req.body || {};
+      const { type, data, password } = req.body || {};
       if (!['sites','npcs','factions'].includes(type)) return res.status(400).json({ ok: false, error: 'INVALID_TYPE' });
 
+      await checkAndUpdateCooldown(db, user.uid, `addElement:${type}`, 60); // 타입별 1분 쿨다운
+
       let newElement = data;
-      if (data.userInput && geminiKey) { // AI 생성 요청
+      if (data.userInput && password) { // AI 생성 요청
+          const geminiKey = await getDecryptedKey(user.uid, password);
           const worldContext = JSON.stringify(data.worldContext, null, 2);
           const systemPrompt = `당신은 세계관 확장 AI입니다. 주어진 세계관 정보에 어울리는 새로운 요소를 JSON 형식으로 생성합니다. 설명은 200자 내외로 작성해주세요.
           - 명소(sites) 생성 시: {"name": "명소 이름", "description": "설명", "difficulty": "normal", "imageUrl": ""}
@@ -145,7 +168,12 @@ export function mountWorlds(app) {
 
       await ref.update({ [type]: arr, updatedAt: FieldValue.serverTimestamp() });
       res.json({ ok: true, data: newElement });
-    } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
+    } catch (e) {
+        if (e.message.startsWith('COOLDOWN_ACTIVE')) {
+            return res.status(429).json({ ok: false, error: e.message });
+        }
+        res.status(500).json({ ok: false, error: String(e) });
+    }
   });
 
   app.delete('/api/worlds/:id/elements', async (req, res) => {
