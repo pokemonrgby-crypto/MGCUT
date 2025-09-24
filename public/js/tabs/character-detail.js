@@ -214,7 +214,62 @@ export async function mount(characterId){
     } catch(e) {
         battleLogPanel.innerHTML = `<div class="card pad err">로그를 불러오는 데 실패했습니다: ${e.message}</div>`;
     }
+    
+    // 관리자 탭 렌더링 및 이벤트 바인딩
+    if (isOwner) {
+      const adminPanel = root.querySelector('.panel.admin');
+      renderAdminPanel(adminPanel);
 
+      // 이미지 업로드
+      adminPanel.querySelector('#char-image-upload').onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          await withBlocker(async () => {
+            const path = `characters/${c.ownerUid}`;
+            const imageUrl = await storage.uploadImage(path, file);
+            await api.updateCharacterImage(c.id, imageUrl);
+            root.querySelector('.char-hero .bg').style.backgroundImage = `url('${imageUrl}')`;
+          });
+          alert('이미지가 변경되었습니다.');
+        } catch (err) {
+          alert(`오류: ${err.message}`);
+        }
+      };
+
+      // 캐릭터 삭제
+      adminPanel.querySelector('#btn-delete-character').onclick = () => {
+        const modal = document.createElement('div');
+        modal.className = 'modal-layer';
+        modal.innerHTML = `
+          <div class="modal-card">
+            <div class="modal-body" style="text-align:center;">
+              <h3>정말로 삭제하시겠습니까?</h3>
+              <p class="small">"${esc(c.name)}" 캐릭터와 관련된 모든 정보가 영구적으로 삭제되며, 이 작업은 되돌릴 수 없습니다.</p>
+              <div style="display:flex; gap:8px; margin-top:16px;">
+                <button class="btn secondary full" id="btn-modal-cancel">취소</button>
+                <button class="btn full btn-danger" id="btn-modal-confirm">삭제 확인</button>
+              </div>
+            </div>
+          </div>`;
+        document.body.appendChild(modal);
+        
+        modal.querySelector('#btn-modal-cancel').onclick = () => modal.remove();
+        modal.querySelector('#btn-modal-confirm').onclick = async () => {
+          try {
+            await withBlocker(() => api.deleteCharacter(c.id));
+            alert('캐릭터가 삭제되었습니다.');
+            ui.navTo('home');
+          } catch(err) {
+            alert(`삭제 실패: ${err.message}`);
+          } finally {
+            modal.remove();
+          }
+        };
+      };
+    }
+
+    
     // --- 스킬: 3개 고정 선택 ---
     const skillEls = Array.from(root.querySelectorAll('.skills-list .skill'));
     const countEl = root.querySelector('.skills-head .count');
