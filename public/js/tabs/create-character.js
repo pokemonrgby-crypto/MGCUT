@@ -8,9 +8,6 @@ let promptsCache = [];
 let selectedWorld = null;
 let selectedPrompt = null;
 
-function worldCardTemplate(w) { /* ... 기존과 동일 ... */ }
-function promptCardTemplate(p) { /* ... 기존과 동일 ... */ }
-
 export function mount() {
     const root = document.querySelector(rootSel);
     if (!root || root.dataset.mounted === '1') return;
