@@ -1,7 +1,7 @@
 // public/js/tabs/create-world.js
 import { api } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
-import { callClientSideGemini } from '../lib/gemini-client.js';
+import { sessionKeyManager } from '../session-key-manager.js';
 
 const rootSel = '[data-view="create-world"]';
 let worldSystemPrompt = ''; // 프롬프트를 캐싱할 변수
@@ -24,17 +24,21 @@ export function mount() {
 
     try {
       await withBlocker(async () => {
-        const worldJson = await callClientSideGemini({
-          system: worldSystemPrompt,
-          user: `세계 이름: ${worldName}\n\n추가 요청사항: ${userInput || '(없음)'}`
-        });
+        const decryptedKey = await sessionKeyManager.getDecryptedKey();
+        
+        const payload = { 
+          name: worldName, 
+          userInput: userInput,
+        };
+
+        // 서버의 AI 생성 엔드포인트를 호출
+        const worldJson = await api.generateWorld(payload, decryptedKey);
 
         if (!worldJson) throw new Error('AI가 유효한 JSON을 생성하지 못했습니다.');
 
-        // AI가 생성한 JSON에 사용자가 입력한 이름이 빠졌을 경우를 대비해 덮어쓰기
-        worldJson.name = worldName;
+        // 서버에서 이미 이름을 포함하므로 별도 처리 불필요
 
-        const res = await api.saveWorld(worldJson);
+        const res = await api.saveWorld(worldJson.data);
         alert(`세계관이 성공적으로 생성되었습니다! (ID: ${res.data.id})`);
         
         ui.navTo('home');
