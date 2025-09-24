@@ -39,6 +39,12 @@ async function call(method, path, body, extraHeaders = {}) {
   const headers = { ...(extraHeaders||{}) };
   if (body) headers['Content-Type'] = 'application/json';
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  
+  // [추가] 로컬 스토리지의 Gemini 키를 헤더에 추가
+  const geminiKey = localStorage.getItem('GEMINI_KEY');
+  if (geminiKey) {
+    headers['X-Gemini-Key'] = geminiKey;
+  }
 
   const res = await fetch(path, {
     method,
