@@ -41,8 +41,8 @@ async function render(battleId){
   `;
 
   try {
-    const decryptedKey = await sessionKeyManager.getDecryptedKey();
-    const res = await api.battleSimulate(battleId, decryptedKey);
+    const password = await sessionKeyManager.getPassword();
+    const res = await api.battleSimulate(battleId, password);
     const { markdown, winner } = res.data;
 
     if (!markdown) {
@@ -60,7 +60,7 @@ async function render(battleId){
     if (winner) {
       const b = document.createElement('div');
       b.className = 'winner-badge';
-      b.textContent = `결과: ${winner} 승리`;
+      b.textContent = `결과: ${winner === 'A' ? b.meName : b.opName} 승리`;
       out.prepend(b);
     } else {
       const b = document.createElement('div');
@@ -70,9 +70,15 @@ async function render(battleId){
     }
 
   } catch(e) {
-    const l = root.querySelector('.sim-loading .small');
-    if (l) l.textContent = `시뮬레이션 실패: ${e.message || e}`;
-    l.closest('.sim-loading').classList.add('err');
+    if (!e.message.includes('사용자가')) {
+        const l = root.querySelector('.sim-loading .small');
+        if (l) l.textContent = `시뮬레이션 실패: ${e.message || e}`;
+        l.closest('.sim-loading').classList.add('err');
+    } else {
+        // 사용자가 비밀번호 입력을 취소한 경우, 로딩 화면을 숨기고 이전 페이지로 돌아갈 수 있도록 유도
+        const loading = root.querySelector('.sim-loading');
+        if(loading) loading.innerHTML = `<div class="small">비밀번호 입력이 취소되었습니다.</div>`;
+    }
   }
 
   root.querySelector('#btn-rematch').onclick = () => {
