@@ -52,7 +52,7 @@ async function call(method, path, body, extraHeaders = {}) {
 
   const json = await res.json();
   if (res.status === 429) {
-    throw new Error('COOLDOWN');
+    throw new Error(json?.error || 'COOLDOWN');
   }
   if (!res.ok || json?.ok === false) {
     throw new Error(json?.error || `HTTP_${res.status}`);
