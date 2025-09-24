@@ -34,10 +34,15 @@ export function extractJson(text = '') {
  * @param {string} p.user - 유저 프롬프트
  * @returns {Promise<{text:string,json:any,raw:any}>}
  */
-export async function callGemini({ key, model, system, user }) {
+export async function callGemini({ key, model, system, user, responseMimeType = "application/json" }) {
+  if (!key) throw new Error('GEMINI_API_KEY_REQUIRED');
+  
   const url = `https://generativelanguage.googleapis.com/v1beta/${model}:generateContent?key=${encodeURIComponent(key)}`;
   const body = {
     contents: [{ role: 'user', parts: [{ text: user }] }],
+    generationConfig: {
+      responseMimeType: responseMimeType,
+    }
   };
   if (system) body.systemInstruction = { role: 'system', parts: [{ text: system }] };
 
@@ -46,13 +51,21 @@ export async function callGemini({ key, model, system, user }) {
     headers: { 'content-type': 'application/json; charset=utf-8' },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error(`Gemini HTTP ${r.status}`);
-
+  
   const data = await r.json();
+  if (!r.ok) {
+      console.error('Gemini API Error:', data);
+      throw new Error(data?.error?.message || `Gemini HTTP ${r.status}`);
+  }
+
   const text =
     data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('\n').trim() ||
     data?.candidates?.[0]?.content?.parts?.[0]?.text ||
     '';
-  const json = extractJson(text);
-  return { text, json, raw: data };
+    
+  if (responseMimeType === "application/json") {
+      const json = extractJson(text);
+      return { text, json, raw: data };
+  }
+  return { text, json: null, raw: data }; // JSON이 아닐 경우
 }
