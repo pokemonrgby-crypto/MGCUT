@@ -260,6 +260,9 @@ export function mountCharacters(app, db, getUserFromReq) {
         meId, opId,
         meName: aSnap.data().name || '',
         opName: bSnap.data().name || '',
+        // [추가] 양측 이미지 URL 저장
+        meImageUrl: aSnap.data().imageUrl || '',
+        opImageUrl: bSnap.data().imageUrl || '',
         eloMe: aSnap.data().elo ?? 1000,
         eloOp: bSnap.data().elo ?? 1000,
         status: 'ready',
