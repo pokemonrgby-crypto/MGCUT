@@ -21,7 +21,7 @@ function md(s){
   return t;
 }
 
-async function render(battleId){
+async function render(battleId, meName, opName){
   const root = document.querySelector(ROOT);
   if (!root) return;
   root.innerHTML = `
@@ -57,10 +57,12 @@ async function render(battleId){
 
     root.querySelector('.sim-loading')?.remove();
 
+    const winnerName = winner === 'A' ? meName : opName;
+
     if (winner) {
       const b = document.createElement('div');
       b.className = 'winner-badge';
-      b.textContent = `결과: ${winner === 'A' ? b.meName : b.opName} 승리`;
+      b.textContent = `결과: ${winnerName} 승리`;
       out.prepend(b);
     } else {
       const b = document.createElement('div');
@@ -71,13 +73,21 @@ async function render(battleId){
 
   } catch(e) {
     if (!e.message.includes('사용자가')) {
-        const l = root.querySelector('.sim-loading .small');
-        if (l) l.textContent = `시뮬레이션 실패: ${e.message || e}`;
-        l.closest('.sim-loading').classList.add('err');
+        const loadingEl = root.querySelector('.sim-loading');
+        if (loadingEl) {
+            loadingEl.classList.add('err');
+            // 서버에서 받은 구체적인 에러 메시지를 보여줍니다.
+            const errorDetail = loadingEl.querySelector('.small');
+            if (errorDetail) {
+                let displayError = e.message;
+                if(e.message.includes('DECRYPTION_FAILED')) displayError = '비밀번호가 올바르지 않습니다. 다시 시도해주세요.';
+                if(e.message.includes('ENCRYPTED_KEY_NOT_FOUND')) displayError = '저장된 API 키가 없습니다. [내 정보] 탭에서 먼저 키를 저장해주세요.';
+                errorDetail.textContent = `시뮬레이션 실패: ${displayError}`;
+            }
+        }
     } else {
-        // 사용자가 비밀번호 입력을 취소한 경우, 로딩 화면을 숨기고 이전 페이지로 돌아갈 수 있도록 유도
         const loading = root.querySelector('.sim-loading');
-        if(loading) loading.innerHTML = `<div class="small">비밀번호 입력이 취소되었습니다.</div>`;
+        if(loading) loading.innerHTML = `<div class="card pad small">비밀번호 입력이 취소되었습니다.</div>`;
     }
   }
 
@@ -85,7 +95,7 @@ async function render(battleId){
     history.back();
   };
   root.querySelector('#btn-resim').onclick = () => {
-    withBlocker(() => render(battleId));
+    withBlocker(() => render(battleId, meName, opName));
   };
 }
 
@@ -94,5 +104,8 @@ export function mount() {
   if (!m) return;
   const q = new URLSearchParams(m[1] || '');
   const id = q.get('id');
-  if (id) withBlocker(() => render(id));
+  const meName = decodeURIComponent(q.get('me') || 'A');
+  const opName = decodeURIComponent(q.get('op') || 'B');
+
+  if (id) withBlocker(() => render(id, meName, opName));
 }
