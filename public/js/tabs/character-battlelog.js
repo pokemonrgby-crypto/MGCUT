@@ -5,14 +5,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;'
 
 function parseRichText(text) {
   if (!text) return '';
-  // 마크다운 형식의 텍스트를 HTML로 간단히 변환
-  let html = esc(text)
-    .replace(/\n/g, '<br>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>');
-  
-  // 서사 태그 변환
-  return html.replace(/<대사>/g, '<div class="dialogue">')
+  // [수정] HTML 태그가 변환되기 전에 리치 텍스트를 먼저 처리하도록 순서 변경
+  return text.replace(/<대사>/g, '<div class="dialogue">')
     .replace(/<\/대사>/g, '</div>')
     .replace(/<서술>/g, '<div class="narrative">')
     .replace(/<\/서술>/g, '</div>')
@@ -21,8 +15,12 @@ function parseRichText(text) {
     .replace(/<생각>/g, '<div class="thought">')
     .replace(/<\/생각>/g, '</div>')
     .replace(/<시스템>/g, '<div class="system">')
-    .replace(/<\/시스템>/g, '</div>');
+    .replace(/<\/시스템>/g, '</div>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br>');
 }
+
 
 function formatDate(date) {
     const y = date.getFullYear();
