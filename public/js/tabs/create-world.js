@@ -23,20 +23,19 @@ export function mount() {
     if (!worldSystemPrompt) return alert('시스템 프롬프트를 로드하지 못했습니다. 잠시 후 다시 시도해주세요.');
 
     try {
+      // 비밀번호 입력을 먼저 받고, 성공했을 때만 withBlocker를 실행합니다.
+      const password = await sessionKeyManager.getPassword();
+      
       await withBlocker(async () => {
-        const decryptedKey = await sessionKeyManager.getDecryptedKey();
-        
         const payload = { 
           name: worldName, 
           userInput: userInput,
         };
 
-        // 서버의 AI 생성 엔드포인트를 호출
-        const worldJson = await api.generateWorld(payload, decryptedKey);
+        // 서버의 AI 생성 엔드포인트를 password와 함께 호출
+        const worldJson = await api.generateWorld(payload, password);
 
         if (!worldJson) throw new Error('AI가 유효한 JSON을 생성하지 못했습니다.');
-
-        // 서버에서 이미 이름을 포함하므로 별도 처리 불필요
 
         const res = await api.saveWorld(worldJson.data);
         alert(`세계관이 성공적으로 생성되었습니다! (ID: ${res.data.id})`);
@@ -46,7 +45,11 @@ export function mount() {
         document.querySelector('[data-view="home"]')?.removeAttribute('data-loaded');
       });
     } catch(e) {
-      alert(`생성 실패: ${e.message}`);
+      // 사용자가 비밀번호 입력을 취소했거나, API 호출에 실패한 경우
+      // e.message에 "사용자가" 라는 텍스트가 포함된 경우는 사용자가 취소한 경우이므로 alert를 띄우지 않음
+      if (!e.message.includes('사용자가')) {
+          alert(`생성 실패: ${e.message}`);
+      }
     }
   };
 }
