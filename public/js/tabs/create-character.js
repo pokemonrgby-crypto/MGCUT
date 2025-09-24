@@ -1,33 +1,12 @@
 // public/js/tabs/create-character.js
 import { api, storage, auth } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
-import { callClientSideGemini } from '../lib/gemini-client.js';
 
 const rootSel = '[data-view="create-character"]';
 let worldsCache = [];
 let promptsCache = [];
-let characterBasePrompt = ''; // AI 호출에 사용할 기본 프롬프트
 let selectedWorld = null;
 let selectedPrompt = null;
-
-/**
- * 세계관 정보를 AI에게 전달할 텍스트 형식으로 변환합니다.
- * @param {object} w - 세계관 데이터 객체
- * @returns {string} - AI 입력용으로 변환된 텍스트
- */
-function buildWorldTextForAI(w) {
-    if (!w) return '';
-    const worldInfo = {
-        name: w.name,
-        introShort: w.introShort,
-        introLong: w.introLong,
-        sites: (w.sites || []).map(s => ({ name: s.name, description: s.description })),
-        factions: (w.factions || []).map(f => ({ name: f.name, description: f.description })),
-        npcs: (w.npcs || []).map(n => ({ name: n.name, description: n.description })),
-        episodes: (w.episodes || []).map(e => ({ title: e.title, summary: e.content.replace(/<[^>]+>/g, "").substring(0, 200) + '...' }))
-    };
-    return JSON.stringify(worldInfo, null, 2);
-}
 
 /**
  * 세계관 선택 카드 HTML을 생성합니다.
@@ -144,7 +123,6 @@ export function mount() {
         if (!selectedWorld || !selectedPrompt) return alert('세계관과 프롬프트가 올바르게 선택되지 않았습니다.');
         const characterName = root.querySelector('#cc-char-name').value.trim();
         if (!characterName) return alert('캐릭터 이름을 입력해주세요.');
-        if (!characterBasePrompt) return alert('캐릭터 기본 프롬프트를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
 
         try {
             await withBlocker(async () => {
@@ -156,29 +134,14 @@ export function mount() {
                     imageUrl = await storage.uploadImage(`characters/${userId}`, imageFile);
                 }
 
-                const worldText = buildWorldTextForAI(selectedWorld);
-                const promptText = selectedPrompt.content;
-                const userInputText = `캐릭터 이름: ${characterName}\n추가 요청: ${root.querySelector('#cc-char-input').value.trim() || '(없음)'}`;
-                
-                const composedUser = [
-                    `### 세계관 정보 (JSON)`, worldText,
-                    `### 생성 프롬프트`, promptText,
-                    `### 사용자 요청`, userInputText,
-                    `\n\n위 정보를 바탕으로 JSON 스키마에 맞춰 캐릭터를 생성해줘.`,
-                ].join('\n\n');
-
-                const characterJson = await callClientSideGemini({
-                    system: characterBasePrompt,
-                    user: composedUser
-                });
-                
-                if (!characterJson) throw new Error('AI가 유효한 JSON을 생성하지 못했습니다.');
-
-                // 서버에 저장하는 API 호출 (기존 generateCharacter 활용)
-                const res = await api.saveCharacter({ // `generateCharacter` 대신 `saveCharacter`와 같은 별도 API가 필요할 수 있음. 우선 `generateCharacter`를 수정없이 사용한다고 가정.
+                // 서버의 `generateCharacter` API를 호출합니다.
+                const res = await api.generateCharacter({
                     worldId: selectedWorld.id,
                     promptId: selectedPrompt.id === 'default-basic' ? null : selectedPrompt.id,
-                    characterData: { ...characterJson, name: characterName }, // AI가 생성한 이름 대신 사용자가 입력한 이름 보장
+                    userInput: {
+                      name: characterName,
+                      request: root.querySelector('#cc-char-input').value.trim(),
+                    },
                     imageUrl: imageUrl
                 });
 
@@ -186,8 +149,11 @@ export function mount() {
                 ui.navTo(`character/${res.data.id}`);
             });
         } catch (e) {
-            // COOLDOWN 에러는 현재 서버 로직에만 있으므로 클라이언트에서는 일반 오류로 처리됩니다.
-            alert(`생성 실패: ${e.message}`);
+            if (e.message === 'COOLDOWN') {
+                alert('캐릭터를 너무 자주 생성하고 있습니다. 잠시 후 다시 시도해주세요.');
+            } else {
+                alert(`생성 실패: ${e.message}`);
+            }
             console.error(e);
         }
     };
@@ -196,7 +162,7 @@ export function mount() {
     root.querySelector('#cc-btn-back-to-step1').onclick = () => changeStep(1);
     root.querySelector('#cc-btn-back-to-step2').onclick = () => changeStep(2);
 
-    // 뷰 활성화 시 초기화 및 기본 프롬프트 로드
+    // 뷰 활성화 시 초기화
     const observer = new MutationObserver(() => {
         if (root.style.display !== 'none') {
             changeStep(1);
@@ -205,8 +171,4 @@ export function mount() {
         }
     });
     observer.observe(root, { attributes: true, attributeFilter: ['style'] });
-    
-    api.getSystemPrompt('character-base')
-      .then(res => { characterBasePrompt = res.data.content; })
-      .catch(e => console.error('Character base prompt 로딩 실패:', e));
 }
