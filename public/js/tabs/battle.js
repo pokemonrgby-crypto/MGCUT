@@ -1,8 +1,5 @@
-// (수정된 결과)
 // public/js/tabs/battle.js
 import { api } from '../api.js';
-import { ui } from '../ui/frame.js';
-import { callClientSideGemini } from '../lib/gemini-client.js';
 
 const ROOT = '[data-view="battle"]';
 
@@ -32,7 +29,7 @@ async function render(battleId){
     </div>
     <div class="card pad sim-loading" style="margin:0 16px 12px">
       <div class="dots">AI 시뮬레이션 중<span>.</span><span>.</span><span>.</span></div>
-      <div class="small" style="opacity:.8">Gemini API 키로 AI를 호출합니다.</div>
+      <div class="small" style="opacity:.8">서버에서 Gemini API로 AI를 호출합니다.</div>
     </div>
     <div class="card pad md-body" style="margin:0 16px 16px; display:none"></div>
     <div style="display:flex; gap:8px; margin:0 16px 16px">
@@ -41,25 +38,9 @@ async function render(battleId){
     </div>
   `;
 
-  const key = localStorage.getItem('GEMINI_KEY');
-  if (!key) {
-    const l = root.querySelector('.sim-loading .small');
-    if (l) l.innerHTML = '내정보 탭에서 Gemini API 키를 먼저 저장해주세요.';
-    return;
-  }
-
   try {
-    const promptRes = await api.battleSimulate(battleId);
-    const promptForClient = promptRes.data.promptForClient;
-
-    if (!promptForClient) {
-        throw new Error("서버로부터 유효한 AI 프롬프트를 받지 못했습니다.");
-    }
-    
-    const markdown = await callClientSideGemini({
-        system: "당신은 판타지 전투 해설가입니다. 전투 과정을 생생하고 흥미롭게 묘사해주세요. 마지막 줄에는 반드시 '승자: A' 또는 '승자: B'를 포함해야 합니다. 출력은 반드시 한국어 마크다운 형식이어야 합니다.",
-        user: promptForClient
-    }, "text/plain");
+    const res = await api.battleSimulate(battleId);
+    const { markdown, winner } = res.data;
 
     if (!markdown) {
         throw new Error("AI가 유효한 전투 로그를 생성하지 못했습니다.");
@@ -73,16 +54,12 @@ async function render(battleId){
 
     root.querySelector('.sim-loading')?.remove();
 
-    const m = /승자:\s*(A|B)/.exec(markdown);
-    if (m) {
-      const winner = m[1];
+    if (winner) {
       const b = document.createElement('div');
       b.className = 'winner-badge';
       b.textContent = `결과: ${winner} 승리`;
       out.prepend(b);
-      
-      await api.battleFinish(battleId, winner, markdown);
-
+      // 서버에서 이미 Elo 업데이트 및 로그 저장이 완료되었으므로 battleFinish 호출은 불필요.
     } else {
       const b = document.createElement('div');
       b.className = 'winner-badge err';
@@ -103,8 +80,8 @@ async function render(battleId){
     render(battleId);
   };
 }
+
 export function mount() {
-  // [수정] URL에서 /가 빠져도 인식하도록 정규식 수정
   const m = location.hash.match(/#\/?battle\??(.*)$/);
   if (!m) return;
   const q = new URLSearchParams(m[1] || '');
