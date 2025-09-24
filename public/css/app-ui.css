@@ -260,7 +260,11 @@ select.select-box {
   transform: translateY(0); transition: transform .25s ease, opacity .25s ease;
   will-change: transform, opacity;
 }
-.char-hero .grad{ position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.1)); }
+.char-hero .grad{ 
+  position:absolute; 
+  inset:0; 
+  background:linear-gradient(180deg, transparent 40%, rgba(0,0,0,.6) 80%, rgba(0,0,0,.85) 100%); 
+}
 .char-hero .title{ position:absolute; left:16px; right:16px; bottom:12px; font-weight:700; font-size:18px; text-shadow:0 2px 10px rgba(0,0,0,.7); }
 
 .tabs-char{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:8px 16px; }
