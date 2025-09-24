@@ -1,9 +1,8 @@
-// (수정된 결과)
-// ===== characters.mjs — SAFE BLOCK (routes only) =====
+// functions/routes/characters.mjs
 import { FieldValue } from 'firebase-admin/firestore';
-import { callGemini, pickModels } from '../lib/gemini.mjs'; // [추가]
-
-// 노드 런타임이 18 미만이면 주석 해제: import fetch from 'node-fetch';
+import { callGemini, pickModels } from '../lib/gemini.mjs';
+import { loadCharacterBasePrompt } from '../lib/prompts.mjs';
+import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 
 function updateElo(a, b, Sa, K = 32) {
   const Ea = 1 / (1 + Math.pow(10, (b - a) / 400));
@@ -40,10 +39,8 @@ function buildOneShotBattlePrompt({ me, op, world }) {
     const pickedSkills = chosen
       .map(x => skills[x] || skills.find(s => s?.id === x || s?.name === x))
       .filter(Boolean);
-
     const items = (Array.isArray(c.items) ? c.items : []).map(i => ({name: i.name, description: i.description})).filter(Boolean);
     const narrative = (Array.isArray(c.narratives) && c.narratives.length > 0) ? c.narratives[0].long : (c.introShort || c.description || '');
-
     return {
       name: c.name || '',
       elo: Number(c.elo ?? 1000),
@@ -52,33 +49,24 @@ function buildOneShotBattlePrompt({ me, op, world }) {
       items,
     };
   };
-
   const A = pick(me);
   const B = pick(op);
-
   const worldName = world?.name || me?.worldName || op?.worldName || '-';
   const worldDesc = String(world?.description || world?.introShort || '').slice(0, 800);
-
   return [
     `# 세계관 정보`,
     `- 이름: ${worldName}`,
     `- 개요: ${worldDesc}`,
     ``,
     `# A측 캐릭터: ${A.name} (Elo: ${A.elo})`,
-    `## 서사`,
-    `${A.narrative}`,
-    `## 장착 스킬`,
-    ...A.skills.map(s => `- ${s.name}: ${s.description}`),
-    `## 장착 아이템`,
-    ...A.items.map(i => `- ${i.name}: ${i.description}`),
+    `## 서사`, `${A.narrative}`,
+    `## 장착 스킬`, ...A.skills.map(s => `- ${s.name}: ${s.description}`),
+    `## 장착 아이템`, ...A.items.map(i => `- ${i.name}: ${i.description}`),
     ``,
     `# B측 캐릭터: ${B.name} (Elo: ${B.elo})`,
-    `## 서사`,
-    `${B.narrative}`,
-    `## 장착 스킬`,
-    ...B.skills.map(s => `- ${s.name}: ${s.description}`),
-    `## 장착 아이템`,
-    ...B.items.map(i => `- ${i.name}: ${i.description}`),
+    `## 서사`, `${B.narrative}`,
+    `## 장착 스킬`, ...B.skills.map(s => `- ${s.name}: ${s.description}`),
+    `## 장착 아이템`, ...B.items.map(i => `- ${i.name}: ${i.description}`),
     ``,
     `# 지시사항`,
     `위 정보를 바탕으로 두 캐릭터의 전투를 3~6문단의 흥미진진한 이야기로 묘사해줘.`,
@@ -88,15 +76,12 @@ function buildOneShotBattlePrompt({ me, op, world }) {
 }
 
 export function mountCharacters(app, db, getUserFromReq) {
-  // --- 내 캐릭터 목록 (updatedAt desc) ---
+  // --- 내 캐릭터 목록 ---
   app.get('/api/my-characters', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-      const snap = await db.collection('characters')
-        .where('ownerUid', '==', user.uid)
-        .orderBy('updatedAt', 'desc')
-        .limit(50).get();
+      const snap = await db.collection('characters').where('ownerUid', '==', user.uid).orderBy('updatedAt', 'desc').limit(50).get();
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       res.json({ ok: true, data });
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
@@ -111,37 +96,23 @@ export function mountCharacters(app, db, getUserFromReq) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-// --- [신규] 캐릭터 배틀 로그 조회 (이미지 정보 포함) ---
+  // --- 캐릭터 배틀 로그 조회 ---
   app.get('/api/characters/:id/battle-logs', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
       const charId = req.params.id;
-
       const q1 = db.collection('battles').where('meId', '==', charId).get();
       const q2 = db.collection('battles').where('opId', '==', charId).get();
       const [snap1, snap2] = await Promise.all([q1, q2]);
-      
       const logs = [...snap1.docs.map(d => ({ id: d.id, ...d.data() })), ...snap2.docs.map(d => ({ id: d.id, ...d.data() }))];
-
-      const uniqueLogs = Array.from(new Map(logs.map(log => [log.id, log])).values())
-        .filter(log => log.status === 'finished')
-        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      
-      // [추가] 캐릭터 ID를 모아서 최신 이미지 URL을 가져옴
+      const uniqueLogs = Array.from(new Map(logs.map(log => [log.id, log])).values()).filter(log => log.status === 'finished').sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       const charIds = new Set();
-      uniqueLogs.forEach(log => {
-        charIds.add(log.meId);
-        charIds.add(log.opId);
-      });
-
+      uniqueLogs.forEach(log => { charIds.add(log.meId); charIds.add(log.opId); });
       if (charIds.size > 0) {
         const charSnaps = await db.getAll(...Array.from(charIds).map(id => db.collection('characters').doc(id)));
         const charDataMap = new Map();
-        charSnaps.forEach(snap => {
-            if (snap.exists) charDataMap.set(snap.id, snap.data());
-        });
-
+        charSnaps.forEach(snap => { if (snap.exists) charDataMap.set(snap.id, snap.data()); });
         const enrichedLogs = uniqueLogs.map(log => {
             const me = charDataMap.get(log.meId);
             const op = charDataMap.get(log.opId);
@@ -149,9 +120,86 @@ export function mountCharacters(app, db, getUserFromReq) {
         });
         return res.json({ ok: true, data: enrichedLogs.slice(0, 50) });
       }
-      
       res.json({ ok: true, data: uniqueLogs.slice(0, 50) });
+    } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
+  });
+  
+  // --- 세계관 소속 캐릭터 목록 ---
+  app.get('/api/characters', async (req, res) => {
+    try {
+      const { worldId, sort = 'elo_desc', limit = 50 } = req.query;
+      let q = db.collection('characters');
+      if (worldId) q = q.where('worldId', '==', String(worldId));
+      if (sort === 'elo_desc') q = q.orderBy('elo', 'desc');
+      else q = q.orderBy('updatedAt', 'desc');
+      const n = Math.min(100, Number(limit || 50));
+      const snap = await q.limit(n).get();
+      res.json({ ok: true, data: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+    } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
+  });
+
+  // --- AI 캐릭터 생성 ---
+  app.post('/api/characters/generate', async (req, res) => {
+    try {
+      const user = await getUserFromReq(req);
+      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+      
+      await checkAndUpdateCooldown(db, user.uid, 'generateCharacter', 300);
+
+      const geminiKey = req.headers['x-gemini-key'];
+      if (!geminiKey) return res.status(400).json({ ok: false, error: 'X-Gemini-Key header required' });
+
+      const { worldId, promptId, userInput, imageUrl } = req.body;
+      if (!worldId || !userInput || !userInput.name) return res.status(400).json({ ok: false, error: 'ARGS_REQUIRED' });
+      
+      const [worldSnap, promptSnap] = await Promise.all([
+        db.collection('worlds').doc(worldId).get(),
+        promptId ? db.collection('prompts').doc(promptId).get() : Promise.resolve(null)
+      ]);
+      if (!worldSnap.exists) return res.status(404).json({ ok:false, error:'WORLD_NOT_FOUND' });
+      
+      const world = worldSnap.data();
+      const worldText = JSON.stringify({ name: world.name, introShort: world.introShort }, null, 2);
+      const basePrompt = await loadCharacterBasePrompt();
+      const customPrompt = promptSnap?.exists ? promptSnap.data().content : '사용자의 입력에 따라 자유롭게 캐릭터의 서사를 구성합니다.';
+      
+      const composedUser = [
+        `### 세계관 정보`, worldText,
+        `### 생성 프롬프트`, customPrompt,
+        `### 사용자 요청`, `캐릭터 이름: ${userInput.name}\n추가 요청: ${userInput.request || '(없음)'}`,
+        `\n\n위 정보를 바탕으로 JSON 스키마에 맞춰 캐릭터를 생성해줘.`,
+      ].join('\n\n');
+
+      const { primary } = pickModels();
+      const { json: characterJson } = await callGemini({ key: geminiKey, model: primary, system: basePrompt, user: composedUser });
+
+      if (!characterJson || !characterJson.name) throw new Error('AI_GENERATION_FAILED');
+      
+      // [추가] 서버에서 스킬 선택 및 아이템 부여
+      if (Array.isArray(characterJson.abilities) && characterJson.abilities.length > 0) {
+        const indices = Array.from({length: characterJson.abilities.length}, (_, i) => i);
+        indices.sort(() => 0.5 - Math.random());
+        characterJson.chosen = indices.slice(0, 3);
+      }
+      if (Math.random() < 0.2) { // 20% 확률로 기본 아이템 지급
+        characterJson.items = characterJson.items || [];
+        characterJson.items.push({ name: "낡은 단검", description: "평범한 모험가의 시작 아이템입니다.", grade: "common" });
+      }
+
+      const now = FieldValue.serverTimestamp();
+      const doc = await db.collection('characters').add({
+        ...characterJson,
+        worldId, worldName: world.name, promptId, imageUrl,
+        ownerUid: user.uid,
+        elo: 1000,
+        createdAt: now, updatedAt: now
+      });
+
+      res.json({ ok: true, data: { id: doc.id } });
     } catch (e) {
+      if (e.message.startsWith('COOLDOWN_ACTIVE')) {
+        return res.status(429).json({ ok: false, error: e.message });
+      }
       res.status(500).json({ ok: false, error: String(e) });
     }
   });
@@ -262,13 +310,13 @@ export function mountCharacters(app, db, getUserFromReq) {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-      const { meId, opId } = req.body || {};
+      
+      await checkAndUpdateCooldown(db, user.uid, 'createBattle', 30);
+      
+      const { meId, opId } = req.body;
       if (!meId || !opId) return res.status(400).json({ ok: false, error: 'ARGS_REQUIRED' });
 
-      const [aSnap, bSnap] = await Promise.all([
-        db.collection('characters').doc(meId).get(),
-        db.collection('characters').doc(opId).get(),
-      ]);
+      const [aSnap, bSnap] = await Promise.all([ db.collection('characters').doc(meId).get(), db.collection('characters').doc(opId).get() ]);
       if (!aSnap.exists || !bSnap.exists) return res.status(404).json({ ok: false, error: 'CHAR_NOT_FOUND' });
       if ((aSnap.data().ownerUid || '') !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
 
@@ -277,7 +325,6 @@ export function mountCharacters(app, db, getUserFromReq) {
         meId, opId,
         meName: aSnap.data().name || '',
         opName: bSnap.data().name || '',
-        // [추가] 양측 이미지 URL 저장
         meImageUrl: aSnap.data().imageUrl || '',
         opImageUrl: bSnap.data().imageUrl || '',
         eloMe: aSnap.data().elo ?? 1000,
@@ -286,7 +333,12 @@ export function mountCharacters(app, db, getUserFromReq) {
         createdAt: now, updatedAt: now
       });
       res.json({ ok: true, data: { id: doc.id } });
-    } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
+    } catch (e) {
+      if (e.message.startsWith('COOLDOWN_ACTIVE')) {
+        return res.status(429).json({ ok: false, error: e.message });
+      }
+      res.status(500).json({ ok: false, error: String(e) });
+    }
   });
 
   // --- 배틀 1회 시뮬 + 타임라인 기록 ---
