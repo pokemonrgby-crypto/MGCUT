@@ -40,7 +40,6 @@ async function call(method, path, body, extraHeaders = {}) {
   if (body) headers['Content-Type'] = 'application/json';
   if (token) headers['Authorization'] = `Bearer ${token}`;
   
-  // [추가] 로컬 스토리지의 Gemini 키를 헤더에 추가
   const geminiKey = localStorage.getItem('GEMINI_KEY');
   if (geminiKey) {
     headers['X-Gemini-Key'] = geminiKey;
@@ -58,6 +57,10 @@ async function call(method, path, body, extraHeaders = {}) {
   }
 
   const json = await res.json();
+  // [수정] 쿨타임 에러(429) 처리 추가
+  if (res.status === 429) {
+    throw new Error('COOLDOWN');
+  }
   if (!res.ok || json?.ok === false) {
     throw new Error(json?.error || `HTTP_${res.status}`);
   }
@@ -67,7 +70,7 @@ async function call(method, path, body, extraHeaders = {}) {
 
 export const api = {
   // worlds
-  saveWorld: (worldData) => call('POST', '/api/worlds', worldData),
+  generateWorld: (worldName, userInput) => call('POST', '/api/worlds/generate', { worldName, userInput }),
   listWorlds: () => call('GET', '/api/worlds'),
   updateWorldCover: (id, coverUrl) => call('PATCH', `/api/worlds/${id}/cover`, { coverUrl }),
   getWorld: (id) => call('GET', `/api/worlds/${id}`),
@@ -79,9 +82,10 @@ export const api = {
   deleteWorldElement: (worldId, type, name) => call('DELETE', `/api/worlds/${worldId}/elements`, { type, name }),
 
   // characters
-  saveCharacter: ({ worldId, promptId, characterData, imageUrl }) =>
-    call('POST', '/api/characters/save', { worldId, promptId, characterData, imageUrl }),
+  generateCharacter: (payload) => call('POST', '/api/characters/generate', payload),
   getCharacter: (id) => call('GET', `/api/characters/${id}`),
+  updateCharacterImage: (id, imageUrl) => call('PATCH', `/api/characters/${id}/image`, { imageUrl }),
+  deleteCharacter: (id) => call('DELETE', `/api/characters/${id}`),
 
   // prompts
   getSystemPrompt: (name) => call('GET', `/api/system-prompts/${name}`),
@@ -89,28 +93,15 @@ export const api = {
   uploadPrompt: ({ title, content }) => call('POST', '/api/prompts', { title, content }),
   validatePrompt: (id) => call('POST', `/api/prompts/${id}/validate`),
   reportPrompt: (id, reason) => call('POST', `/api/prompts/${id}/report`, { reason }),
-  updateCharacterImage: (id, imageUrl) =>
-    call('PATCH', `/api/characters/${id}/image`, { imageUrl }),
-  deleteCharacter: (id) =>
-    call('DELETE', `/api/characters/${id}`),
 
-  getWorldCharacters: (worldId) =>
-    call('GET', `/api/characters?worldId=${encodeURIComponent(worldId)}&sort=elo_desc&limit=50`),
-  getCharacterRanking: ({ limit=50 }={}) =>
-    call('GET', `/api/rankings/characters?limit=${limit}`),
-  getWorldRanking: ({ limit=50 }={}) =>
-    call('GET', `/api/rankings/worlds?limit=${limit}`),
+  getWorldCharacters: (worldId) => call('GET', `/api/characters?worldId=${encodeURIComponent(worldId)}&sort=elo_desc&limit=50`),
+  getCharacterRanking: ({ limit=50 }={}) => call('GET', `/api/rankings/characters?limit=${limit}`),
+  getWorldRanking: ({ limit=50 }={}) => call('GET', `/api/rankings/worlds?limit=${limit}`),
   
   findMatch: (charId) => call('POST', '/api/matchmaking/find', { charId }),
   createBattle: (meId, opId) => call('POST', '/api/battle/create', { meId, opId }),
-  battleSimulate: (battleId, userApiKey) => call('POST', '/api/battle/simulate', { battleId }, { 'X-User-Api-Key': userApiKey || '' }),
-  // [수정] battleFinish에 log 파라미터 추가
-  battleFinish: (battleId, winner, log) => call('POST', '/api/battle/finish', { battleId, winner, log }),
-  // [추가] 캐릭터 로그 조회를 위한 API 함수
-  getCharacterBattleLogs: (charId) => call('GET', `/api/characters/${charId}/battle-logs`),
+  battleSimulate: (battleId) => call('POST', '/api/battle/simulate', { battleId }),
 
-  updateAbilitiesEquipped: (id, chosen) =>
-    call('POST', `/api/characters/${encodeURIComponent(id)}/abilities`, { chosen }),
-  updateItemsEquipped: (id, equipped) =>
-    call('POST', `/api/characters/${encodeURIComponent(id)}/items`, { equipped }),
+  updateAbilitiesEquipped: (id, chosen) => call('POST', `/api/characters/${id}/abilities`, { chosen }),
+  updateItemsEquipped: (id, equipped) => call('POST', `/api/characters/${id}/items`, { equipped }),
 };
