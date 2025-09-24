@@ -1,4 +1,3 @@
-// (수정된 결과)
 // public/js/api.js
 import {
   getAuth,
@@ -39,7 +38,6 @@ async function call(method, path, body, extraHeaders = {}) {
   const headers = { ...(extraHeaders||{}) };
   if (body) headers['Content-Type'] = 'application/json';
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  
 
   const res = await fetch(path, {
     method,
@@ -53,7 +51,6 @@ async function call(method, path, body, extraHeaders = {}) {
   }
 
   const json = await res.json();
-  // [수정] 쿨타임 에러(429) 처리 추가
   if (res.status === 429) {
     throw new Error('COOLDOWN');
   }
@@ -65,25 +62,31 @@ async function call(method, path, body, extraHeaders = {}) {
 
 
 export const api = {
+  // user key
+  saveEncryptedKey: (encryptedKey) => call('POST', '/api/user/encrypted-key', { encryptedKey }),
+  getEncryptedKey: () => call('GET', '/api/user/encrypted-key'),
+
   // worlds
   generateWorld: (payload, geminiKey) => call('POST', '/api/worlds/generate', { ...payload, geminiKey }),
+  saveWorld: (worldData) => call('POST', '/api/worlds', worldData),
   listWorlds: () => call('GET', '/api/worlds'),
   updateWorldCover: (id, coverUrl) => call('PATCH', `/api/worlds/${id}/cover`, { coverUrl }),
   getWorld: (id) => call('GET', `/api/worlds/${id}`),
   likeWorld: (id) => call('POST', `/api/worlds/${id}/like`),
-  getMyCharacters: () => call('GET', '/api/my-characters'),
   createSite: (worldId, siteData) => call('POST', `/api/worlds/${worldId}/sites`, siteData),
   updateSiteImage: (worldId, siteName, imageUrl) => call('PATCH', `/api/worlds/${worldId}/siteImage`, { siteName, imageUrl }),
   addWorldElement: (worldId, type, data, geminiKey) => call('POST', `/api/worlds/${worldId}/elements`, { type, data, geminiKey }),
   deleteWorldElement: (worldId, type, name) => call('DELETE', `/api/worlds/${worldId}/elements`, { type, name }),
 
   // characters
-    generateCharacter: (payload, geminiKey) => call('POST', '/api/characters/generate', { ...payload, geminiKey }),
+  generateCharacter: (payload, geminiKey) => call('POST', '/api/characters/generate', { ...payload, geminiKey }),
   getCharacter: (id) => call('GET', `/api/characters/${id}`),
-  getCharacterBattleLogs: (id) => call('GET', `/api/characters/${id}/battle-logs`), // [추가] 이 줄을 추가하세요.
+  getMyCharacters: () => call('GET', '/api/my-characters'),
+  getCharacterBattleLogs: (id) => call('GET', `/api/characters/${id}/battle-logs`),
   updateCharacterImage: (id, imageUrl) => call('PATCH', `/api/characters/${id}/image`, { imageUrl }),
   deleteCharacter: (id) => call('DELETE', `/api/characters/${id}`),
-
+  updateAbilitiesEquipped: (id, chosen) => call('POST', `/api/characters/${id}/abilities`, { chosen }),
+  updateItemsEquipped: (id, equipped) => call('POST', `/api/characters/${id}/items`, { equipped }),
 
   // prompts
   getSystemPrompt: (name) => call('GET', `/api/system-prompts/${name}`),
@@ -92,15 +95,11 @@ export const api = {
   validatePrompt: (id) => call('POST', `/api/prompts/${id}/validate`),
   reportPrompt: (id, reason) => call('POST', `/api/prompts/${id}/report`, { reason }),
 
+  // rankings & matching
   getWorldCharacters: (worldId) => call('GET', `/api/characters?worldId=${encodeURIComponent(worldId)}&sort=elo_desc&limit=50`),
   getCharacterRanking: ({ limit=50 }={}) => call('GET', `/api/rankings/characters?limit=${limit}`),
   getWorldRanking: ({ limit=50 }={}) => call('GET', `/api/rankings/worlds?limit=${limit}`),
-  
   findMatch: (charId) => call('POST', '/api/matchmaking/find', { charId }),
   createBattle: (meId, opId) => call('POST', '/api/battle/create', { meId, opId }),
-   battleSimulate: (battleId, geminiKey) => call('POST', '/api/battle/simulate', { battleId, geminiKey }),
-
-
-  updateAbilitiesEquipped: (id, chosen) => call('POST', `/api/characters/${id}/abilities`, { chosen }),
-  updateItemsEquipped: (id, equipped) => call('POST', `/api/characters/${id}/items`, { equipped }),
+  battleSimulate: (battleId, geminiKey) => call('POST', '/api/battle/simulate', { battleId, geminiKey }),
 };
