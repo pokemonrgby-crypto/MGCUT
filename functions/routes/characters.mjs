@@ -175,13 +175,12 @@ export function mountCharacters(app, db, getUserFromReq) {
 
       if (!characterJson || !characterJson.name) throw new Error('AI_GENERATION_FAILED');
       
-      // [추가] 서버에서 스킬 선택 및 아이템 부여
       if (Array.isArray(characterJson.abilities) && characterJson.abilities.length > 0) {
         const indices = Array.from({length: characterJson.abilities.length}, (_, i) => i);
         indices.sort(() => 0.5 - Math.random());
         characterJson.chosen = indices.slice(0, 3);
       }
-      if (Math.random() < 0.2) { // 20% 확률로 기본 아이템 지급
+      if (Math.random() < 0.2) {
         characterJson.items = characterJson.items || [];
         characterJson.items.push({ name: "낡은 단검", description: "평범한 모험가의 시작 아이템입니다.", grade: "common" });
       }
@@ -204,122 +203,74 @@ export function mountCharacters(app, db, getUserFromReq) {
     }
   });
 
-  // --- 세계관 소속 캐릭터 (Elo desc) ---
-  app.get('/api/characters', async (req, res) => {
-    try {
-      const { worldId, sort = 'elo_desc', limit = 50 } = req.query;
-      let q = db.collection('characters');
-      if (worldId) q = q.where('worldId', '==', String(worldId));
-      if (sort === 'elo_desc') q = q.orderBy('elo', 'desc');
-      else q = q.orderBy('updatedAt', 'desc');
-      const n = Math.min(100, Number(limit || 50));
-      const snap = await q.limit(n).get();
-      res.json({ ok: true, data: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
-    } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
-  });
-
-  // --- 캐릭터 저장(생성/업데이트) ---
-  app.post('/api/characters/save', async (req, res) => {
-    try {
-      const user = await getUserFromReq(req);
-      if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-      const { worldId, promptId, characterData, imageUrl } = req.body || {};
-      if (!worldId || !characterData) return res.status(400).json({ ok: false, error: 'ARGS_REQUIRED' });
-
-      const now = FieldValue.serverTimestamp();
-      const doc = await db.collection('characters').add({
-        ...characterData,
-        worldId,
-        promptId: promptId || null,
-        imageUrl: imageUrl || null,
-        ownerUid: user.uid,
-        elo: Number(characterData?.elo ?? 1000),
-        createdAt: now, updatedAt: now
-      });
-      res.json({ ok: true, data: { id: doc.id } });
-    } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
-  });
-
-  // --- 스킬(3개) 저장 ---
+  // --- 스킬 저장 ---
   app.post('/api/characters/:id/abilities', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
       const { chosen } = req.body || {};
-      if (!Array.isArray(chosen) || chosen.length !== 3) {
-        return res.status(400).json({ ok: false, error: 'CHOSEN_3_REQUIRED' });
-      }
+      if (!Array.isArray(chosen)) return res.status(400).json({ ok: false, error: 'CHOSEN_REQUIRED' });
+      
       const ref = db.collection('characters').doc(req.params.id);
       const snap = await ref.get();
       if (!snap.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
       if ((snap.data().ownerUid || '') !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
+      
       await ref.update({ chosen, updatedAt: FieldValue.serverTimestamp() });
       res.json({ ok: true, data: { id: req.params.id, chosen } });
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-  // --- 아이템(3칸) 저장 ---
+  // --- 아이템 저장 ---
   app.post('/api/characters/:id/items', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
       const { equipped } = req.body || {};
-      if (!Array.isArray(equipped) || equipped.length !== 3) {
-        return res.status(400).json({ ok: false, error: 'EQUIPPED_3_REQUIRED' });
-      }
+      if (!Array.isArray(equipped)) return res.status(400).json({ ok: false, error: 'EQUIPPED_REQUIRED' });
+      
       const ref = db.collection('characters').doc(req.params.id);
       const snap = await ref.get();
       if (!snap.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
       const c = snap.data();
       if ((c.ownerUid || '') !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
-
+      
       const inv = (Array.isArray(c.items) ? c.items : []).map(x => String(x?.name || ''));
       const norm = equipped.map(n => (n && inv.includes(String(n))) ? String(n) : null);
-
+      
       await ref.update({ equipped: norm, updatedAt: FieldValue.serverTimestamp() });
       res.json({ ok: true, data: { id: req.params.id, equipped: norm } });
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-  // --- 매칭: 자기/같은 소유자 제외 + Elo 근접 ---
+  // --- 매칭 ---
   app.post('/api/matchmaking/find', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
       const { charId } = req.body || {};
       if (!charId) return res.status(400).json({ ok: false, error: 'charId required' });
-
       const meRef = db.collection('characters').doc(charId);
       const meSnap = await meRef.get();
       if (!meSnap.exists) return res.status(404).json({ ok: false, error: 'CHAR_NOT_FOUND' });
       const me = meSnap.data();
       if ((me.ownerUid || '') !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
-
-      const opp = await findOpponentByElo({
-        db,
-        elo: me.elo ?? 1000,
-        excludeCharId: charId,
-        excludeUid: user.uid
-      });
+      const opp = await findOpponentByElo({ db, elo: me.elo ?? 1000, excludeCharId: charId, excludeUid: user.uid });
       res.json({ ok: true, data: { opponentId: opp?.id || null } });
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
-  // --- 배틀 생성 (ready) ---
+  // --- 배틀 생성 ---
   app.post('/api/battle/create', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-      
       await checkAndUpdateCooldown(db, user.uid, 'createBattle', 30);
-      
       const { meId, opId } = req.body;
       if (!meId || !opId) return res.status(400).json({ ok: false, error: 'ARGS_REQUIRED' });
-
       const [aSnap, bSnap] = await Promise.all([ db.collection('characters').doc(meId).get(), db.collection('characters').doc(opId).get() ]);
       if (!aSnap.exists || !bSnap.exists) return res.status(404).json({ ok: false, error: 'CHAR_NOT_FOUND' });
       if ((aSnap.data().ownerUid || '') !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
-
       const now = FieldValue.serverTimestamp();
       const doc = await db.collection('battles').add({
         meId, opId,
@@ -341,89 +292,63 @@ export function mountCharacters(app, db, getUserFromReq) {
     }
   });
 
-  // --- 배틀 1회 시뮬 + 타임라인 기록 ---
+  // --- 배틀 시뮬레이션 ---
   app.post('/api/battle/simulate', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
       const { battleId } = req.body || {};
       if (!battleId) return res.status(400).json({ ok: false, error: 'battleId required' });
-      
       const geminiKey = req.headers['x-gemini-key'];
       if (!geminiKey) return res.status(400).json({ ok: false, error: 'X-Gemini-Key header required' });
-
       const bRef = db.collection('battles').doc(battleId);
       const bSnap = await bRef.get();
       if (!bSnap.exists) return res.status(404).json({ ok: false, error: 'BATTLE_NOT_FOUND' });
       const b = bSnap.data();
       if (b.status === 'finished') return res.status(400).json({ ok: false, error: 'BATTLE_ALREADY_FINISHED' });
-
       const meSnap = await db.collection('characters').doc(b.meId).get();
       if (meSnap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
-      
       const opSnap = await db.collection('characters').doc(b.opId).get();
       const me = meSnap.data(), op = opSnap.data();
-      
       let world = null;
       if (me.worldId) {
           const w = await db.collection('worlds').doc(me.worldId).get();
           if (w.exists) world = w.data();
       }
-
       const prompt = buildOneShotBattlePrompt({ me, op, world });
-      
       const { primary } = pickModels();
-      const aiRes = await callGemini({
-        key: geminiKey,
-        model: primary,
-        user: prompt,
-        responseMimeType: "text/plain"
-      });
+      const aiRes = await callGemini({ key: geminiKey, model: primary, user: prompt, responseMimeType: "text/plain" });
       const markdown = aiRes.text;
-
       const m = /승자:\s*(A|B)/.exec(markdown);
       const winner = m ? m[1] : null;
-
       if (winner) {
         const a = me, o = op;
         const Sa = (winner === 'A') ? 1 : 0;
         const [newA, newB] = updateElo(a.elo ?? 1000, o.elo ?? 1000, Sa);
         const now = FieldValue.serverTimestamp();
-
         await Promise.all([
           db.collection('characters').doc(b.meId).update({ elo: newA, updatedAt: now }),
           db.collection('characters').doc(b.opId).update({ elo: newB, updatedAt: now }),
-          bRef.update({
-            status: 'finished',
-            winner: winner,
-            log: markdown,
-            eloMeAfter: newA,
-            eloOpAfter: newB,
-            updatedAt: now,
-          })
+          bRef.update({ status: 'finished', winner: winner, log: markdown, eloMeAfter: newA, eloOpAfter: newB, updatedAt: now, })
         ]);
       }
-
       res.json({ ok: true, data: { markdown, winner } });
-
     } catch (e) { 
       res.status(500).json({ ok: false, error: String(e) }); 
     }
   });
-
+  
+  // --- 캐릭터 이미지 업데이트 ---
   app.patch('/api/characters/:id/image', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-
       const { imageUrl } = req.body;
       if (!imageUrl) return res.status(400).json({ ok: false, error: 'IMAGE_URL_REQUIRED' });
-
       const ref = db.collection('characters').doc(req.params.id);
       const snap = await ref.get();
       if (!snap.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
       if (snap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
-
       await ref.update({ imageUrl, updatedAt: FieldValue.serverTimestamp() });
       res.json({ ok: true, data: { id: req.params.id, imageUrl } });
     } catch (e) {
@@ -431,18 +356,15 @@ export function mountCharacters(app, db, getUserFromReq) {
     }
   });
 
-  // --- [신규] 캐릭터 삭제 ---
+  // --- 캐릭터 삭제 ---
   app.delete('/api/characters/:id', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-
       const ref = db.collection('characters').doc(req.params.id);
       const snap = await ref.get();
       if (!snap.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
       if (snap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
-
-      // TODO: Firebase Storage의 이미지 파일도 함께 삭제하는 로직 추가 가능
       await ref.delete();
       res.json({ ok: true, data: { id: req.params.id } });
     } catch (e) {
