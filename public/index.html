@@ -14,7 +14,6 @@
     <symbol id="i-trophy" viewBox="0 0 24 24"><path fill="currentColor" d="M18.8 3H5.2A2.2 2.2 0 0 0 3 5.2v.8A2.2 2.2 0 0 0 5.2 8.2h13.6A2.2 2.2 0 0 0 21 6v-.8A2.2 2.2 0 0 0 18.8 3M12 9c-2.8 0-5 2.2-5 5v5.5c0 1.4 1.1 2.5 2.5 2.5h5c1.4 0 2.5-1.1 2.5-2.5V14c0-2.8-2.2-5-5-5z"/></symbol>
   </svg>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js';
     import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js';
@@ -62,7 +61,7 @@
           <div class="small" style="margin-bottom:6px">추가 요청사항 (선택)</div>
           <textarea id="world-create-input" rows="4" placeholder="예: '사이버펑크와 동양 판타지를 섞어주세요'"></textarea>
           <button class="btn full" id="btn-world-generate-ai" style="margin-top:12px">AI로 세계관 생성</button>
-          <div class="small" style="margin-top:8px; text-align:center;">* AI 호출을 위해 암호화된 API 키를 사용합니다.</div>
+          <div class="small" style="margin-top:8px; text-align:center;">* AI 호출을 위해 API 키를 사용합니다.</div>
         </div>
       </div>
 
@@ -95,7 +94,7 @@
             <textarea id="cc-char-input" rows="4" maxlength="1000" placeholder="예: '말수가 적고 신비로운 암살자 컨셉으로'"></textarea>
             
             <button class="btn full" id="btn-char-create-final" style="margin-top:12px">캐릭터 생성</button>
-            <div class="small" style="margin-top:8px; text-align:center;">* AI 호출을 위해 암호화된 API 키를 사용합니다.</div>
+            <div class="small" style="margin-top:8px; text-align:center;">* AI 호출을 위해 API 키를 사용합니다.</div>
           </div>
         </div>
       </div>
@@ -157,16 +156,10 @@
         </div>
         <div class="card pad" style="margin:0 16px 12px">
           <div class="small" style="margin-bottom:6px">Gemini API Key</div>
-          <input id="gemini-key" type="password" placeholder="AIza..." style="margin-bottom:12px">
+          <input id="gemini-key" type="password" placeholder="AIza...">
           
-          <div class="small" style="margin-bottom:6px">암호화 비밀번호</div>
-          <input id="gemini-key-password" type="password" placeholder="키를 암호화할 비밀번호" style="margin-bottom:12px">
-        
-          <div class="small" style="margin-bottom:6px">비밀번호 확인</div>
-          <input id="gemini-key-password-confirm" type="password" placeholder="비밀번호 다시 입력">
-        
           <div class="small" style="margin-top:12px; opacity: 0.8; line-height: 1.5;">
-            * 입력한 키는 여기서 설정한 비밀번호로 암호화되어 서버에 저장됩니다. **이 비밀번호는 서버에 저장되지 않으므로, 절대 잊어버리지 마세요.**
+            * 입력한 API 키는 Google Cloud Secret Manager에 안전하게 저장됩니다. 이 키는 서비스의 AI 기능 사용을 위해서만 사용되며, 서버 운영자를 포함한 그 누구도 키의 원본 값을 다시 볼 수 없습니다.
           </div>
           
           <div style="display:flex; gap:8px; margin-top:16px">
