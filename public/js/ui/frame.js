@@ -113,12 +113,47 @@ function bindBottomBar() {
   });
 }
 
-export async function withBlocker(task) {
+function formatRemainingTime(seconds) {
+    if (seconds < 60) return `${seconds}초`;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return s === 0 ? `${m}분` : `${m}분 ${s}초`;
+}
+
+export function handleCooldown(error, button) {
+    if (String(error.message || error).startsWith('COOLDOWN_ACTIVE')) {
+        const remainingMatch = String(error.message || error).match(/(\d+)/);
+        const remaining = remainingMatch ? parseInt(remainingMatch[1], 10) : 0;
+
+        if (button && remaining > 0) {
+            button.disabled = true;
+            const originalText = button.textContent;
+            let secondsLeft = remaining;
+
+            const intervalId = setInterval(() => {
+                if (secondsLeft <= 0) {
+                    clearInterval(intervalId);
+                    button.textContent = originalText;
+                    button.disabled = false;
+                } else {
+                    button.textContent = `${formatRemainingTime(secondsLeft)} 남음`;
+                    secondsLeft--;
+                }
+            }, 1000);
+        }
+    }
+}
+
+
+export async function withBlocker(task, button = null) {
   ui.busy(true);
   try {
     return await task();
   } catch (e) {
     console.error(e);
+    if (button) {
+        handleCooldown(e, button);
+    }
     throw e;
   } finally {
     ui.busy(false);
