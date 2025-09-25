@@ -23,7 +23,6 @@ async function buildAdventureContext(db, characterId, worldIdOverride = null) {
     if (!charSnap.exists) throw new Error('CHARACTER_NOT_FOUND');
     const character = charSnap.data();
 
-    // [수정] 다른 세계관 탐험을 위해 worldId를 직접 지정할 수 있도록 변경
     const finalWorldId = worldIdOverride || character.worldId;
     const worldSnap = await db.collection('worlds').doc(finalWorldId).get();
     const world = worldSnap.exists ? worldSnap.data() : null;
@@ -44,7 +43,7 @@ async function buildAdventureContext(db, characterId, worldIdOverride = null) {
     };
 }
 
-// [수정] AI 프롬프트의 생성 분량을 '최대 3개'로 제한
+// [수정] AI가 더 나은 품질의 JSON을 출력하도록 프롬프트에 예시 추가
 function getAdventureStartPrompt(context, site, previousSummary = '') {
     const previous = previousSummary ? `\n# 이전 줄거리\n${previousSummary}` : '';
     return `
@@ -60,15 +59,45 @@ ${previous}
 # 임무
 위 정보를 바탕으로, 흥미진진한 모험 에피소드를 '이야기 지도' JSON 형식으로 생성해줘.
 - 에피소드는 **최대 3개의 노드**를 포함해야 합니다.
-- 각 단계(Node)는 "situation", "choices" 배열, "type" (narrative, combat, trap 등)을 포함해야 해.
-- 선택지(choice)는 "text"와 다음 노드를 가리키는 "nextNode"를 포함해야 해.
-- 에피소드의 마지막 노드는 "isEndpoint": true 와 다음 에피소드를 위한 "outcome" 요약을 포함해야 해.
-- 전투가 필요하다면, 노드의 "type"을 "combat"으로 설정하고, "enemy" 객체(name, description 포함)를 명시해줘.
-- 함정이 필요하다면, 노드의 "type"을 "trap"으로 설정하고, "penalty": {"stat": "stamina", "value": -15} 와 같이 피해량을 명시해줘.
-- 설명이나 코드 펜스 없이 순수한 JSON 객체만 출력해야 해.
-`;
+- 각 노드(Node)는 "situation", "choices" 배열, "type" (narrative, combat, trap 등)을 포함해야 합니다.
+- 선택지(choice)는 "text"와 다음 노드를 가리키는 "nextNode"를 포함해야 합니다.
+- 에피소드의 마지막 노드는 "isEndpoint": true 와 다음 에피소드를 위한 "outcome" 요약을 포함해야 합니다.
+
+# 좋은 출력의 예시 (이 구조를 반드시 따르세요):
+{
+  "startNode": "forest_entry",
+  "nodes": {
+    "forest_entry": {
+      "type": "narrative",
+      "situation": "울창한 고대 숲의 입구에 도착했습니다. 안쪽에서는 기이한 동물의 울음소리가 들려옵니다.",
+      "choices": [
+        { "text": "소리를 따라 조심스럽게 들어간다.", "nextNode": "encounter_beast" },
+        { "text": "안전하게 우회로를 찾는다.", "nextNode": "find_hidden_path" }
+      ]
+    },
+    "encounter_beast": {
+      "type": "combat",
+      "situation": "소리의 근원지에 다가가자, 굶주린 '그림자 늑대'가 당신을 발견하고 이빨을 드러냅니다!",
+      "enemy": { "name": "그림자 늑대", "description": "숲의 그림자에 몸을 숨기는 교활한 육식 동물입니다." },
+      "choices": [
+        { "text": "전투를 준비한다.", "nextNode": "battle_result" }
+      ]
+    },
+    "find_hidden_path": {
+        "type": "narrative",
+        "situation": "숲을 헤매던 중, 이끼 낀 고대 유적으로 이어지는 숨겨진 길을 발견했습니다.",
+        "isEndpoint": true,
+        "outcome": "당신은 위험한 짐승을 피해 고대 유적에 도착했습니다.",
+        "choices": []
+    }
+  }
 }
 
+# 규칙
+- 설명이나 코드 펜스 없이 순수한 JSON 객체만 출력해야 합니다.
+- situation 텍스트는 간결하고 흥미롭게 작성하세요.
+`;
+}
 
 export function mountAdventures(app) {
     app.post('/api/adventures/start', async (req, res) => {
@@ -78,14 +107,12 @@ export function mountAdventures(app) {
 
             await checkAndUpdateCooldown(db, user.uid, 'startAdventure', 60);
 
-            // [수정] worldId를 요청 본문에서 받도록 변경
             const { characterId, worldId, siteName, password } = req.body;
             if (!characterId || !worldId || !siteName || !password) {
                 return res.status(400).json({ ok: false, error: 'REQUIRED_FIELDS' });
             }
 
             const geminiKey = await getDecryptedKey(user.uid, password);
-            // [수정] 컨텍스트 생성 시 worldId 전달
             const context = await buildAdventureContext(db, characterId, worldId);
             
             const worldSnap = await db.collection('worlds').doc(worldId).get();
@@ -105,6 +132,7 @@ export function mountAdventures(app) {
             const { json } = await callGemini({ key: geminiKey, model: primary, user: prompt });
 
             if (!json || !json.startNode || !json.nodes) {
+                console.error("AI Generation Error: Invalid Story Graph", json);
                 throw new Error('AI_INVALID_STORY_GRAPH');
             }
 
@@ -177,7 +205,7 @@ export function mountAdventures(app) {
             let newCharacterState = { ...adventure.characterState };
 
             if (newNode.type === 'trap' && newNode.penalty) {
-                newCharacterState.stamina += newNode.penalty.value || 0;
+                newCharacterState.stamina = Math.max(0, newCharacterState.stamina + (newNode.penalty.value || 0));
             }
 
             await ref.update({
