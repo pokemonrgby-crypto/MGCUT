@@ -6,18 +6,30 @@ const ROOT = '[data-view="battle"]';
 
 const esc = s => String(s??'').replace(/[&<>"]/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 
-function md(s){
-  let t = esc(s);
+// [수정] 상세 서식(Rich Text) 파싱 함수 추가
+function parseRichText(text) {
+  if (!text) return '';
+  let t = esc(text);
+  // 커스텀 태그 변환
+  t = t.replace(/&lt;서술&gt;([\s\S]*?)&lt;\/서술&gt;/g, '<div class="narrative">$1</div>');
+  t = t.replace(/&lt;대사&gt;([\s\S]*?)&lt;\/대사&gt;/g, '<div class="dialogue">$1</div>');
+  t = t.replace(/&lt;생각&gt;([\s\S]*?)&lt;\/생각&gt;/g, '<div class="thought">$1</div>');
+  t = t.replace(/&lt;강조&gt;([\s\S]*?)&lt;\/강조&gt;/g, '<strong class="emphasis">$1</strong>');
+  t = t.replace(/&lt;시스템&gt;([\s\S]*?)&lt;\/시스템&gt;/g, '<div class="system">$1</div>');
+  
+  // 기본 마크다운 변환
   t = t.replace(/^### (.+)$/gm,'<h3>$1</h3>');
   t = t.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
   t = t.replace(/\*(.+?)\*/g,'<i>$1</i>');
   t = t.replace(/`(.+?)`/g,'<code>$1</code>');
   t = t.replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>');
-  t = t.replace(/^- (.+)$/gm,'<li>$1</li>');
+  
+  // 줄바꿈 처리
   t = t.replace(/\n{2,}/g,'</p><p>');
-  t = `<p>${t}</p>`;
-  t = t.replace(/<p><li>/g,'<ul><li>').replace(/<\/li><\/p>/g,'</li></ul>');
-  return t;
+  t = t.replace(/\n/g,'<br>');
+  
+  // 단락(p) 태그로 감싸기
+  return `<p>${t}</p>`;
 }
 
 async function render(battleId, meName, opName){
@@ -69,7 +81,8 @@ async function render(battleId, meName, opName){
 
     const out = root.querySelector('.md-body');
     if (out) {
-      out.innerHTML = md(markdown);
+      // [수정] md() -> parseRichText()
+      out.innerHTML = parseRichText(markdown);
       out.style.display = '';
     }
 
