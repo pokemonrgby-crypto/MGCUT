@@ -349,7 +349,8 @@ export function mountCharacters(app) {
         if (Sa === 1) {
             const dropEvent = preRollEvent('hard');
             if (dropEvent.type === 'FIND_ITEM') {
-                const itemPrompt = `TRPG 게임의 ${world.name} 세계관에 어울리는 "${dropEvent.tier}" 등급 아이템 1개를 {"name": "...", "description": "...", "grade": "${dropEvent.tier}"} JSON 형식으로 생성해줘. 설명이나 코드 펜스 없이 순수 JSON 객체만 출력해줘.`;
+                // [수정] 아이템 생성 프롬프트에 type 필드 추가
+                const itemPrompt = `TRPG 게임의 ${world.name} 세계관에 어울리는 "${dropEvent.tier}" 등급 아이템 1개를 {"name": "...", "description": "...", "grade": "${dropEvent.tier}", "type": "equipable"} JSON 형식으로 생성해줘. 20% 확률로 "type"을 "consumable"로 설정해줘. 설명이나 코드 펜스 없이 순수 JSON 객체만 출력해줘.`;
                 const { json: newItem } = await callGemini({ key: geminiKey, model: pickModels().primary, user: itemPrompt });
                 if (newItem && newItem.name) {
                     droppedItem = newItem;
