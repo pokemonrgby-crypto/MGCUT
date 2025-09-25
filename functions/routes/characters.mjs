@@ -82,11 +82,11 @@ function buildOneShotBattlePrompt({ me, op, world }) {
     `## 장착 아이템`, ...B.items.map(i => `- ${i.name}: ${i.description}`),
     ``,
     `# 지시사항`,
-    `위 정보를 바탕으로 두 캐릭터의 전투를 3~6문단의 흥미진진한 이야기로 묘사해줘.`,
+    `위 정보를 바탕으로 두 캐릭터의 전투를 <서술>, <대사>, <생각>, <강조> 태그를 활용하여 3~6문단의 흥미진진한 이야기로 묘사해줘. (예시: <서술>그녀는 사과를 먹는다</서술>)`,
     `전투 과정에서 각 캐릭터의 서사, 스킬, 아이템 특징이 잘 드러나야 해.`,
     `마지막 줄에는 반드시 '승자: A' 또는 '승자: B' 중 하나만 단독으로 출력해야 해.`,
   ].join('\n');
-}
+}}
 
 export function mountCharacters(app) {
   app.get('/api/my-characters', async (req, res) => {
