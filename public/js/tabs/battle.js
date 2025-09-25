@@ -1,6 +1,5 @@
 // public/js/tabs/battle.js
 import { api } from '../api.js';
-import { sessionKeyManager } from '../session-key-manager.js';
 import { ui } from '../ui/frame.js';
 
 const ROOT = '[data-view="battle"]';
@@ -25,7 +24,6 @@ async function render(battleId, meName, opName){
   const root = document.querySelector(ROOT);
   if (!root) return;
   
-  // 1. 먼저 "시뮬레이션 중"이라는 내용의 기본 UI를 렌더링합니다.
   root.innerHTML = `
     <div class="section-h">배틀</div>
     <div class="card pad" style="margin:0 16px 12px">
@@ -42,7 +40,6 @@ async function render(battleId, meName, opName){
     </div>
   `;
 
-  // 버튼 이벤트를 미리 바인딩합니다.
   const rematchBtn = root.querySelector('#btn-rematch');
   const resimBtn = root.querySelector('#btn-resim');
 
@@ -54,21 +51,20 @@ async function render(battleId, meName, opName){
   };
 
   try {
-    // [수정] 시뮬레이션 진행 중 버튼 중복 클릭 방지를 위해 비활성화
     rematchBtn.disabled = true;
     resimBtn.disabled = true;
 
-    // 2. 비밀번호를 먼저 요청합니다.
-    const password = await sessionKeyManager.getPassword();
+    const res = await api.battleSimulate(battleId);
+    root.querySelector('.sim-loading')?.remove();
 
-    // 3. [수정] withBlocker를 제거하고 API를 직접 호출하여 전체 화면 로딩을 막습니다.
-    const res = await api.battleSimulate(battleId, password);
-    root.querySelector('.sim-loading')?.remove(); // 페이지 내 로딩 카드 제거
-
-    const { markdown, winner } = res.data;
+    const { markdown, winner, droppedItem } = res.data;
 
     if (!markdown) {
         throw new Error("AI가 유효한 전투 로그를 생성하지 못했습니다.");
+    }
+    
+    if (droppedItem) {
+        alert(`승리 보상으로 아이템 [${droppedItem.name} (${droppedItem.grade})] 을(를) 획득했습니다!`);
     }
 
     const out = root.querySelector('.md-body');
@@ -92,26 +88,17 @@ async function render(battleId, meName, opName){
     }
 
   } catch(e) {
-    // 사용자가 비밀번호 입력을 취소했거나 API 호출에 실패한 경우
-    if (!e.message.includes('사용자가')) {
-        const loadingEl = root.querySelector('.sim-loading');
-        if (loadingEl) {
-            loadingEl.classList.add('err');
-            const errorDetail = loadingEl.querySelector('.small');
-            if (errorDetail) {
-                let displayError = e.message;
-                if(e.message.includes('DECRYPTION_FAILED')) displayError = '비밀번호가 올바르지 않습니다. 다시 시도해주세요.';
-                if(e.message.includes('ENCRYPTED_KEY_NOT_FOUND')) displayError = '저장된 API 키가 없습니다. [내 정보] 탭에서 먼저 키를 저장해주세요.';
-                errorDetail.textContent = `시뮬레이션 실패: ${displayError}`;
-            }
+    const loadingEl = root.querySelector('.sim-loading');
+    if (loadingEl) {
+        loadingEl.classList.add('err');
+        const errorDetail = loadingEl.querySelector('.small');
+        if (errorDetail) {
+            let displayError = e.message;
+            if(e.message.includes('API_KEY_NOT_FOUND')) displayError = '저장된 API 키가 없습니다. [내 정보] 탭에서 먼저 키를 저장해주세요.';
+            errorDetail.textContent = `시뮬레이션 실패: ${displayError}`;
         }
-    } else {
-        // 사용자가 비밀번호 입력을 취소한 경우
-        const loading = root.querySelector('.sim-loading');
-        if(loading) loading.innerHTML = `<div class="card pad small">비밀번호 입력이 취소되었습니다.</div>`;
     }
   } finally {
-    // [수정] 작업 완료 후 버튼을 다시 활성화합니다.
     rematchBtn.disabled = false;
     resimBtn.disabled = false;
   }
