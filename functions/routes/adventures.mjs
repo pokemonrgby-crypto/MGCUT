@@ -116,4 +116,26 @@ export function mountAdventures(app) {
             res.status(500).json({ ok: false, error: e.message });
         }
     });
+
+    // [추가] 특정 캐릭터의 모험 기록을 조회하는 엔드포인트
+    app.get('/api/characters/:id/adventures', async (req, res) => {
+        try {
+            const user = await getUserFromReq(req);
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+            const characterId = req.params.id;
+            const qs = await db.collection('adventures')
+                .where('characterId', '==', characterId)
+                .orderBy('createdAt', 'desc')
+                .limit(50)
+                .get();
+            
+            const adventures = qs.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            res.json({ ok: true, data: adventures });
+
+        } catch (e) {
+            console.error('Error fetching character adventures:', e);
+            res.status(500).json({ ok: false, error: String(e) });
+        }
+    });
 }
