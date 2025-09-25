@@ -86,7 +86,7 @@ function buildOneShotBattlePrompt({ me, op, world }) {
     `전투 과정에서 각 캐릭터의 서사, 스킬, 아이템 특징이 잘 드러나야 해.`,
     `마지막 줄에는 반드시 '승자: A' 또는 '승자: B' 중 하나만 단독으로 출력해야 해.`,
   ].join('\n');
-}}
+}
 
 export function mountCharacters(app) {
   app.get('/api/my-characters', async (req, res) => {
