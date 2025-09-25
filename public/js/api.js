@@ -61,6 +61,10 @@ async function call(method, path, body, extraHeaders = {}) {
 }
 
 
+// public/js/api.js
+
+// ... (기존 api 객체 내용)
+
 export const api = {
   // user key
   saveEncryptedKey: (encryptedKey) => call('POST', '/api/user/encrypted-key', { encryptedKey }),
@@ -87,6 +91,9 @@ export const api = {
   deleteCharacter: (id) => call('DELETE', `/api/characters/${id}`),
   updateAbilitiesEquipped: (id, chosen) => call('POST', `/api/characters/${id}/abilities`, { chosen }),
   updateItemsEquipped: (id, equipped) => call('POST', `/api/characters/${id}/items`, { equipped }),
+  
+  // [추가] 이 부분을 추가하세요
+  startAdventure: (characterId, siteName, password) => call('POST', '/api/adventures/start', { characterId, siteName, password }),
 
   // prompts
   getSystemPrompt: (name) => call('GET', `/api/system-prompts/${name}`),
