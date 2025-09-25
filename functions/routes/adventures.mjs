@@ -6,7 +6,6 @@ import { getUserFromReq } from '../lib/auth.mjs';
 import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 import { decryptWithPassword } from '../lib/crypto.mjs';
-// [제거] preRollEvent는 더 이상 사용하지 않습니다.
 
 async function getDecryptedKey(uid, password) {
     if (!password) throw new Error('PASSWORD_REQUIRED: 비밀번호가 요청에 포함되지 않았습니다.');
@@ -19,31 +18,33 @@ async function getDecryptedKey(uid, password) {
     return decryptedKey;
 }
 
-async function buildAdventureContext(db, characterId) {
+async function buildAdventureContext(db, characterId, worldIdOverride = null) {
     const charSnap = await db.collection('characters').doc(characterId).get();
     if (!charSnap.exists) throw new Error('CHARACTER_NOT_FOUND');
     const character = charSnap.data();
 
-    const worldSnap = await db.collection('worlds').doc(character.worldId).get();
+    // [수정] 다른 세계관 탐험을 위해 worldId를 직접 지정할 수 있도록 변경
+    const finalWorldId = worldIdOverride || character.worldId;
+    const worldSnap = await db.collection('worlds').doc(finalWorldId).get();
     const world = worldSnap.exists ? worldSnap.data() : null;
+    if (!world) throw new Error('WORLD_NOT_FOUND');
 
-    // [수정] 스태미나 초기값을 100으로 설정
     return {
         character: {
             name: character.name,
             summary: character.introShort,
-            worldId: character.worldId,
-            stamina: 100, 
+            stamina: 100,
             items: character.items?.map(i => i.name) || [],
         },
         world: {
+            id: finalWorldId,
             name: world?.name,
             summary: world?.introShort,
         },
     };
 }
 
-// [수정] 초기 제안과 같이 Story Graph 전체를 생성하는 프롬프트로 복원
+// [수정] AI 프롬프트의 생성 분량을 '최대 3개'로 제한
 function getAdventureStartPrompt(context, site, previousSummary = '') {
     const previous = previousSummary ? `\n# 이전 줄거리\n${previousSummary}` : '';
     return `
@@ -57,11 +58,12 @@ function getAdventureStartPrompt(context, site, previousSummary = '') {
 ${previous}
 
 # 임무
-위 정보를 바탕으로, 흥미진진한 모험의 첫 에피소드(3~4단계 분량)를 '이야기 지도' JSON 형식으로 생성해줘.
-- 각 단계(Node)는 "situation"과 "choices" 배열, 그리고 "type" (narrative, combat, trap 등)을 포함해야 해.
+위 정보를 바탕으로, 흥미진진한 모험 에피소드를 '이야기 지도' JSON 형식으로 생성해줘.
+- 에피소드는 **최대 3개의 노드**를 포함해야 합니다.
+- 각 단계(Node)는 "situation", "choices" 배열, "type" (narrative, combat, trap 등)을 포함해야 해.
 - 선택지(choice)는 "text"와 다음 노드를 가리키는 "nextNode"를 포함해야 해.
 - 에피소드의 마지막 노드는 "isEndpoint": true 와 다음 에피소드를 위한 "outcome" 요약을 포함해야 해.
-- 중간에 전투가 필요하다고 판단되면, 노드의 "type"을 "combat"으로 설정하고, 상대할 "enemy" 객체(name, description 포함)를 명시해줘. 전투 노드는 situation이 필요 없어.
+- 전투가 필요하다면, 노드의 "type"을 "combat"으로 설정하고, "enemy" 객체(name, description 포함)를 명시해줘.
 - 함정이 필요하다면, 노드의 "type"을 "trap"으로 설정하고, "penalty": {"stat": "stamina", "value": -15} 와 같이 피해량을 명시해줘.
 - 설명이나 코드 펜스 없이 순수한 JSON 객체만 출력해야 해.
 `;
@@ -69,7 +71,6 @@ ${previous}
 
 
 export function mountAdventures(app) {
-    // [수정] 모험 시작 API 로직을 Story Graph 생성 방식으로 변경
     app.post('/api/adventures/start', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
@@ -77,19 +78,20 @@ export function mountAdventures(app) {
 
             await checkAndUpdateCooldown(db, user.uid, 'startAdventure', 60);
 
-            const { characterId, siteName, password } = req.body;
-            if (!characterId || !siteName || !password) {
+            // [수정] worldId를 요청 본문에서 받도록 변경
+            const { characterId, worldId, siteName, password } = req.body;
+            if (!characterId || !worldId || !siteName || !password) {
                 return res.status(400).json({ ok: false, error: 'REQUIRED_FIELDS' });
             }
 
             const geminiKey = await getDecryptedKey(user.uid, password);
-            const context = await buildAdventureContext(db, characterId);
+            // [수정] 컨텍스트 생성 시 worldId 전달
+            const context = await buildAdventureContext(db, characterId, worldId);
             
-            const worldSnap = await db.collection('worlds').doc(context.character.worldId).get();
+            const worldSnap = await db.collection('worlds').doc(worldId).get();
             const site = worldSnap.data()?.sites?.find(s => s.name === siteName);
             if (!site) return res.status(404).json({ ok: false, error: 'SITE_NOT_FOUND' });
             
-            // 기존에 진행 중인 모험이 있다면 삭제
             const existingAdventures = await db.collection('adventures')
                 .where('characterId', '==', characterId)
                 .where('status', '==', 'ongoing')
@@ -110,14 +112,14 @@ export function mountAdventures(app) {
             const adventureRef = await db.collection('adventures').add({
                 ownerUid: user.uid,
                 characterId,
-                worldId: context.character.worldId,
+                worldId: context.world.id,
                 siteName,
                 status: 'ongoing',
                 createdAt: now,
                 updatedAt: now,
                 storyGraph: json,
                 currentNodeKey: json.startNode,
-                characterState: context.character, // [추가] 캐릭터 상태 저장
+                characterState: context.character,
                 history: [],
             });
 
@@ -129,7 +131,6 @@ export function mountAdventures(app) {
         }
     });
 
-    // [신규] 특정 캐릭터의 진행 중인 모험을 조회하는 엔드포인트
     app.get('/api/characters/:id/adventures/ongoing', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
@@ -156,7 +157,6 @@ export function mountAdventures(app) {
         }
     });
     
-    // [신규] 모험 노드 진행 (선택지 클릭) API
     app.post('/api/adventures/:id/proceed', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
