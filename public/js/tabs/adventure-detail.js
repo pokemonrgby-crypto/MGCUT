@@ -1,3 +1,4 @@
+// (수정된 결과)
 // public/js/tabs/adventure-detail.js
 import { api } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
@@ -38,7 +39,7 @@ function adventurePlayTemplate(node, characterState) {
         <div class="situation-card"><p>${node.situation.replace(/\n/g, '<br>')}</p></div>
         <div class="choices-list">
             ${(node.choices || []).map(choice => `
-                <button class.btn choice-btn" data-next-node="${choice.nextNode}">${choice.text}</button>
+                <button class="btn choice-btn" data-next-node="${choice.nextNode}">${choice.text}</button>
             `).join('')}
         </div>
         <div class="adventure-actions">
@@ -51,7 +52,7 @@ async function render(adventureId) {
     const root = document.querySelector(ROOT_SELECTOR);
     root.innerHTML = `<div class="spinner"></div>`;
     try {
-        const res = await api.getAdventure(adventureId); // 어드벤처 정보를 직접 가져오는 API 호출 (API 추가 필요)
+        const res = await api.getAdventure(adventureId); // 어드벤처 정보를 직접 가져오는 API 호출
         if (!res.ok) throw new Error('진행 중인 모험 정보를 가져올 수 없습니다.');
         
         const adventure = res.data;
