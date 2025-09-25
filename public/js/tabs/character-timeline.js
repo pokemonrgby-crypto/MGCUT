@@ -1,22 +1,27 @@
+// (수정된 결과)
 // public/js/tabs/character-timeline.js
 import { api } from '../api.js';
 import { ui } from '../ui/frame.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
-// [수정] battle.js와 동일한 상세 파서 사용
+// [수정] battle.js와 동일한 리치 텍스트 파서 적용
 function parseRichText(text) {
   if (!text) return '';
-  let t = esc(text);
-  t = t.replace(/&lt;서술&gt;([\s\S]*?)&lt;\/서술&gt;/g, '<div class="narrative">$1</div>');
-  t = t.replace(/&lt;대사&gt;([\s\S]*?)&lt;\/대사&gt;/g, '<div class="dialogue">$1</div>');
-  t = t.replace(/&lt;생각&gt;([\s\S]*?)&lt;\/생각&gt;/g, '<div class="thought">$1</div>');
-  t = t.replace(/&lt;강조&gt;([\s\S]*?)&lt;\/강조&gt;/g, '<strong class="emphasis">$1</strong>');
-  t = t.replace(/&lt;시스템&gt;([\s\S]*?)&lt;\/시스템&gt;/g, '<div class="system">$1</div>');
-  t = t.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  t = t.replace(/\*(.*?)\*/g, '<em>$1</em>');
-  t = t.replace(/\n/g, '<br>');
-  return t;
+  return text
+    .replace(/<서술>/g, '<div class="narrative">')
+    .replace(/<\/서술>/g, '</div>')
+    .replace(/<대사>/g, '<div class="dialogue">')
+    .replace(/<\/대사>/g, '</div>')
+    .replace(/<생각>/g, '<div class="thought">')
+    .replace(/<\/생각>/g, '</div>')
+    .replace(/<강조>/g, '<strong class="emphasis">')
+    .replace(/<\/강조>/g, '</strong>')
+    .replace(/<시스템>/g, '<div class="system">')
+    .replace(/<\/시스템>/g, '</div>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br>');
 }
 
 function formatDate(date) {
@@ -33,10 +38,10 @@ function formatDate(date) {
 function battleLogCard(log, currentCharId) {
     const isMeA = log.meId === currentCharId;
     const opponentName = isMeA ? log.opName : log.meName;
-    const myEloAfter = isMeA ? log.eloMeAfter : log.opAfter;
+    // [수정] 오타 수정: opAfter -> eloOpAfter
+    const myEloAfter = isMeA ? log.eloMeAfter : log.eloOpAfter;
     const myEloBefore = isMeA ? log.eloMe : log.eloOp;
     
-    // [수정] myEloAfter가 없을 경우(무승부 등) myEloBefore 값으로 대체
     const eloChange = (myEloAfter ?? myEloBefore) - myEloBefore;
     const eloChangeStr = eloChange >= 0 ? `+${eloChange}` : `${eloChange}`;
     
@@ -82,13 +87,13 @@ function adventureLogCard(log) {
 
 
 // --- 데이터 로딩 및 렌더링 ---
-let battleLogsCache = []; // [추가] 전투 기록을 캐시할 변수
+let battleLogsCache = []; 
 
 async function renderBattleLogs(container, characterId) {
     container.innerHTML = `<div class="spinner"></div>`;
     try {
         const res = await api.getCharacterBattleLogs(characterId);
-        battleLogsCache = res.data || []; // [추가] 결과를 캐시에 저장
+        battleLogsCache = res.data || []; 
         if (res.ok && battleLogsCache.length > 0) {
             container.innerHTML = '<div class="list">' + battleLogsCache.map(log => battleLogCard(log, characterId)).join('') + '</div>';
         } else {
@@ -156,7 +161,6 @@ export function render(container, characterData) {
         const logId = card.dataset.logId;
         
         try {
-            // [수정] API 재호출 대신 캐시 사용
             const log = battleLogsCache.find(l => l.id === logId);
             if (!log) return alert('로그 정보를 찾을 수 없습니다.');
             
