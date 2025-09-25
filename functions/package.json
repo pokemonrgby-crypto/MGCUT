@@ -1,3 +1,4 @@
+
 {
   "name": "mgc-next-functions",
   "private": true,
@@ -8,6 +9,6 @@
     "express": "^4.19.2",
     "firebase-functions": "^5.0.1",
     "firebase-admin": "^12.5.0",
-    "crypto-js": "^4.2.0"
+    "@google-cloud/secret-manager": "^5.5.0"
   }
 }
