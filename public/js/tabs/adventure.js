@@ -6,16 +6,16 @@ import { sessionKeyManager } from '../session-key-manager.js';
 const ROOT_SELECTOR = '[data-view="adventure"]';
 let myCharacters = [];
 let allWorlds = []; // 전체 세계관 목록 캐시
+// [수정] currentAdventure 구조 변경
 let currentAdventure = {
     id: null,
-    graph: null,
-    currentNodeKey: null,
-    character: null, // 현재 선택된 캐릭터 정보 저장
+    node: null,
+    character: null,
 };
 
 // --- 템플릿 함수들 ---
 
-// 1. 모험 탭 허브 UI
+// 1. 모험 탭 허브 UI (기존과 동일)
 function adventureHubTemplate() {
     return `
     <div class="section-h">모험</div>
@@ -39,13 +39,13 @@ function adventureHubTemplate() {
     </div>`;
 }
 
-// 2. 캐릭터 선택 화면
+// 2. 캐릭터 선택 화면 (기존과 동일)
 function characterSelectTemplate(characters) {
     if (characters.length === 0) {
         return `<div class="card pad" style="margin: 0 16px;">
             <div class="small">모험을 떠날 캐릭터가 없습니다.</div>
             <p>먼저 [생성] 탭에서 캐릭터를 만들어주세요.</p>
-            <button id="back-to-hub" class="btn secondary" style="margin-top:12px;">‹ 뒤로가기</button>
+            <button class="btn secondary back-btn" data-target="hub" style="margin-top:12px;">‹ 뒤로가기</button>
         </div>`;
     }
     return `
@@ -61,29 +61,29 @@ function characterSelectTemplate(characters) {
         </div>
         `).join('')}
     </div>
-    <button id="back-to-hub" class="btn secondary" style="margin:16px;">‹ 뒤로가기</button>
+    <button class="btn secondary back-btn" data-target="hub" style="margin:16px;">‹ 뒤로가기</button>
     `;
 }
 
-// 3. 탐험할 세계관 선택 화면
+// 3. 탐험할 세계관 선택 화면 (기존과 동일)
 function worldSelectTemplate(character) {
     return `
     <div class="section-h">어느 세계관을 탐험할까요?</div>
     <div class="list" style="padding:0 16px 16px;">
-        <div class="card info-card" data-world-select-type="my" style="cursor:pointer;">
+        <div class="card info-card world-select-card" data-world-select-type="my" style="cursor:pointer;">
             <div class="name">내 세계관 탐험하기</div>
             <div class="desc small">${character.worldName}</div>
         </div>
-        <div class="card info-card" data-world-select-type="other" style="cursor:pointer;">
+        <div class="card info-card world-select-card" data-world-select-type="other" style="cursor:pointer;">
             <div class="name">다른 세계관 탐험하기</div>
             <div class="desc small">다른 유저들이 생성한 세계관을 탐험합니다.</div>
         </div>
     </div>
-    <button id="back-to-char-select" class="btn secondary" style="margin:16px;">‹ 캐릭터 다시 선택</button>
+    <button class="btn secondary back-btn" data-target="char-select" style="margin:16px;">‹ 캐릭터 다시 선택</button>
     `;
 }
 
-// 4. 타 세계관 목록
+// 4. 타 세계관 목록 (기존과 동일)
 function otherWorldsListTemplate(worlds) {
     return `
     <div class="section-h">탐험할 세계관 선택</div>
@@ -98,16 +98,16 @@ function otherWorldsListTemplate(worlds) {
         </div>
     `).join('')}
     </div>
-    <button id="back-to-world-type-select" class="btn secondary" style="margin:16px;">‹ 뒤로가기</button>
+    <button class="btn secondary back-btn" data-target="world-type-select" style="margin:16px;">‹ 뒤로가기</button>
     `;
 }
 
-// 5. 명소 선택 화면
+// 5. 명소 선택 화면 (기존과 동일)
 function siteSelectTemplate(sites, worldName) {
      if (sites.length === 0) {
         return `<div class="card pad" style="margin: 0 16px;">
             <p>이 세계관에는 아직 탐험할 수 있는 명소가 없습니다.</p>
-            <button id="back-to-world-type-select" class="btn secondary" style="margin-top:12px;">‹ 뒤로가기</button>
+            <button class="btn secondary back-btn" data-target="world-type-select" style="margin-top:12px;">‹ 뒤로가기</button>
         </div>`;
     }
     return `
@@ -122,197 +122,204 @@ function siteSelectTemplate(sites, worldName) {
         </div>
         `).join('')}
     </div>
-    <button id="back-to-world-type-select" class="btn secondary" style="margin:16px;">‹ 뒤로가기</button>
+    <button class="btn secondary back-btn" data-target="world-type-select" style="margin:16px;">‹ 뒤로가기</button>
     `;
 }
 
-// 6. 모험 진행 화면
+// 6. 모험 진행 화면 (수정)
 function adventurePlayTemplate(node) {
-     return `
+    // 전투 노드인 경우 다른 UI를 렌더링
+    if (node.type === 'combat') {
+        return `
         <div class="adventure-view">
             <div class="situation-card">
+                <h3>전투 발생!</h3>
                 <p>${node.situation.replace(/\n/g, '<br>')}</p>
+                <div class="info-card" style="margin-top:12px;">
+                    <div class="name">${node.enemy.name}</div>
+                    <div class="desc">${node.enemy.description}</div>
+                </div>
             </div>
             <div class="choices-list">
-                ${(node.choices || []).map((choice) => `
-                    <button class="btn choice-btn" data-next-node="${choice.nextNode}">
-                        ${choice.text}
-                    </button>
-                `).join('')}
+                <button class="btn choice-btn" data-choice-text="전투를 시작한다">전투를 시작한다</button>
+                <button class="btn secondary choice-btn" data-choice-text="도망친다">도망친다 (미구현)</button>
             </div>
-             <button id="back-to-hub" class="btn secondary" style="margin:16px;">‹ 모험 포기</button>
+             <button class="btn secondary back-btn" data-target="hub" style="margin:16px;">‹ 모험 포기</button>
+        </div>`;
+    }
+
+    // 일반 노드
+    return `
+    <div class="adventure-view">
+        <div class="situation-card">
+            <p>${node.situation.replace(/\n/g, '<br>')}</p>
         </div>
-     `;
+        <div class="choices-list">
+            ${(node.choices || []).map((choice) => `
+                <button class="btn choice-btn" data-choice-text="${choice.text}">
+                    ${choice.text}
+                </button>
+            `).join('')}
+        </div>
+         <button class="btn secondary back-btn" data-target="hub" style="margin:16px;">‹ 모험 포기</button>
+    </div>`;
 }
+
 
 // --- 렌더링 함수들 ---
 
-async function renderAdventureHub() {
-    const root = document.querySelector(ROOT_SELECTOR);
-    root.innerHTML = adventureHubTemplate();
-}
-
-async function renderCharacterSelect() {
+async function renderView(viewName, ...args) {
     const root = document.querySelector(ROOT_SELECTOR);
     root.innerHTML = `<div class="spinner"></div>`;
     try {
-        if (myCharacters.length === 0) {
-            const res = await api.getMyCharacters();
-            myCharacters = res.data || [];
+        let content = '';
+        switch(viewName) {
+            case 'hub':
+                content = adventureHubTemplate();
+                break;
+            case 'char-select':
+                if (myCharacters.length === 0) {
+                    const res = await api.getMyCharacters();
+                    myCharacters = res.data || [];
+                }
+                content = characterSelectTemplate(myCharacters);
+                break;
+            case 'world-type-select':
+                const charId = args[0];
+                const character = myCharacters.find(c => c.id === charId);
+                if (!character) throw new Error('캐릭터 정보를 찾을 수 없습니다.');
+                currentAdventure.character = character;
+                content = worldSelectTemplate(character);
+                break;
+            case 'other-worlds':
+                 if (allWorlds.length === 0) {
+                    const res = await api.listWorlds();
+                    allWorlds = (res.data || []).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                }
+                content = otherWorldsListTemplate(allWorlds);
+                break;
+            case 'site-select':
+                const worldId = args[0];
+                const res = await api.getWorld(worldId);
+                const world = res.data;
+                content = siteSelectTemplate(world.sites || [], world.name);
+                break;
+            case 'play':
+                const node = args[0];
+                currentAdventure.node = node;
+                content = adventurePlayTemplate(node);
+                break;
         }
-        root.innerHTML = characterSelectTemplate(myCharacters);
-    } catch (e) {
-        root.innerHTML = `<div class="card pad err" style="margin: 0 16px;">캐릭터 목록을 불러오는 데 실패했습니다: ${e.message}</div>`;
+        root.innerHTML = content;
+    } catch(e) {
+        root.innerHTML = `<div class="card pad err" style="margin: 0 16px;">오류: ${e.message}</div>`;
     }
 }
 
-async function renderWorldSelect(charId) {
-    const character = myCharacters.find(c => c.id === charId);
-    if (!character) {
-        alert('캐릭터 정보를 찾을 수 없습니다.');
-        return renderCharacterSelect();
-    }
-    currentAdventure.character = character; // 캐릭터 정보 저장
-    const root = document.querySelector(ROOT_SELECTOR);
-    root.innerHTML = worldSelectTemplate(character);
-}
-
-async function renderOtherWorldsList() {
-    const root = document.querySelector(ROOT_SELECTOR);
-    root.innerHTML = `<div class="spinner"></div>`;
-    try {
-        if (allWorlds.length === 0) {
-            const res = await api.listWorlds();
-            allWorlds = (res.data || []).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-        }
-        root.innerHTML = otherWorldsListTemplate(allWorlds);
-    } catch (e) {
-        root.innerHTML = `<div class="card pad err">다른 세계관 목록을 불러오는 데 실패했습니다: ${e.message}</div>`;
-    }
-}
-
-async function renderSiteSelect(worldId) {
-    const root = document.querySelector(ROOT_SELECTOR);
-    root.innerHTML = `<div class="spinner"></div>`;
-    try {
-        const res = await api.getWorld(worldId);
-        const world = res.data;
-        root.innerHTML = siteSelectTemplate(world.sites || [], world.name);
-    } catch (e) {
-        root.innerHTML = `<div class="card pad err" style="margin: 0 16px;">명소 정보를 불러오는 데 실패했습니다: ${e.message}</div>`;
-    }
-}
-
-function renderAdventureNode(nodeKey) {
-    const root = document.querySelector(ROOT_SELECTOR);
-    const node = currentAdventure.graph.nodes[nodeKey];
-    if (!node) {
-        root.innerHTML = `<div class="card pad err">오류: 다음 노드를 찾을 수 없습니다.</div>`;
-        return;
-    }
-    currentAdventure.currentNodeKey = nodeKey;
-    if (node.isEndpoint) {
-         root.innerHTML = `
-            <div class="adventure-view">
-                <div class="situation-card">
-                    <h3>에피소드 종료</h3>
-                    <p>${node.outcome}</p>
-                </div>
-                <button id="back-to-hub" class="btn" style="margin:16px;">모험 선택 화면으로</button>
-            </div>
-         `;
-         return;
-    }
-    root.innerHTML = adventurePlayTemplate(node);
-}
 
 // --- 초기화 및 이벤트 핸들링 ---
-
 export function mount() {
-    renderAdventureHub(); // 초기 화면은 허브
-
     const root = document.querySelector(ROOT_SELECTOR);
+    // [버그 수정] mount 될 때마다 리스너가 중복 등록되지 않도록, 이미 존재하면 실행하지 않음
+    if (root.dataset.eventListenerAttached === 'true') {
+        // 탭 전환 시 초기 화면으로 돌려주기
+        renderView('hub');
+        return;
+    }
+
+    renderView('hub');
+
     root.addEventListener('click', async (e) => {
-        const hubCard = e.target.closest('[data-hub-action]');
+        // [버그 수정] 이벤트 핸들러를 하나로 통합하여 이벤트 위임 패턴 사용
+        e.preventDefault();
+        const target = e.target;
+
+        // 뒤로가기 버튼 처리
+        const backBtn = target.closest('.back-btn');
+        if (backBtn) {
+            const targetView = backBtn.dataset.target;
+            if (targetView === 'hub') await withBlocker(() => renderView('hub'));
+            if (targetView === 'char-select') await withBlocker(() => renderView('char-select'));
+            if (targetView === 'world-type-select') await withBlocker(() => renderView('world-type-select', currentAdventure.character.id));
+            return;
+        }
+
+        // 허브 액션
+        const hubCard = target.closest('[data-hub-action]');
         if (hubCard) {
             const action = hubCard.dataset.hubAction;
-            if (action === 'explore') {
-                await withBlocker(renderCharacterSelect);
-            } else {
-                alert('준비 중인 기능입니다.');
-            }
-            return;
-        }
-        
-        // 뒤로가기 버튼 처리
-        if (e.target.id === 'back-to-hub') {
-            await withBlocker(renderAdventureHub);
-            return;
-        }
-        if (e.target.id === 'back-to-char-select') {
-            await withBlocker(renderCharacterSelect);
-            return;
-        }
-        if (e.target.id === 'back-to-world-type-select') {
-            await withBlocker(() => renderWorldSelect(currentAdventure.character.id));
+            if (action === 'explore') await withBlocker(() => renderView('char-select'));
+            else alert('준비 중인 기능입니다.');
             return;
         }
 
         // 캐릭터 선택
-        const charCard = e.target.closest('.character-select-card');
+        const charCard = target.closest('.character-select-card');
         if (charCard) {
-            await withBlocker(() => renderWorldSelect(charCard.dataset.charId));
+            await withBlocker(() => renderView('world-type-select', charCard.dataset.charId));
             return;
         }
 
-        // 세계관 종류 선택
-        const worldTypeCard = e.target.closest('[data-world-select-type]');
-        if (worldTypeCard) {
-            const type = worldTypeCard.dataset.worldSelectType;
+        // 세계관 종류/목록에서 선택
+        const worldSelectCard = target.closest('.world-select-card');
+        if (worldSelectCard) {
+            const type = worldSelectCard.dataset.worldSelectType;
             if (type === 'my') {
-                await withBlocker(() => renderSiteSelect(currentAdventure.character.worldId));
-            } else {
-                await withBlocker(renderOtherWorldsList);
+                await withBlocker(() => renderView('site-select', currentAdventure.character.worldId));
+            } else if (type === 'other') {
+                await withBlocker(() => renderView('other-worlds'));
+            } else { // ID가 있는 경우 (타 세계관 목록)
+                await withBlocker(() => renderView('site-select', worldSelectCard.dataset.worldId));
             }
             return;
         }
-        
-        // 다른 세계관 목록에서 선택
-        const otherWorldCard = e.target.closest('.world-select-card');
-        if(otherWorldCard) {
-            await withBlocker(() => renderSiteSelect(otherWorldCard.dataset.worldId));
-            return;
-        }
 
-        // 명소 선택
-        const siteCard = e.target.closest('.site-card');
+        // 명소 선택 -> 모험 시작
+        const siteCard = target.closest('.site-card');
         if (siteCard) {
             const siteName = siteCard.dataset.siteName;
-            if (!currentAdventure.character) {
-                alert('오류: 캐릭터가 선택되지 않았습니다.');
-                return renderCharacterSelect();
-            }
+            if (!currentAdventure.character) return alert('오류: 캐릭터가 선택되지 않았습니다.');
             try {
                 const password = await sessionKeyManager.getPassword();
                 await withBlocker(async () => {
                     const res = await api.startAdventure(currentAdventure.character.id, siteName, password);
                     currentAdventure.id = res.data.adventureId;
-                    currentAdventure.graph = res.data.storyGraph;
-                    renderAdventureNode(currentAdventure.graph.startNode);
+                    await renderView('play', res.data.node);
                 });
             } catch (err) {
-                if (!err.message.includes('사용자가')) {
-                    alert(`모험 시작 실패: ${err.message}`);
-                }
+                if (!err.message.includes('사용자가')) alert(`모험 시작 실패: ${err.message}`);
             }
             return;
         }
 
         // 모험 중 선택지 클릭
-        const choiceBtn = e.target.closest('.choice-btn');
+        const choiceBtn = target.closest('.choice-btn');
         if (choiceBtn) {
-            const nextNodeKey = choiceBtn.dataset.nextNode;
-            renderAdventureNode(nextNodeKey);
+            // [수정] 전투 노드 처리
+            if (currentAdventure.node?.type === 'combat') {
+                alert('전투 시뮬레이션은 다음 업데이트에서 구현될 예정입니다. 지금은 모험 포기 후 다시 시작해주세요.');
+                // TODO: PvP 배틀과 동일한 `battle/simulate` API 호출 로직 추가
+                return;
+            }
+
+            // [수정] 일반 노드 진행
+            const choiceText = choiceBtn.dataset.choiceText;
+            try {
+                const password = await sessionKeyManager.getPassword();
+                 await withBlocker(async () => {
+                    const res = await api.proceedAdventure({
+                        adventureId: currentAdventure.id,
+                        choiceText,
+                        password
+                    });
+                    await renderView('play', res.data.node);
+                });
+            } catch (err) {
+                 if (!err.message.includes('사용자가')) alert(`진행 실패: ${err.message}`);
+            }
         }
     });
+
+    // [버그 수정] 이벤트 리스너가 첨부되었음을 표시
+    root.dataset.eventListenerAttached = 'true';
 }
