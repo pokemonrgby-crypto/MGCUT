@@ -1,3 +1,4 @@
+// (수정된 결과)
 // functions/routes/adventures.mjs
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../lib/firebase.mjs';
@@ -5,6 +6,18 @@ import { getUserFromReq } from '../lib/auth.mjs';
 import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 import { decryptWithPassword } from '../lib/crypto.mjs';
+
+// [추가] characters.mjs와 동일한 API 키 복호화 헬퍼 함수
+async function getDecryptedKey(uid, password) {
+    if (!password) throw new Error('PASSWORD_REQUIRED: 비밀번호가 요청에 포함되지 않았습니다.');
+    const userDoc = await db.collection('users').doc(uid).get();
+    const encryptedKey = userDoc.exists ? userDoc.data().encryptedKey : null;
+    if (!encryptedKey) throw new Error('ENCRYPTED_KEY_NOT_FOUND: 내 정보 탭에서 API 키를 먼저 저장해주세요.');
+    
+    const decryptedKey = decryptWithPassword(encryptedKey, password);
+    if (!decryptedKey) throw new Error('DECRYPTION_FAILED: 비밀번호가 올바르지 않거나 키가 손상되었습니다.');
+    return decryptedKey;
+}
 
 // 헬퍼: 캐릭터, 세계관 등 핵심 정보를 요약하여 AI에게 전달할 Context를 만듭니다.
 async function buildAdventureContext(db, characterId) {
@@ -19,6 +32,7 @@ async function buildAdventureContext(db, characterId) {
         character: {
             name: character.name,
             summary: character.introShort,
+            worldId: character.worldId, // [추가] worldId 포함
             // 나중 확장을 위해 현재 상태 추가
             stamina: 100,
             items: character.items?.map(i => i.name) || [],
@@ -65,7 +79,8 @@ export function mountAdventures(app) {
                 return res.status(400).json({ ok: false, error: 'REQUIRED_FIELDS' });
             }
 
-            const geminiKey = await decryptWithPassword(user.uid, password);
+            // [수정] getDecryptedKey 헬퍼 함수 사용
+            const geminiKey = await getDecryptedKey(user.uid, password);
             const context = await buildAdventureContext(db, characterId);
             
             const worldSnap = await db.collection('worlds').doc(context.character.worldId).get();
@@ -73,7 +88,8 @@ export function mountAdventures(app) {
             if (!site) return res.status(404).json({ ok: false, error: 'SITE_NOT_FOUND' });
 
             const prompt = getAdventureStartPrompt(context, site);
-            const { json } = await callGemini({ key: geminiKey, model: pickModels().primary, user: prompt });
+            const { primary } = pickModels();
+            const { json } = await callGemini({ key: geminiKey, model: primary, user: prompt });
 
             if (!json || !json.startNode || !json.nodes) {
                 throw new Error('AI_INVALID_STORY_GRAPH');
@@ -89,7 +105,7 @@ export function mountAdventures(app) {
                 createdAt: now,
                 updatedAt: now,
                 storyGraph: json,
-                currentNode: json.startNode,
+                currentNodeKey: json.startNode, // [수정] currentNode -> currentNodeKey
                 history: [],
             });
 
