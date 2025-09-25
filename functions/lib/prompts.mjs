@@ -84,7 +84,7 @@ export async function loadCharacterBasePrompt() {
   ],
   "chosen": [0, 1, 2],
   "items": [
-    { "name": "아이템 이름", "description": "아이템의 효과나 배경 설명", "grade": "아이템 등급 ('common', 'rare', 'epic', 'legendary' 중 하나)" }
+    { "name": "아이템 이름", "description": "아이템의 효과나 배경 설명", "grade": "아이템 등급 ('Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Exotic' 중 하나)" }
   ]
 }
 
