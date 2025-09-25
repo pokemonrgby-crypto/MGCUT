@@ -37,12 +37,12 @@ function formatDate(date) {
 function battleLogCard(log, currentCharId) {
     const isMeA = log.meId === currentCharId;
     const opponentName = isMeA ? log.opName : log.meName;
-    // [수정] log.opAfter -> log.eloOpAfter 오타 수정
-    const myEloAfter = isMeA ? log.eloMeAfter : log.eloOpAfter;
-    const myEloBefore = isMeA ? log.eloMe : log.eloOp;
     
-    const eloChange = (myEloAfter ?? myEloBefore) - myEloBefore;
-
+    // [수정] Elo 점수 관련 변수를 더 안전하게 처리합니다.
+    const myEloBefore = Number(isMeA ? log.eloMe : log.eloOp) || 1000;
+    const myEloAfter = Number(isMeA ? log.eloMeAfter : log.eloOpAfter) || myEloBefore;
+    
+    const eloChange = myEloAfter - myEloBefore;
     const eloChangeStr = eloChange >= 0 ? `+${eloChange}` : `${eloChange}`;
     
     let result = '무승부';
@@ -54,7 +54,7 @@ function battleLogCard(log, currentCharId) {
     }
     
     const opponentImageUrl = isMeA ? log.opImageUrl : log.meImageUrl;
-    const date = new Date((log.createdAt?.seconds || 0) * 1000);
+    const date = log.createdAt?.seconds ? new Date(log.createdAt.seconds * 1000) : new Date();
 
     return `
     <div class="battle-log-char-card" data-log-id="${log.id}" style="cursor:pointer;">
@@ -64,7 +64,7 @@ function battleLogCard(log, currentCharId) {
             <div class="opponent-name">vs ${esc(opponentName)}</div>
             <div class="result-line">
                 <span class="${resultClass}">${result}</span>
-                (Elo ${myEloAfter ?? myEloBefore} <span class="small ${resultClass}">(${eloChangeStr})</span>)
+                (Elo ${myEloAfter} <span class="small ${resultClass}">(${eloChangeStr})</span>)
             </div>
             <div class="date">${formatDate(date)}</div>
         </div>
@@ -92,14 +92,31 @@ let battleLogsCache = [];
 async function renderBattleLogs(container, characterId) {
     container.innerHTML = `<div class="spinner"></div>`;
     try {
+        // 1. API 호출
         const res = await api.getCharacterBattleLogs(characterId);
-        battleLogsCache = res.data || []; 
-        if (res.ok && battleLogsCache.length > 0) {
-            container.innerHTML = '<div class="list">' + battleLogsCache.map(log => battleLogCard(log, characterId)).join('') + '</div>';
+        
+        // 2. 데이터 유효성 검사
+        if (!res.ok || !Array.isArray(res.data)) {
+            throw new Error(res.error || 'API로부터 유효한 데이터를 받지 못했습니다.');
+        }
+        
+        battleLogsCache = res.data; 
+
+        // 3. 렌더링 또는 빈 화면 표시
+        if (battleLogsCache.length > 0) {
+            // [추가] 렌더링 과정에서 발생하는 오류를 잡기 위한 try-catch
+            try {
+                const cardsHtml = battleLogsCache.map(log => battleLogCard(log, characterId)).join('');
+                container.innerHTML = '<div class="list">' + cardsHtml + '</div>';
+            } catch (renderError) {
+                console.error('Timeline battle log rendering failed:', renderError);
+                container.innerHTML = `<div class="card pad err">전투 기록을 화면에 표시하는 중 오류가 발생했습니다: ${renderError.message}</div>`;
+            }
         } else {
             container.innerHTML = '<div class="card pad small">아직 전투 기록이 없습니다.</div>';
         }
     } catch (e) {
+        console.error('Failed to fetch battle logs:', e);
         container.innerHTML = `<div class="card pad err">전투 기록을 불러오는 데 실패했습니다: ${e.message}</div>`;
     }
 }
