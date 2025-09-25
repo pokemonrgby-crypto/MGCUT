@@ -1,6 +1,5 @@
 // functions/lib/adventure-events.mjs
 
-// 아이템 등급 정의 (설계안 기반)
 const ITEM_TIERS = {
   C: { name: 'Common', weight: 1000 },
   U: { name: 'Uncommon', weight: 400 },
@@ -11,11 +10,10 @@ const ITEM_TIERS = {
   X: { name: 'Exotic', weight: 1 },
 };
 
-// 난이도별 가중치 확률 테이블
 const probabilityTables = {
   easy: {
     events: { FIND_ITEM: 40, ENCOUNTER_ENEMY_EASY: 20, NOTHING: 40 },
-    itemFindRate: 0.8, // 아이템 발견 이벤트 시, 실제 아이템 획득 확률
+    itemFindRate: 0.8,
     itemTiers: { C: 80, U: 15, R: 5, E: 0, L: 0, M: 0, X: 0 },
   },
   normal: {
@@ -40,11 +38,6 @@ const probabilityTables = {
   },
 };
 
-/**
- * 가중치 기반 랜덤 선택 헬퍼 함수
- * @param {object} table - 키는 아이템, 값은 가중치인 객체
- * @returns {string} 선택된 아이템의 키
- */
 function weightedRandom(table) {
   let totalWeight = 0;
   for (const key in table) {
@@ -57,14 +50,9 @@ function weightedRandom(table) {
     }
     random -= table[key];
   }
-  return Object.keys(table)[0]; // fallback
+  return Object.keys(table)[0];
 }
 
-/**
- * 명소 난이도에 따라 다음 이벤트를 미리 결정합니다.
- * @param {string} difficulty - 명소의 난이도 (easy, normal, hard 등)
- * @returns {object} 결정된 이벤트 정보 객체
- */
 export function preRollEvent(difficulty = 'normal') {
   const table = probabilityTables[difficulty] || probabilityTables.normal;
   const eventType = weightedRandom(table.events);
