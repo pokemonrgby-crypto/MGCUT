@@ -1,4 +1,3 @@
-// (수정된 결과)
 // public/js/tabs/adventure.js
 import { api, auth } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
@@ -106,7 +105,7 @@ function otherWorldsListTemplate(worlds) {
 }
 
 function siteSelectTemplate(sites, worldName) {
-     if (sites.length === 0) {
+     if (!sites || sites.length === 0) {
         return `<div class="card pad" style="margin: 0 16px;">
             <p>이 세계관에는 아직 탐험할 수 있는 명소가 없습니다.</p>
             <button class="btn secondary back-btn" data-target="world-type-select" style="margin-top:12px;">‹ 뒤로가기</button>
@@ -146,7 +145,7 @@ function adventurePlayTemplate(node, characterState) {
                     <h3>에피소드 종료</h3>
                     <p>${node.outcome}</p>
                 </div>
-                <button class="btn back-btn" data-target="hub" style="margin:16px 0;">모험 선택 화면으로</button>
+                <button class="btn continue-btn" style="margin:16px 0;">다음 모험 계속하기</button>
             </div>
          `;
     }
@@ -178,10 +177,8 @@ async function renderView(viewName, ...args) {
                 content = adventureHubTemplate();
                 break;
             case 'char-select':
-                if (myCharacters.length === 0) {
-                    const res = await api.getMyCharacters();
-                    myCharacters = res.data || [];
-                }
+                const resChars = await api.getMyCharacters();
+                myCharacters = resChars.data || [];
                 const ongoingAdventures = await Promise.all(
                     myCharacters.map(c => api.getCharacterAdventures(c.id, true))
                 );
@@ -245,10 +242,10 @@ function showSiteConfirmModal(site) {
       </div>`;
     document.body.appendChild(modal);
 
-    const promise = new Promise((resolve) => {
+    return new Promise((resolve) => {
         const closeModal = () => {
             modal.remove();
-            resolve(false); // 닫으면 false
+            resolve(false);
         };
         modal.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal-layer') || e.target.classList.contains('modal-close')) {
@@ -257,10 +254,9 @@ function showSiteConfirmModal(site) {
         });
         modal.querySelector('#btn-start-adventure-confirm').onclick = () => {
             modal.remove();
-            resolve(true); // 시작 확정
+            resolve(true);
         };
     });
-    return promise;
 }
 
 export function mount() {
@@ -269,7 +265,6 @@ export function mount() {
         renderView('hub');
         return;
     }
-
     renderView('hub');
 
     root.addEventListener('click', async (e) => {
@@ -279,36 +274,31 @@ export function mount() {
         
         e.preventDefault();
 
-        // [수정] 뒤로가기 버튼 로직 수정
         const backBtn = target.closest('.back-btn');
         if (backBtn) {
             const targetView = backBtn.dataset.target;
-            switch (targetView) {
-                case 'hub':
-                    await withBlocker(() => renderView('hub'));
-                    break;
-                case 'char-select':
-                    await withBlocker(() => renderView('char-select'));
-                    break;
-                case 'world-type-select':
+            await withBlocker(async () => {
+                if (targetView === 'hub') await renderView('hub');
+                else if (targetView === 'char-select') await renderView('char-select');
+                else if (targetView === 'world-type-select') {
                     if (currentAdventure.character?.id) {
-                        await withBlocker(() => renderView('world-type-select', currentAdventure.character.id));
+                        await renderView('world-type-select', currentAdventure.character.id);
                     } else {
-                        await withBlocker(() => renderView('char-select'));
+                        await renderView('char-select');
                     }
-                    break;
-            }
+                }
+            });
             return;
         }
-
+        
         const hubCard = target.closest('[data-hub-action]');
         if (hubCard) {
             if (hubCard.dataset.hubAction === 'explore') await withBlocker(() => renderView('char-select'));
             return;
         }
 
-        const charCard = target.closest('.character-select-card:not(:has(.resume-btn))');
-        if (charCard) {
+        const charCard = target.closest('.character-select-card');
+        if (charCard && !target.closest('.resume-btn')) {
             await withBlocker(() => renderView('world-type-select', charCard.dataset.charId));
             return;
         }
@@ -381,18 +371,43 @@ export function mount() {
         const choiceBtn = target.closest('.choice-btn');
         if (choiceBtn) {
             const nextNodeKey = choiceBtn.dataset.nextNode;
+            const choiceText = choiceBtn.textContent.trim();
             await withBlocker(async () => {
-                await sleep(700);
-                const res = await api.proceedAdventure(currentAdventure.id, { nextNodeKey });
-                const { newNode, newCharacterState } = res.data;
+                await sleep(5000);
+                const res = await api.proceedAdventure(currentAdventure.id, { nextNodeKey, choiceText });
+                
+                const { newNode, newCharacterState, newItem } = res.data;
                 currentAdventure.currentNodeKey = nextNodeKey;
                 currentAdventure.characterState = newCharacterState;
+                
                 await renderView('play', {
                     graph: currentAdventure.graph,
                     nodeKey: nextNodeKey,
                     characterState: newCharacterState,
                 });
+
+                if (newItem) {
+                    alert(`아이템 획득: ${newItem.name} (${newItem.grade})`);
+                }
             });
+            return;
+        }
+        
+        const continueBtn = target.closest('.continue-btn');
+        if (continueBtn) {
+             await withBlocker(async () => {
+                alert("에피소드가 마무리되었습니다. 다음 모험을 계속 생성합니다.");
+                const password = await sessionKeyManager.getPassword();
+                const continueRes = await api.continueAdventure(currentAdventure.id, { password });
+                
+                currentAdventure.graph = continueRes.data.storyGraph;
+                
+                await renderView('play', {
+                    graph: currentAdventure.graph,
+                    nodeKey: currentAdventure.graph.startNode,
+                    characterState: currentAdventure.characterState, // 스태미나는 유지
+                });
+             });
         }
     });
 
