@@ -219,6 +219,14 @@ export function mountAdventures(app) {
             
             const adventure = snap.data();
             const newNode = adventure.storyGraph.nodes[nextNodeKey];
+
+            // ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
+            if (!newNode) {
+                console.error(`Node not found for key: ${nextNodeKey} in adventure ${adventureId}`);
+                return res.status(404).json({ ok: false, error: 'STORY_NODE_NOT_FOUND' });
+            }
+            // ▲▲▲ [수정] 여기까지 추가 ▲▲▲
+
             let newCharacterState = { ...adventure.characterState };
             let newItem = null;
 
