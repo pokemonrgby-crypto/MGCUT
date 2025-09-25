@@ -122,8 +122,6 @@ async function renderBattleLogs(container, characterId) {
 }
 
 async function renderAdventureLogs(container, characterId) {
-
-async function renderAdventureLogs(container, characterId) {
     container.innerHTML = `<div class="spinner"></div>`;
     try {
         const res = await api.getCharacterAdventures(characterId);
