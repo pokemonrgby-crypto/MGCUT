@@ -243,6 +243,26 @@ export function mountAdventures(app) {
         }
     });
 
+
+    app.get('/api/adventures/:id', async (req, res) => {
+        try {
+            const user = await getUserFromReq(req);
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+            
+            const ref = db.collection('adventures').doc(req.params.id);
+            const snap = await ref.get();
+
+            if (!snap.exists || snap.data().ownerUid !== user.uid) {
+                return res.status(404).json({ ok: false, error: 'ADVENTURE_NOT_FOUND' });
+            }
+            
+            res.json({ ok: true, data: { id: snap.id, ...snap.data() } });
+        } catch (e) {
+            res.status(500).json({ ok: false, error: String(e) });
+        }
+    });
+
+    
     app.get('/api/characters/:id/adventures/ongoing', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
