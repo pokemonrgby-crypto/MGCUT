@@ -1,4 +1,3 @@
-// (수정된 결과)
 // functions/routes/characters.mjs
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../lib/firebase.mjs';
@@ -6,18 +5,16 @@ import { getUserFromReq } from '../lib/auth.mjs';
 import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { loadCharacterBasePrompt } from '../lib/prompts.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
-import { decryptWithPassword } from '../lib/crypto.mjs';
-import { preRollEvent } from '../lib/adventure-events.mjs'; // [추가] 아이템 드롭을 위해 import
+import { getApiKeySecret } from '../lib/secret-manager.mjs';
+import { preRollEvent } from '../lib/adventure-events.mjs';
 
-async function getDecryptedKey(uid, password) {
-    if (!password) throw new Error('PASSWORD_REQUIRED: 비밀번호가 요청에 포함되지 않았습니다.');
-    const userDoc = await db.collection('users').doc(uid).get();
-    const encryptedKey = userDoc.exists ? userDoc.data().encryptedKey : null;
-    if (!encryptedKey) throw new Error('ENCRYPTED_KEY_NOT_FOUND: 내 정보 탭에서 API 키를 먼저 저장해주세요.');
-    
-    const decryptedKey = decryptWithPassword(encryptedKey, password);
-    if (!decryptedKey) throw new Error('DECRYPTION_FAILED: 비밀번호가 올바르지 않거나 키가 손상되었습니다.');
-    return decryptedKey;
+// 헬퍼 함수: UID로 API 키를 가져옵니다.
+async function getApiKeyForUser(uid) {
+    const apiKey = await getApiKeySecret(uid);
+    if (!apiKey) {
+        throw new Error('API_KEY_NOT_FOUND: 내 정보 탭에서 API 키를 먼저 등록해주세요.');
+    }
+    return apiKey;
 }
 
 function updateElo(a, b, Sa, K = 32) {
@@ -157,10 +154,10 @@ export function mountCharacters(app) {
       
       await checkAndUpdateCooldown(db, user.uid, 'generateCharacter', 300);
 
-      const { password, worldId, promptId, userInput, imageUrl } = req.body;
+      const { worldId, promptId, userInput, imageUrl } = req.body;
       if (!worldId || !userInput || !userInput.name) return res.status(400).json({ ok: false, error: 'ARGS_REQUIRED' });
       
-      const geminiKey = await getDecryptedKey(user.uid, password);
+      const geminiKey = await getApiKeyForUser(user.uid);
 
       const [worldSnap, promptSnap] = await Promise.all([
         db.collection('worlds').doc(worldId).get(),
@@ -298,16 +295,15 @@ export function mountCharacters(app) {
     }
   });
 
-  // [수정] 전투 시뮬레이션 로직 수정 (아이템 드롭 추가)
   app.post('/api/battle/simulate', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
       
-      const { battleId, password } = req.body || {};
+      const { battleId } = req.body || {};
       if (!battleId) return res.status(400).json({ ok: false, error: 'BATTLE_ID_REQUIRED' });
 
-      const geminiKey = await getDecryptedKey(user.uid, password);
+      const geminiKey = await getApiKeyForUser(user.uid);
 
       const bRef = db.collection('battles').doc(battleId);
       const bSnap = await bRef.get();
@@ -350,9 +346,8 @@ export function mountCharacters(app) {
           bRef.update({ status: 'finished', winner: winner, log: markdown, eloMeAfter: newA, eloOpAfter: newB, updatedAt: now, })
         ];
 
-        // [추가] 승리 시 아이템 드롭 처리
         if (Sa === 1) {
-            const dropEvent = preRollEvent('hard'); // 적 처치는 hard 난이도 기준으로 아이템 드롭
+            const dropEvent = preRollEvent('hard');
             if (dropEvent.type === 'FIND_ITEM') {
                 const itemPrompt = `TRPG 게임의 ${world.name} 세계관에 어울리는 "${dropEvent.tier}" 등급 아이템 1개를 {"name": "...", "description": "...", "grade": "${dropEvent.tier}"} JSON 형식으로 생성해줘. 설명이나 코드 펜스 없이 순수 JSON 객체만 출력해줘.`;
                 const { json: newItem } = await callGemini({ key: geminiKey, model: pickModels().primary, user: itemPrompt });
@@ -363,7 +358,6 @@ export function mountCharacters(app) {
             }
         }
         
-        // 승리 & 아이템 드롭이 없는 경우 or 패배한 경우
         if (updates.length < 3) {
             updates.push(meRef.update({ elo: newA, updatedAt: now }));
         }
