@@ -5,18 +5,17 @@ import { ui } from '../ui/frame.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
-// [수정] battle.js와 동일한 리치 텍스트 파서 적용
 function parseRichText(text) {
   if (!text) return '';
-  return text
+  // HTML 태그가 변환되기 전에 리치 텍스트를 먼저 처리하도록 순서 변경
+  return text.replace(/<대사>/g, '<div class="dialogue">')
+    .replace(/<\/대사>/g, '</div>')
     .replace(/<서술>/g, '<div class="narrative">')
     .replace(/<\/서술>/g, '</div>')
-    .replace(/<대사>/g, '<div class="dialogue">')
-    .replace(/<\/대사>/g, '</div>')
-    .replace(/<생각>/g, '<div class="thought">')
-    .replace(/<\/생각>/g, '</div>')
     .replace(/<강조>/g, '<strong class="emphasis">')
     .replace(/<\/강조>/g, '</strong>')
+    .replace(/<생각>/g, '<div class="thought">')
+    .replace(/<\/생각>/g, '</div>')
     .replace(/<시스템>/g, '<div class="system">')
     .replace(/<\/시스템>/g, '</div>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -38,7 +37,7 @@ function formatDate(date) {
 function battleLogCard(log, currentCharId) {
     const isMeA = log.meId === currentCharId;
     const opponentName = isMeA ? log.opName : log.meName;
-    // [수정] 오타 수정: opAfter -> eloOpAfter
+    // [수정] log.opAfter -> log.eloOpAfter 오타 수정
     const myEloAfter = isMeA ? log.eloMeAfter : log.eloOpAfter;
     const myEloBefore = isMeA ? log.eloMe : log.eloOp;
     
