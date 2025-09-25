@@ -11,7 +11,7 @@ function parseRichText(text) {
     .replace(/<\/서술>/g, '</div>')
     .replace(/<강조>/g, '<strong class="emphasis">')
     .replace(/<\/강조>/g, '</strong>')
-    .replace(/<생각>/g, '<div class.thought">')
+    .replace(/<생각>/g, '<div class="thought">') // [수정] 오타를 수정했습니다.
     .replace(/<\/생각>/g, '</div>')
     .replace(/<시스템>/g, '<div class="system">')
     .replace(/<\/시스템>/g, '</div>')
