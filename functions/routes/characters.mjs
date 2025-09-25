@@ -181,7 +181,6 @@ export function mountCharacters(app) {
 
       if (!characterJson || !characterJson.name) throw new Error('AI_GENERATION_FAILED');
       
-      // [수정] 스킬과 아이템에 고유 ID 부여
       if (Array.isArray(characterJson.abilities)) {
         characterJson.abilities.forEach(a => a.id = randomUUID());
       }
@@ -189,7 +188,6 @@ export function mountCharacters(app) {
         characterJson.items.forEach(i => i.id = randomUUID());
       }
 
-      // [수정] ID 기반으로 chosen 스킬 선택
       if (Array.isArray(characterJson.abilities) && characterJson.abilities.length > 0) {
         const abilityIds = characterJson.abilities.map(a => a.id);
         abilityIds.sort(() => 0.5 - Math.random());
@@ -209,7 +207,7 @@ export function mountCharacters(app) {
         worldId, worldName: world.name, promptId, imageUrl,
         ownerUid: user.uid,
         elo: 1000,
-        equipped: [], // 장착 아이템 필드 초기화
+        equipped: [], 
         createdAt: now, updatedAt: now
       });
 
@@ -243,7 +241,7 @@ export function mountCharacters(app) {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-      const { equipped } = req.body || {}; // equipped는 이제 ID 배열
+      const { equipped } = req.body || {}; 
       if (!Array.isArray(equipped)) return res.status(400).json({ ok: false, error: 'EQUIPPED_REQUIRED' });
       
       const ref = db.collection('characters').doc(req.params.id);
@@ -252,7 +250,6 @@ export function mountCharacters(app) {
       const c = snap.data();
       if ((c.ownerUid || '') !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
       
-      // [수정] ID 기반으로 장착 아이템 유효성 검사
       const inventoryIds = new Set((c.items || []).map(i => i.id));
       const validEquippedIds = equipped.map(id => (id && inventoryIds.has(id)) ? id : null);
       
@@ -355,11 +352,7 @@ export function mountCharacters(app) {
         const Sa = (winner === 'A') ? 1 : 0;
         const [newA, newB] = updateElo(me.elo ?? 1000, op.elo ?? 1000, Sa);
         const now = FieldValue.serverTimestamp();
-        const updates = [
-          opRef.update({ elo: newB, updatedAt: now }),
-          bRef.update({ status: 'finished', winner: winner, log: markdown, eloMeAfter: newA, eloOpAfter: newB, updatedAt: now, })
-        ];
-
+        
         let meUpdatePayload = { elo: newA, updatedAt: now };
 
         if (Sa === 1) {
@@ -374,9 +367,12 @@ export function mountCharacters(app) {
             }
         }
         
-        updates.push(meRef.update(meUpdatePayload));
+        await Promise.all([
+            meRef.update(meUpdatePayload),
+            opRef.update({ elo: newB, updatedAt: now }),
+            bRef.update({ status: 'finished', winner: winner, log: markdown, eloMeAfter: newA, eloOpAfter: newB, updatedAt: now })
+        ]);
 
-        await Promise.all(updates);
       } else {
         await bRef.update({ status: 'finished', winner: null, log: markdown, updatedAt: FieldValue.serverTimestamp() });
       }
