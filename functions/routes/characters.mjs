@@ -115,22 +115,43 @@ export function mountCharacters(app) {
       const q2 = db.collection('battles').where('opId', '==', charId).get();
       const [snap1, snap2] = await Promise.all([q1, q2]);
       const logs = [...snap1.docs.map(d => ({ id: d.id, ...d.data() })), ...snap2.docs.map(d => ({ id: d.id, ...d.data() }))];
-      const uniqueLogs = Array.from(new Map(logs.map(log => [log.id, log])).values()).filter(log => log.status === 'finished').sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      
+      const uniqueLogs = Array.from(new Map(logs.map(log => [log.id, log])).values())
+        .filter(log => log.status === 'finished')
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+      if (uniqueLogs.length === 0) {
+        return res.json({ ok: true, data: [] });
+      }
+
       const charIds = new Set();
-      uniqueLogs.forEach(log => { charIds.add(log.meId); charIds.add(log.opId); });
+      uniqueLogs.forEach(log => { 
+        if(log.meId) charIds.add(log.meId);
+        if(log.opId) charIds.add(log.opId);
+      });
+      
+      const charDataMap = new Map();
       if (charIds.size > 0) {
         const charSnaps = await db.getAll(...Array.from(charIds).map(id => db.collection('characters').doc(id)));
-        const charDataMap = new Map();
         charSnaps.forEach(snap => { if (snap.exists) charDataMap.set(snap.id, snap.data()); });
-        const enrichedLogs = uniqueLogs.map(log => {
-            const me = charDataMap.get(log.meId);
-            const op = charDataMap.get(log.opId);
-            return { ...log, meImageUrl: me?.imageUrl || '', opImageUrl: op?.imageUrl || '' };
-        });
-        return res.json({ ok: true, data: enrichedLogs.slice(0, 50) });
       }
-      res.json({ ok: true, data: uniqueLogs.slice(0, 50) });
-    } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
+
+      const enrichedLogs = uniqueLogs.map(log => {
+          const me = charDataMap.get(log.meId);
+          const op = charDataMap.get(log.opId);
+          // [수정] 캐릭터가 삭제되었을 경우를 대비하여, battle 문서에 저장된 기존 이미지 URL을 fallback으로 사용합니다.
+          return { 
+            ...log, 
+            meImageUrl: me?.imageUrl || log.meImageUrl || '', 
+            opImageUrl: op?.imageUrl || log.opImageUrl || '' 
+          };
+      });
+      
+      res.json({ ok: true, data: enrichedLogs.slice(0, 50) });
+    } catch (e) { 
+        console.error(`Error fetching battle logs for character ${req.params.id}:`, e);
+        res.status(500).json({ ok: false, error: String(e) }); 
+    }
   });
   
   app.get('/api/characters', async (req, res) => {
