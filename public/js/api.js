@@ -88,9 +88,10 @@ export const api = {
   updateItemsEquipped: (id, equipped) => call('POST', `/api/characters/${id}/items`, { equipped }),
   
   // adventures
-  startAdventure: (characterId, siteName, password) => call('POST', '/api/adventures/start', { characterId, siteName, password }),
-  proceedAdventure: (payload) => call('POST', '/api/adventures/proceed', payload), // [추가] 모험 진행 API
-  getCharacterAdventures: (id) => call('GET', `/api/characters/${id}/adventures`),
+  startAdventure: (payload) => call('POST', '/api/adventures/start', payload),
+  proceedAdventure: (adventureId, payload) => call('POST', `/api/adventures/${adventureId}/proceed`, payload),
+  getCharacterAdventures: (id, ongoingOnly = false) => call('GET', `/api/characters/${id}/adventures${ongoingOnly ? '/ongoing' : ''}`),
+
 
   // prompts
   getSystemPrompt: (name) => call('GET', `/api/system-prompts/${name}`),
