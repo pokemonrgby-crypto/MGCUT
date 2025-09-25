@@ -1,22 +1,19 @@
-// (수정된 결과)
 // functions/routes/adventures.mjs
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../lib/firebase.mjs';
 import { getUserFromReq } from '../lib/auth.mjs';
 import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
-import { decryptWithPassword } from '../lib/crypto.mjs';
+import { getApiKeySecret } from '../lib/secret-manager.mjs';
 import { preRollEvent } from '../lib/adventure-events.mjs';
 
-async function getDecryptedKey(uid, password) {
-    if (!password) throw new Error('PASSWORD_REQUIRED: 비밀번호가 요청에 포함되지 않았습니다.');
-    const userDoc = await db.collection('users').doc(uid).get();
-    const encryptedKey = userDoc.exists ? userDoc.data().encryptedKey : null;
-    if (!encryptedKey) throw new Error('ENCRYPTED_KEY_NOT_FOUND: 내 정보 탭에서 API 키를 먼저 저장해주세요.');
-    
-    const decryptedKey = decryptWithPassword(encryptedKey, password);
-    if (!decryptedKey) throw new Error('DECRYPTION_FAILED: 비밀번호가 올바르지 않거나 키가 손상되었습니다.');
-    return decryptedKey;
+// 헬퍼 함수: UID로 API 키를 가져옵니다.
+async function getApiKeyForUser(uid) {
+    const apiKey = await getApiKeySecret(uid);
+    if (!apiKey) {
+        throw new Error('API_KEY_NOT_FOUND: 내 정보 탭에서 API 키를 먼저 등록해주세요.');
+    }
+    return apiKey;
 }
 
 async function buildAdventureContext(db, characterId, worldIdOverride = null) {
@@ -89,7 +86,6 @@ ${eventInstructions}
 `;
 }
 
-// [수정] 함수 이름을 변경하고, adventureRef.update 로직을 제거하여 순수하게 그래프만 생성하도록 수정
 async function generateStoryGraph(geminiKey, context, site, previousOutcome, history) {
     const preRolledEvents = [preRollEvent(site.difficulty), preRollEvent(site.difficulty), preRollEvent(site.difficulty)];
     
@@ -110,12 +106,12 @@ export function mountAdventures(app) {
             const user = await getUserFromReq(req);
             if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
 
-            const { characterId, worldId, siteName, password } = req.body;
-            if (!characterId || !worldId || !siteName || !password) {
+            const { characterId, worldId, siteName } = req.body;
+            if (!characterId || !worldId || !siteName) {
                 return res.status(400).json({ ok: false, error: 'REQUIRED_FIELDS' });
             }
 
-            const geminiKey = await getDecryptedKey(user.uid, password);
+            const geminiKey = await getApiKeyForUser(user.uid);
             const context = await buildAdventureContext(db, characterId, worldId);
             
             const worldSnap = await db.collection('worlds').doc(worldId).get();
@@ -128,13 +124,11 @@ export function mountAdventures(app) {
             existingAdventures.forEach(doc => batch.delete(doc.ref));
             await batch.commit();
             
-            // [수정] 먼저 AI로 이야기 지도를 생성
             const initialGraph = await generateStoryGraph(geminiKey, context, site, "탐험을 시작합니다.", []);
 
             const now = FieldValue.serverTimestamp();
             const adventureRef = db.collection('adventures').doc();
             
-            // [수정] 생성된 지도를 포함하여 'set'으로 새 문서를 생성
             await adventureRef.set({
                 ownerUid: user.uid, characterId, worldId, siteName, site,
                 status: 'ongoing', createdAt: now, updatedAt: now,
@@ -157,7 +151,6 @@ export function mountAdventures(app) {
             const user = await getUserFromReq(req);
             if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
 
-            const { password } = req.body;
             const adventureId = req.params.id;
 
             const adventureRef = db.collection('adventures').doc(adventureId);
@@ -174,13 +167,11 @@ export function mountAdventures(app) {
                 return res.json({ ok: false, error: 'STAMINA_DEPLETED' });
             }
 
-            const geminiKey = await getDecryptedKey(user.uid, password);
+            const geminiKey = await getApiKeyForUser(user.uid);
             const context = { character: adventure.characterState, world: { id: adventure.worldId, name: adventure.site.worldName } };
             
-            // [수정] 새로운 그래프를 생성
             const newGraph = await generateStoryGraph(geminiKey, context, adventure.site, lastNode.outcome, adventure.history);
             
-            // [수정] 생성된 그래프로 문서를 업데이트
             await adventureRef.update({
                 storyGraph: newGraph,
                 currentNodeKey: newGraph.startNode,
