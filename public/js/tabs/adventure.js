@@ -141,8 +141,9 @@ async function renderView(viewName, ...args) {
                 content = adventureHubTemplate();
                 break;
             case 'explore-char-select':
+                // [수정] getOngoingAdventure API를 사용하도록 변경
                 const ongoingAdventures = await Promise.all(
-                    myCharacters.map(c => api.getCharacterAdventures(c.id, true))
+                    myCharacters.map(c => api.getOngoingAdventure(c.id))
                 );
                 myCharacters.forEach((c, i) => {
                     c.ongoingAdventure = ongoingAdventures[i].data;
