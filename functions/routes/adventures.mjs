@@ -86,17 +86,74 @@ ${eventInstructions}
 `;
 }
 
+/**
+ * 생성된 이야기 지도의 구조적 무결성을 검증합니다.
+ * @param {object} graph - AI가 생성한 storyGraph JSON 객체
+ * @returns {boolean} - 그래프가 유효하면 true, 아니면 false
+ */
+function validateStoryGraph(graph) {
+    if (!graph || typeof graph.nodes !== 'object' || !graph.startNode) {
+        console.error('Validation Error: Missing basic graph structure (nodes, startNode).');
+        return false;
+    }
+
+    if (!graph.nodes[graph.startNode]) {
+        console.error(`Validation Error: startNode key "${graph.startNode}" does not exist in nodes.`);
+        return false;
+    }
+
+    for (const key in graph.nodes) {
+        const node = graph.nodes[key];
+        if (!node || typeof node.situation !== 'string') {
+             console.error(`Validation Error: Node "${key}" is missing 'situation'.`);
+            return false;
+        }
+
+        if (node.isEndpoint) {
+            if (typeof node.outcome !== 'string') {
+                console.error(`Validation Error: Endpoint node "${key}" is missing 'outcome'.`);
+                return false;
+            }
+        } else {
+            if (!Array.isArray(node.choices) || node.choices.length === 0) {
+                 console.error(`Validation Error: Non-endpoint node "${key}" is missing 'choices'.`);
+                return false;
+            }
+            for (const choice of node.choices) {
+                if (!choice.nextNode || !graph.nodes[choice.nextNode]) {
+                    console.error(`Validation Error: Node "${key}" has a choice pointing to a non-existent nextNode "${choice.nextNode}".`);
+                    return false;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
 async function generateStoryGraph(geminiKey, context, site, previousOutcome, history) {
     const preRolledEvents = [preRollEvent(site.difficulty), preRollEvent(site.difficulty), preRollEvent(site.difficulty)];
-    
     const prompt = getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents, history);
-    const { json: storyGraph } = await callGemini({ key: geminiKey, model: pickModels().primary, user: prompt });
 
-    if (!storyGraph || !storyGraph.startNode || !storyGraph.nodes) {
-        throw new Error('AI_INVALID_STORY_GRAPH');
+    let lastError = null;
+    for (let i = 0; i < 3; i++) { // 최대 3번 재시도
+        try {
+            const { json: storyGraph } = await callGemini({ key: geminiKey, model: pickModels().primary, user: prompt });
+            
+            if (validateStoryGraph(storyGraph)) {
+                return storyGraph; // 검증 성공 시 즉시 반환
+            } else {
+                lastError = new Error('AI_INVALID_STORY_GRAPH');
+                console.warn(`Attempt ${i + 1} failed: Invalid story graph generated. Retrying...`);
+            }
+        } catch (e) {
+            lastError = e;
+            console.warn(`Attempt ${i + 1} failed with API error: ${e.message}. Retrying...`);
+        }
     }
     
-    return storyGraph;
+    // 3번 모두 실패하면 최종적으로 에러를 발생시킴
+    throw lastError || new Error('AI_GENERATION_FAILED_AFTER_RETRIES');
 }
 
 
@@ -220,12 +277,10 @@ export function mountAdventures(app) {
             const adventure = snap.data();
             const newNode = adventure.storyGraph.nodes[nextNodeKey];
 
-            // ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
             if (!newNode) {
                 console.error(`Node not found for key: ${nextNodeKey} in adventure ${adventureId}`);
                 return res.status(404).json({ ok: false, error: 'STORY_NODE_NOT_FOUND' });
             }
-            // ▲▲▲ [수정] 여기까지 추가 ▲▲▲
 
             let newCharacterState = { ...adventure.characterState };
             let newItem = null;
