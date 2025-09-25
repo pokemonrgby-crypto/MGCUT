@@ -89,7 +89,8 @@ export const api = {
   
   // adventures
   startAdventure: (characterId, siteName, password) => call('POST', '/api/adventures/start', { characterId, siteName, password }),
-  getCharacterAdventures: (id) => call('GET', `/api/characters/${id}/adventures`), // [수정] 이 부분이 추가되었습니다.
+  proceedAdventure: (payload) => call('POST', '/api/adventures/proceed', payload), // [추가] 모험 진행 API
+  getCharacterAdventures: (id) => call('GET', `/api/characters/${id}/adventures`),
 
   // prompts
   getSystemPrompt: (name) => call('GET', `/api/system-prompts/${name}`),
