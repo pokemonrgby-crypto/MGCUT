@@ -5,7 +5,7 @@ import * as Create from '../tabs/create.js';
 import * as Info from '../tabs/info.js';
 import * as Adventure from '../tabs/adventure.js';
 import * as AdventureDetail from '../tabs/adventure-detail.js';
-import * as Inventory from '../tabs/inventory.js'; // [추가]
+import * as Inventory from '../tabs/inventory.js';
 import * as Ranking from '../tabs/ranking.js';
 import * as CreateWorld from '../tabs/create-world.js';
 import * as CreateCharacter from '../tabs/create-character.js';
@@ -45,7 +45,7 @@ function handleRouteChange() {
     'create': { view: 'create', mount: Create.mount },
     'adventure': { view: 'adventure', mount: Adventure.mount },
     'adventure-detail': { parentView: 'adventure', view: 'adventure-detail', mount: () => AdventureDetail.mount(param1) },
-    'inventory': { view: 'inventory', mount: Inventory.mount }, // [추가]
+    'inventory': { parentView: 'adventure', view: 'inventory', mount: Inventory.mount }, // [수정]
     'ranking': { view: 'ranking', mount: Ranking.mount },
     'info': { view: 'info', mount: Info.mount },
     'create-world': { parentView: 'create', view: 'create-world' },
