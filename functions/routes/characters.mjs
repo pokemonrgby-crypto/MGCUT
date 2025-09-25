@@ -136,16 +136,32 @@ export function mountCharacters(app) {
         charSnaps.forEach(snap => { if (snap.exists) charDataMap.set(snap.id, snap.data()); });
       }
 
-      const enrichedLogs = uniqueLogs.map(log => {
-          const me = charDataMap.get(log.meId);
-          const op = charDataMap.get(log.opId);
-          // [수정] 캐릭터가 삭제되었을 경우를 대비하여, battle 문서에 저장된 기존 이미지 URL을 fallback으로 사용합니다.
-          return { 
-            ...log, 
-            meImageUrl: me?.imageUrl || log.meImageUrl || '', 
-            opImageUrl: op?.imageUrl || log.opImageUrl || '' 
-          };
-      });
+      // === 교체 시작 ===
+const enrichedLogs = uniqueLogs.map(log => {
+  const me = charDataMap.get(log.meId);
+  const op = charDataMap.get(log.opId);
+
+  // 이름/이미지 모두 보강 (프런트 스키마와 일치)
+  const meName = me?.name || log.meName || '나의 캐릭터';
+  const opName = op?.name || log.opName || '상대 캐릭터';
+
+  return {
+    ...log,
+    meName,
+    opName,
+    meImageUrl: me?.imageUrl || log.meImageUrl || '',
+    opImageUrl: op?.imageUrl || log.opImageUrl || '',
+    // createdAt이 비어있을 수도 있으니 updatedAt으로 널가드
+    createdAt: log.createdAt || log.updatedAt || null,
+    // elo 필드도 숫자화 방어 (프런트에서 바로 뺄셈해)
+    eloMe: Number(log.eloMe ?? me?.elo ?? 1000),
+    eloOp: Number(log.eloOp ?? op?.elo ?? 1000),
+    eloMeAfter: Number(log.eloMeAfter ?? log.eloMe ?? me?.elo ?? 1000),
+    eloOpAfter: Number(log.eloOpAfter ?? log.eloOp ?? op?.elo ?? 1000),
+  };
+});
+// === 교체 끝 ===
+
       
       res.json({ ok: true, data: enrichedLogs.slice(0, 50) });
     } catch (e) { 
