@@ -631,3 +631,17 @@ span.err { color: var(--err); }
     margin-top: 4px;
     color: #fff;
 }
+/* ... 기존 CSS ... */
+
+/* --- [추가] 명소 확인 모달 스타일 --- */
+.site-confirm-modal .modal-card {
+    max-width: 420px; /* 모달 너비 조정 */
+}
+.site-confirm-modal h3 {
+    margin-top: 0;
+    margin-bottom: 4px;
+}
+.site-confirm-modal .modal-body p {
+    line-height: 1.6;
+    opacity: 0.9;
+}
