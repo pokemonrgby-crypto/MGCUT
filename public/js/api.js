@@ -33,7 +33,12 @@ async function idToken() {
 
 async function call(method, path, body, extraHeaders = {}) {
   let token = null;
-  try { token = await idToken(); } catch {}
+  try { 
+    token = await idToken(); 
+  } catch (e) {
+    // [수정] 숨겨진 에러를 콘솔에 출력하도록 변경
+    console.error('Failed to get ID token:', e);
+  }
 
   const headers = { ...(extraHeaders||{}) };
   if (body) headers['Content-Type'] = 'application/json';
