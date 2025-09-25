@@ -1,7 +1,6 @@
 // public/js/tabs/create-character.js
 import { api, storage, auth } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
-import { sessionKeyManager } from '../session-key-manager.js';
 
 const rootSel = '[data-view="create-character"]';
 let worldsCache = [];
@@ -126,7 +125,6 @@ export function mount() {
         if (!characterName) return alert('캐릭터 이름을 입력해주세요.');
 
         try {
-            const password = await sessionKeyManager.getPassword();
             await withBlocker(async () => {
                 const imageFile = root.querySelector('#cc-char-image').files[0];
                 let imageUrl = '';
@@ -146,15 +144,13 @@ export function mount() {
                     imageUrl: imageUrl
                 };
                 
-                const res = await api.generateCharacter(payload, password);
+                const res = await api.generateCharacter(payload);
 
                 alert(`캐릭터 생성 성공! (ID: ${res.data.id})`);
                 ui.navTo(`character/${res.data.id}`);
             });
         } catch (e) {
-            if (!e.message.includes('사용자가')) {
-                alert(`생성 실패: ${e.message}`);
-            }
+            alert(`생성 실패: ${e.message}`);
         }
     };
 
