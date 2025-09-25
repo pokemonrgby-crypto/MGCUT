@@ -1,0 +1,140 @@
+/* public/css/components.css */
+
+/* --- 아이템 카드 --- */
+.item-card {
+  position: relative;
+  border-radius: 12px;
+  background: #141922;
+  border: 1px solid rgba(170, 183, 255, 0.15);
+  padding: 12px;
+  overflow: hidden;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.item-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.item-card-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+}
+
+.item-card-grade {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background-color: var(--grade-bg, #333);
+  color: var(--grade-text, #fff);
+  flex-shrink: 0;
+}
+
+.item-card-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #cdd5e5;
+  flex-grow: 1;
+}
+
+.item-card-footer {
+  margin-top: auto;
+  padding-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+
+/* --- 등급별 스타일 --- */
+.item-card.grade-common { --grade-bg: #5a647e; --grade-text: #fff; }
+.item-card.grade-uncommon { --grade-bg: #4a8a5d; --grade-text: #fff; }
+.item-card.grade-rare {
+  --grade-bg: #4a7fd2; --grade-text: #fff;
+  background: radial-gradient(circle, #1a233a, #141922);
+}
+.item-card.grade-epic {
+  --grade-bg: #8e4ed2; --grade-text: #fff;
+  background: radial-gradient(circle, #2a1a3a, #141922);
+}
+.item-card.grade-legendary {
+  --grade-bg: #d28e4a; --grade-text: #fff;
+  background: radial-gradient(circle, #3a2a1a, #141922);
+}
+.item-card.grade-mythic {
+  --grade-bg: #d24a4a; --grade-text: #fff;
+  background: radial-gradient(circle, #3a1a1a, #141922);
+}
+.item-card.grade-exotic {
+  --grade-bg: #d24ac0; --grade-text: #fff;
+  background: radial-gradient(circle, #3a1a34, #141922);
+}
+
+/* --- 등급별 특수 효과 --- */
+.item-card.grade-rare::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(45deg, rgba(74, 127, 210, 0), rgba(74, 127, 210, 0.1), rgba(74, 127, 210, 0));
+  animation: rare-shine 8s linear infinite;
+  pointer-events: none;
+}
+@keyframes rare-shine {
+  0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+  100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+}
+
+.item-card.grade-epic::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 200%; height: 200%;
+  background: radial-gradient(circle, rgba(142, 78, 210, 0.15) 0%, transparent 40%);
+  animation: epic-pulse 5s ease-in-out infinite;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+@keyframes epic-pulse {
+  0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.item-card.grade-legendary, .item-card.grade-mythic, .item-card.grade-exotic {
+  animation: border-glow 4s ease-in-out infinite;
+}
+@keyframes border-glow {
+  0%, 100% { border-color: rgba(170, 183, 255, 0.15); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  50% { border-color: var(--grade-bg); box-shadow: 0 0 20px -5px var(--grade-bg); }
+}
+
+.item-card.grade-mythic::after, .item-card.grade-exotic::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: conic-gradient(from var(--angle), transparent, var(--grade-bg), transparent);
+  border-radius: 12px;
+  animation: mythic-spin 5s linear infinite;
+  --angle: 0deg;
+  pointer-events: none;
+  opacity: 0.3;
+}
+@keyframes mythic-spin {
+  to { --angle: 360deg; }
+}
+
+.item-card.grade-exotic {
+  animation: border-glow 3s ease-in-out infinite, exotic-bg-shift 10s linear infinite;
+  background-size: 200% 200%;
+}
+@keyframes exotic-bg-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
