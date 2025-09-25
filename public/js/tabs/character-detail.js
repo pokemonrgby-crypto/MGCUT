@@ -2,7 +2,7 @@
 import { api, auth, storage } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
 import * as NarrativeTab from './character-narrative.js';
-import * as BattleLogTab from './character-battlelog.js';
+import * as TimelineTab from './character-timeline.js'; // [수정] BattleLogTab -> TimelineTab
 
 const ROOT = '[data-view="character-detail"]';
 
@@ -86,8 +86,7 @@ export async function mount(characterId){
         <button data-tab="narrative">서사</button>
         <button data-tab="skills">스킬</button>
         <button data-tab="items">아이템</button>
-        <button data-tab="battle-log">배틀 로그</button>
-        ${isOwner ? '<button data-tab="admin">관리</button>' : ''}
+        <button data-tab="timeline">타임라인</button> ${isOwner ? '<button data-tab="admin">관리</button>' : ''}
       </div>
 
       <div class="tab-panels">
@@ -95,15 +94,14 @@ export async function mount(characterId){
         <div class="panel narrative"></div>
         <div class="panel skills"><div class="skills-head"><span class="count">0/3</span><div style="flex:1"></div><button class="btn small" id="btn-save-skills">저장</button></div><div class="skills-list vlist">${ Array.isArray(c.abilities) && c.abilities.length ? c.abilities.map(skillChip).join('') : `<div class="small" style="opacity:.8">등록된 스킬이 없어요.</div>` }</div></div>
         <div class="panel items"><div class="small" style="opacity:.9;margin:6px 0 8px">장착 슬롯 (3칸)</div><div class="slots">${[0,1,2].map(i=>slotBox('', i)).join('')}</div><div style="display:flex;gap:8px;margin:10px 0 12px"><button class="btn small" id="btn-clear-slots">슬롯 비우기</button><button class="btn small" id="btn-save-items">저장</button></div><div class="small" style="opacity:.9;margin:10px 0 6px">인벤토리</div><div class="inventory grid3">${ Array.isArray(c.items) && c.items.length ? c.items.map(itemChip).join('') : `<div class="small" style="opacity:.8">아이템이 없어요.</div>` }</div></div>
-        <div class="panel battle-log"></div>
-        ${isOwner ? '<div class="panel admin"></div>' : ''}
+        <div class="panel timeline"></div> ${isOwner ? '<div class="panel admin"></div>' : ''}
       </div>
       <button class="fab-battle" hidden aria-label="배틀 시작">⚔</button>
     `;
 
     // 각 탭 컨텐츠 렌더링
     NarrativeTab.render(root.querySelector('.panel.narrative'), c);
-    BattleLogTab.render(root.querySelector('.panel.battle-log'), c.id);
+    TimelineTab.render(root.querySelector('.panel.timeline'), c); // [수정]
 
     const tabs = Array.from(root.querySelectorAll('.tabs-char button[data-tab]'));
     const panelContainer = root.querySelector('.tab-panels');
@@ -154,6 +152,7 @@ export async function mount(characterId){
       };
     }
 
+    // ... (이하 스킬, 아이템 관련 로직은 기존과 동일)
     const skillEls = Array.from(root.querySelectorAll('.skills-list .skill'));
     const countEl = root.querySelector('.skills-head .count');
     const savedSkills = new Set(c.chosen || []);
@@ -238,6 +237,7 @@ export async function mount(characterId){
     } else {
       fab.hidden = true;
     }
+
 
   } catch(e) {
     console.error(e);
