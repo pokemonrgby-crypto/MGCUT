@@ -137,6 +137,7 @@ export function mountCharacters(app) {
       }
 
       // === 교체 시작 ===
+const // === 교체 시작 ===
 const enrichedLogs = uniqueLogs.map(log => {
   const me = charDataMap.get(log.meId);
   const op = charDataMap.get(log.opId);
@@ -161,6 +162,7 @@ const enrichedLogs = uniqueLogs.map(log => {
   };
 });
 // === 교체 끝 ===
+
 
       
       res.json({ ok: true, data: enrichedLogs.slice(0, 50) });
