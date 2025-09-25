@@ -1,3 +1,4 @@
+// (수정된 결과)
 // public/js/tabs/adventure.js
 import { api, auth } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
@@ -373,7 +374,7 @@ export function mount() {
             const nextNodeKey = choiceBtn.dataset.nextNode;
             const choiceText = choiceBtn.textContent.trim();
             await withBlocker(async () => {
-                await sleep(5000);
+                await sleep(5000); // 의도된 딜레이
                 const res = await api.proceedAdventure(currentAdventure.id, { nextNodeKey, choiceText });
                 
                 const { newNode, newCharacterState, newItem } = res.data;
@@ -395,19 +396,24 @@ export function mount() {
         
         const continueBtn = target.closest('.continue-btn');
         if (continueBtn) {
-             await withBlocker(async () => {
+             // [수정] withBlocker 밖에서 비밀번호를 먼저 받도록 수정
+             try {
                 alert("에피소드가 마무리되었습니다. 다음 모험을 계속 생성합니다.");
                 const password = await sessionKeyManager.getPassword();
-                const continueRes = await api.continueAdventure(currentAdventure.id, { password });
-                
-                currentAdventure.graph = continueRes.data.storyGraph;
-                
-                await renderView('play', {
-                    graph: currentAdventure.graph,
-                    nodeKey: currentAdventure.graph.startNode,
-                    characterState: currentAdventure.characterState, // 스태미나는 유지
+                await withBlocker(async () => {
+                    const continueRes = await api.continueAdventure(currentAdventure.id, { password });
+                    
+                    currentAdventure.graph = continueRes.data.storyGraph;
+                    
+                    await renderView('play', {
+                        graph: currentAdventure.graph,
+                        nodeKey: currentAdventure.graph.startNode,
+                        characterState: currentAdventure.characterState, // 스태미나는 유지
+                    });
                 });
-             });
+             } catch (err) {
+                if (!err.message.includes('사용자가')) alert(`모험 계속하기 실패: ${err.message}`);
+             }
         }
     });
 
