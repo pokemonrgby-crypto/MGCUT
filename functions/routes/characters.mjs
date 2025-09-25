@@ -1,3 +1,4 @@
+// (수정된 결과)
 // functions/routes/characters.mjs
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../lib/firebase.mjs';
@@ -6,8 +7,8 @@ import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { loadCharacterBasePrompt } from '../lib/prompts.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 import { decryptWithPassword } from '../lib/crypto.mjs';
+import { preRollEvent } from '../lib/adventure-events.mjs'; // [추가] 아이템 드롭을 위해 import
 
-// 헬퍼 함수: UID와 비밀번호로 암호화된 API 키를 가져와 복호화합니다.
 async function getDecryptedKey(uid, password) {
     if (!password) throw new Error('PASSWORD_REQUIRED: 비밀번호가 요청에 포함되지 않았습니다.');
     const userDoc = await db.collection('users').doc(uid).get();
@@ -297,6 +298,7 @@ export function mountCharacters(app) {
     }
   });
 
+  // [수정] 전투 시뮬레이션 로직 수정 (아이템 드롭 추가)
   app.post('/api/battle/simulate', async (req, res) => {
     try {
       const user = await getUserFromReq(req);
@@ -304,7 +306,6 @@ export function mountCharacters(app) {
       
       const { battleId, password } = req.body || {};
       if (!battleId) return res.status(400).json({ ok: false, error: 'BATTLE_ID_REQUIRED' });
-      // 비밀번호가 없는 경우, getDecryptedKey 내부에서 처리되므로 여기서 별도 체크하지 않아도 됨
 
       const geminiKey = await getDecryptedKey(user.uid, password);
 
@@ -314,11 +315,13 @@ export function mountCharacters(app) {
       const b = bSnap.data();
       if (b.status === 'finished') return res.status(400).json({ ok: false, error: 'BATTLE_ALREADY_FINISHED' });
       
-      const meSnap = await db.collection('characters').doc(b.meId).get();
+      const meRef = db.collection('characters').doc(b.meId);
+      const opRef = db.collection('characters').doc(b.opId);
+
+      const [meSnap, opSnap] = await Promise.all([meRef.get(), opRef.get()]);
+
       if (!meSnap.exists) return res.status(404).json({ ok: false, error: 'CHARACTER_NOT_FOUND (ME)' });
       if (meSnap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
-      
-      const opSnap = await db.collection('characters').doc(b.opId).get();
       if (!opSnap.exists) return res.status(404).json({ ok: false, error: 'CHARACTER_NOT_FOUND (OPPONENT)' });
 
       const me = meSnap.data(), op = opSnap.data();
@@ -336,22 +339,42 @@ export function mountCharacters(app) {
       const m = /승자:\s*(A|B)/.exec(markdown);
       const winner = m ? m[1] : null;
       
+      let droppedItem = null;
+
       if (winner) {
         const Sa = (winner === 'A') ? 1 : 0;
         const [newA, newB] = updateElo(me.elo ?? 1000, op.elo ?? 1000, Sa);
         const now = FieldValue.serverTimestamp();
-        await Promise.all([
-          db.collection('characters').doc(b.meId).update({ elo: newA, updatedAt: now }),
-          db.collection('characters').doc(b.opId).update({ elo: newB, updatedAt: now }),
+        const updates = [
+          opRef.update({ elo: newB, updatedAt: now }),
           bRef.update({ status: 'finished', winner: winner, log: markdown, eloMeAfter: newA, eloOpAfter: newB, updatedAt: now, })
-        ]);
+        ];
+
+        // [추가] 승리 시 아이템 드롭 처리
+        if (Sa === 1) {
+            const dropEvent = preRollEvent('hard'); // 적 처치는 hard 난이도 기준으로 아이템 드롭
+            if (dropEvent.type === 'FIND_ITEM') {
+                const itemPrompt = `TRPG 게임의 ${world.name} 세계관에 어울리는 "${dropEvent.tier}" 등급 아이템 1개를 {"name": "...", "description": "...", "grade": "${dropEvent.tier}"} JSON 형식으로 생성해줘. 설명이나 코드 펜스 없이 순수 JSON 객체만 출력해줘.`;
+                const { json: newItem } = await callGemini({ key: geminiKey, model: pickModels().primary, user: itemPrompt });
+                if (newItem && newItem.name) {
+                    droppedItem = newItem;
+                    updates.push(meRef.update({ elo: newA, items: FieldValue.arrayUnion(newItem), updatedAt: now }));
+                }
+            }
+        }
+        
+        // 승리 & 아이템 드롭이 없는 경우 or 패배한 경우
+        if (updates.length < 3) {
+            updates.push(meRef.update({ elo: newA, updatedAt: now }));
+        }
+
+        await Promise.all(updates);
       } else {
         await bRef.update({ status: 'finished', winner: null, log: markdown, updatedAt: FieldValue.serverTimestamp() });
       }
 
-      res.json({ ok: true, data: { markdown, winner } });
+      res.json({ ok: true, data: { markdown, winner, droppedItem } });
     } catch (e) { 
-      // 클라이언트에 구체적인 에러 메시지를 전달하여 디버깅을 돕습니다.
       res.status(500).json({ ok: false, error: String(e.message || e) }); 
     }
   });
