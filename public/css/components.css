@@ -152,7 +152,13 @@
   0%, 100% { border-color: rgba(170, 183, 255, 0.15); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
   50% { border-color: var(--grade-bg); box-shadow: 0 0 20px -5px var(--grade-bg); }
 }
-.item-card.grade-legendary, .item-card.grade-mythic, .item-card.grade-exotic {
+/* [추가] Exotic 등급을 위한 흰색 글로우 효과 */
+@keyframes border-glow-white {
+  0%, 100% { border-color: rgba(170, 183, 255, 0.15); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  50% { border-color: #ffffff; box-shadow: 0 0 20px -5px #ffffff; }
+}
+
+.item-card.grade-legendary, .item-card.grade-mythic {
   animation: border-glow 4s ease-in-out infinite;
 }
 
@@ -170,6 +176,11 @@
   pointer-events: none;
   opacity: 0.3;
 }
+/* [추가] Exotic 등급의 회전 테두리를 흰색으로 오버라이드 */
+.item-card.grade-exotic::after {
+  background: conic-gradient(from var(--angle), transparent, #ffffff, transparent);
+}
+
 
 @keyframes aurora-bg {
     0% { background-position: 0% 50%; }
@@ -179,5 +190,6 @@
 .item-card.grade-exotic {
   background: linear-gradient(125deg, #d24ac0, #8e4ed2, #4a8fd2, #5d9d5c, #d28e4a);
   background-size: 400% 400%;
-  animation: border-glow 3s ease-in-out infinite, aurora-bg 15s ease infinite;
+  /* [수정] border-glow-white 애니메이션 적용 */
+  animation: border-glow-white 3s ease-in-out infinite, aurora-bg 15s ease infinite;
 }
