@@ -1,7 +1,6 @@
 // public/js/tabs/world-detail.js
 import { api, auth, storage } from '../api.js';
 import { withBlocker } from '../ui/frame.js';
-import { sessionKeyManager } from '../session-key-manager.js';
 
 const rootSel = '[data-view="world-detail"]';
 
@@ -175,17 +174,14 @@ function bindEvents(container, world) {
         if (!userInput) return alert('요청사항을 입력해주세요.');
 
         try {
-            const password = await sessionKeyManager.getPassword();
             await withBlocker(async () => {
-              const newElementJson = await api.addWorldElement(worldId, type, { userInput, worldContext: world }, password);
+              const newElementJson = await api.addWorldElement(worldId, type, { userInput, worldContext: world });
               alert(`AI가 새로운 ${type} '${newElementJson.data.name}'을(를) 추가했습니다.`);
               input.value = '';
               mount(worldId);
             });
         } catch (err) {
-            if (!err.message.includes('사용자가')) {
-                alert(`추가 실패: ${err.message}`);
-            }
+            alert(`추가 실패: ${err.message}`);
         }
       }
     });
