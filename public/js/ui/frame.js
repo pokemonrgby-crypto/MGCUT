@@ -144,12 +144,15 @@ export function handleCooldown(error, button) {
 }
 
 
+// (기존 내용과 동일)
 export async function withBlocker(task, button = null) {
   ui.busy(true);
   try {
     return await task();
   } catch (e) {
     console.error(e);
+    // [수정 제안] 사용자에게 에러 알림 추가
+    alert(`오류가 발생했습니다: ${e.message}`); 
     if (button) {
         handleCooldown(e, button);
     }
