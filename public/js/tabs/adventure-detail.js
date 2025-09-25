@@ -42,7 +42,7 @@ function adventurePlayTemplate(node, characterState) {
                 <button class="btn choice-btn" data-next-node="${choice.nextNode}">${choice.text}</button>
             `).join('')}
         </div>
-        <div class="adventure-actions">
+        <div class="adventure-actions" style="margin-top: 16px;">
             <button class="btn secondary leave-btn">모험 포기</button>
         </div>
     </div>`;
