@@ -275,7 +275,7 @@ export function mount() {
 
         const backBtn = target.closest('.back-btn');
         if (backBtn) {
-            const targetView = back-btn.dataset.target;
+            const targetView = backBtn.dataset.target; // back-btn -> backBtn으로 수정
             await withBlocker(async () => {
                 if (targetView === 'hub') await renderView('hub');
                 else if (targetView === 'char-select') await renderView('char-select');
