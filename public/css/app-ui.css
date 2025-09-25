@@ -575,3 +575,10 @@ span.err { color: var(--err); }
 .choice-btn:hover {
   background-color: #1a212d;
 }
+
+
+.create-card.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--card);
+}
