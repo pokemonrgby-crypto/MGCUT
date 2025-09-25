@@ -45,16 +45,16 @@ function getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents
     const eventInstructions = preRolledEvents.map((event, index) => {
         switch (event.type) {
             case 'FIND_ITEM':
-                return `${index + 1}. ${event.tier} 등급 아이템을 발견하는 이벤트를 포함하세요. 아이템 노드는 반드시 {"name": "...", "description": "...", "grade": "${event.tier}"} 형식의 'item' 키를 가져야 합니다.`;
+                return `${index + 1}. [아이템 발견] 이벤트: ${event.tier} 등급 아이템을 발견합니다.`;
             case 'ENCOUNTER_ENEMY_EASY':
             case 'ENCOUNTER_ENEMY_NORMAL':
             case 'ENCOUNTER_ENEMY_HARD':
             case 'ENCOUNTER_MINIBOSS':
-                return `${index + 1}. '${event.type.split('_').pop()}' 난이도의 적과 조우하는 전투 이벤트를 포함하세요.`;
+                return `${index + 1}. [전투] 이벤트: '${event.type.split('_').pop()}' 난이도의 적과 조우합니다.`;
             case 'TRIGGER_TRAP':
-                return `${index + 1}. 캐릭터가 스태미나를 잃는 함정 이벤트를 포함하세요.`;
+                return `${index + 1}. [함정] 이벤트: 캐릭터가 스태미나를 잃는 함정을 발동시킵니다.`;
             default:
-                return `${index + 1}. 특별한 사건 없이 탐험이 계속되는 서사 이벤트를 포함하세요.`;
+                return `${index + 1}. [서사] 이벤트: 특별한 사건 없이 탐험이 계속되는 서술형 이벤트를 진행합니다.`;
         }
     }).join('\n');
 
@@ -63,25 +63,33 @@ function getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents
         : '';
 
     return `
-# 역할: 당신은 최고의 TRPG 마스터(GM)입니다.
+# 역할: 당신은 상상력이 풍부하고 생생한 묘사를 즐기는 최고의 TRPG 마스터(GM)입니다.
 # 핵심 정보
-- 세계관: ${context.world.name}
-- 캐릭터: ${context.character.name}
-- 탐험 장소: ${site.name} (${site.difficulty})
+- 세계관: ${context.world.name} (${context.world.summary})
+- 캐릭터: ${context.character.name} (${context.character.summary})
+- 탐험 장소: ${site.name} (난이도: ${site.difficulty})
 - 이전 에피소드 요약: ${previousOutcome}
 ${historyLog}
 
 # 임무
-**이전 선택 기록을 바탕으로**, 아래에 미리 정해진 순서대로, 총 3개의 사건이 포함된 '이야기 지도' JSON을 생성하세요.
+**이전 선택 기록과 상황을 자연스럽게 연결**하여, 아래에 미리 정해진 순서대로, 총 3개의 사건이 포함된 '이야기 지도' JSON을 생성하세요.
 ${eventInstructions}
+
+# 서사 규칙
+1.  **생생한 묘사**: 모든 'situation'은 최소 3문장 이상으로, 시각, 청각, 후각 등 감각적인 묘사를 풍부하게 사용하여 캐릭터가 실제로 그 장소에 있는 것처럼 느끼게 만드세요. (예: '축축한 이끼 냄새가 코를 찌른다.', '멀리서 물방울 떨어지는 소리가 들려온다.')
+2.  **흥미로운 선택지**: 'choices'는 단순한 '간다/안 간다'가 아닌, 캐릭터의 성향이나 능력을 활용할 수 있는 전략적이고 흥미로운 선택지를 2~3개 제공하세요. 각 선택은 뚜렷하게 다른 결과로 이어질 잠재력을 가져야 합니다.
+3.  **다양성**: 매번 비슷한 패턴(예: 계속 동굴만 탐험)이 반복되지 않도록, 지형, 날씨, NPC, 유물 등 다양한 요소를 활용하여 사건을 구성하세요.
 
 # JSON 구조 규칙
 - 반드시 "startNode"와 3개의 노드를 포함하는 "nodes" 객체를 생성해야 합니다.
 - 각 노드는 "type", "situation", "choices"를 포함합니다.
 - 마지막 노드는 "isEndpoint": true, "outcome": "..."을 포함해야 합니다.
-- 전투 노드는 "enemy": {"name": "...", "description": "..."} 객체를 포함해야 합니다.
-- 함정 노드는 "penalty": {"stat": "stamina", "value": -15} 객체를 포함해야 합니다.
-- 아이템 발견 노드는 "item": {"name": "...", "description": "...", "grade": "..."} 객체를 포함해야 합니다.
+- **아이템 발견 노드**: 'item' 키를 가져야 합니다. 아이템 설명은 등급에 따라 아래 규칙을 따릅니다.
+    - **Common/Uncommon**: 아이템의 실용적인 기능과 외형을 간결하게 설명합니다. (예: "잘 벼려진 강철 단검", "상처를 막는 평범한 붕대")
+    - **Rare/Epic**: 아이템에 얽힌 간단한 전설이나 특별한 장식을 덧붙여 설명합니다. (예: "달빛을 받으면 희미하게 빛나는 엘프의 활", "고대 왕국의 문장이 새겨진 방패")
+    - **Legendary/Mythic/Exotic**: 아이템에 고유한 이름과 함께, 그 힘이나 역사에 대한 강력한 암시를 포함하여 서술합니다. (예: "이름: '서리이빨', 설명: 만년설의 심장에서 벼려내어 모든 것을 얼리는 냉기를 품은 단검")
+- **전투 노드**: "enemy": {"name": "...", "description": "..."} 객체를 포함해야 합니다. 적의 외형과 분위기를 생생하게 묘사하세요.
+- **함정 노드**: "penalty": {"stat": "stamina", "value": -15} 객체를 포함해야 합니다. 함정이 어떻게 작동하고 캐릭터가 어떻게 피해를 입는지 묘사하세요.
 - 설명이나 코드 펜스 없이 순수한 JSON 객체만 출력하세요.
 `;
 }
@@ -104,14 +112,14 @@ function validateStoryGraph(graph) {
 
     for (const key in graph.nodes) {
         const node = graph.nodes[key];
-        if (!node || typeof node.situation !== 'string') {
-             console.error(`Validation Error: Node "${key}" is missing 'situation'.`);
+        if (!node || typeof node.situation !== 'string' || node.situation.trim() === '') {
+             console.error(`Validation Error: Node "${key}" is missing or has an empty 'situation'.`);
             return false;
         }
 
         if (node.isEndpoint) {
-            if (typeof node.outcome !== 'string') {
-                console.error(`Validation Error: Endpoint node "${key}" is missing 'outcome'.`);
+            if (typeof node.outcome !== 'string' || node.outcome.trim() === '') {
+                console.error(`Validation Error: Endpoint node "${key}" is missing or has an empty 'outcome'.`);
                 return false;
             }
         } else {
@@ -120,8 +128,8 @@ function validateStoryGraph(graph) {
                 return false;
             }
             for (const choice of node.choices) {
-                if (!choice.nextNode || !graph.nodes[choice.nextNode]) {
-                    console.error(`Validation Error: Node "${key}" has a choice pointing to a non-existent nextNode "${choice.nextNode}".`);
+                if (!choice.text || !choice.nextNode || !graph.nodes[choice.nextNode]) {
+                    console.error(`Validation Error: Node "${key}" has an invalid choice pointing to "${choice.nextNode}".`);
                     return false;
                 }
             }
@@ -242,7 +250,6 @@ export function mountAdventures(app) {
             res.status(500).json({ ok: false, error: e.message });
         }
     });
-
 
     app.get('/api/adventures/:id', async (req, res) => {
         try {
