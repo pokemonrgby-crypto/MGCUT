@@ -496,3 +496,78 @@ span.err { color: var(--err); }
 .btn-danger {
     background: linear-gradient(135deg, #ff6b6b, #d93d3d);
 }
+
+
+/* ... 기존 CSS ... */
+
+/* --- [추가] 모험 탭 UI 스타일 --- */
+.character-select-card {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  gap: 16px;
+  cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+.character-select-card:hover {
+  transform: translateY(-2px);
+  background-color: var(--card-hover, #1a212d);
+}
+.character-select-card .bg {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background-size: cover;
+  background-position: center;
+}
+.character-select-card .info .name {
+  font-weight: 700;
+  font-size: 16px;
+}
+.character-select-card .info .world {
+  opacity: 0.8;
+  margin-top: 4px;
+}
+.site-card .difficulty {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0,0,0,.5);
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    backdrop-filter: blur(2px);
+}
+
+/* 모험 진행 UI */
+.adventure-view {
+  padding: 0 16px;
+  animation: cardFadeIn 0.5s ease forwards;
+}
+.situation-card {
+  background: rgba(20, 25, 35, 0.7);
+  border: 1px solid rgba(170, 183, 255, 0.15);
+  padding: 18px;
+  border-radius: var(--radius);
+  line-height: 1.7;
+  margin-bottom: 16px;
+  color: #e8eefc;
+  min-height: 150px;
+}
+.choices-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.choice-btn {
+  width: 100%;
+  background: var(--card);
+  justify-content: flex-start;
+  text-align: left;
+  transition: background-color 0.2s ease;
+  padding: 14px 16px;
+}
+.choice-btn:hover {
+  background-color: #1a212d;
+}
