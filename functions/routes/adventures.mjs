@@ -44,7 +44,6 @@ async function buildAdventureContext(db, characterId, worldIdOverride = null) {
     };
 }
 
-// [수정] 프롬프트에 사용자의 '선택 이력'을 추가
 function getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents, history = []) {
     const eventInstructions = preRolledEvents.map((event, index) => {
         switch (event.type) {
@@ -90,7 +89,8 @@ ${eventInstructions}
 `;
 }
 
-async function generateAndUpdateStoryGraph(adventureRef, geminiKey, context, site, previousOutcome, history) {
+// [수정] 함수 이름을 변경하고, adventureRef.update 로직을 제거하여 순수하게 그래프만 생성하도록 수정
+async function generateStoryGraph(geminiKey, context, site, previousOutcome, history) {
     const preRolledEvents = [preRollEvent(site.difficulty), preRollEvent(site.difficulty), preRollEvent(site.difficulty)];
     
     const prompt = getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents, history);
@@ -99,13 +99,7 @@ async function generateAndUpdateStoryGraph(adventureRef, geminiKey, context, sit
     if (!storyGraph || !storyGraph.startNode || !storyGraph.nodes) {
         throw new Error('AI_INVALID_STORY_GRAPH');
     }
-
-    await adventureRef.update({
-        storyGraph,
-        currentNodeKey: storyGraph.startNode,
-        updatedAt: FieldValue.serverTimestamp(),
-    });
-
+    
     return storyGraph;
 }
 
@@ -134,16 +128,18 @@ export function mountAdventures(app) {
             existingAdventures.forEach(doc => batch.delete(doc.ref));
             await batch.commit();
             
+            // [수정] 먼저 AI로 이야기 지도를 생성
+            const initialGraph = await generateStoryGraph(geminiKey, context, site, "탐험을 시작합니다.", []);
+
             const now = FieldValue.serverTimestamp();
             const adventureRef = db.collection('adventures').doc();
             
-            // [수정] 초기 생성 시에는 history가 비어있음
-            const initialGraph = await generateAndUpdateStoryGraph(adventureRef, geminiKey, context, site, "탐험을 시작합니다.", []);
-
+            // [수정] 생성된 지도를 포함하여 'set'으로 새 문서를 생성
             await adventureRef.set({
                 ownerUid: user.uid, characterId, worldId, siteName, site,
-                status: 'ongoing', createdAt: now,
-                characterState: context.character, history: [], // history 필드 초기화
+                status: 'ongoing', createdAt: now, updatedAt: now,
+                characterState: context.character, 
+                history: [], 
                 storyGraph: initialGraph,
                 currentNodeKey: initialGraph.startNode
             });
@@ -181,8 +177,15 @@ export function mountAdventures(app) {
             const geminiKey = await getDecryptedKey(user.uid, password);
             const context = { character: adventure.characterState, world: { id: adventure.worldId, name: adventure.site.worldName } };
             
-            // [수정] 다음 그래프 생성 시 현재 history를 전달
-            const newGraph = await generateAndUpdateStoryGraph(adventureRef, geminiKey, context, adventure.site, lastNode.outcome, adventure.history);
+            // [수정] 새로운 그래프를 생성
+            const newGraph = await generateStoryGraph(geminiKey, context, adventure.site, lastNode.outcome, adventure.history);
+            
+            // [수정] 생성된 그래프로 문서를 업데이트
+            await adventureRef.update({
+                storyGraph: newGraph,
+                currentNodeKey: newGraph.startNode,
+                updatedAt: FieldValue.serverTimestamp(),
+            });
 
             res.json({ ok: true, data: { storyGraph: newGraph } });
 
@@ -209,14 +212,13 @@ export function mountAdventures(app) {
         }
     });
     
-    // [수정] proceed API에서 history 업데이트 로직 추가
     app.post('/api/adventures/:id/proceed', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
             if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
             await checkAndUpdateCooldown(db, user.uid, 'proceedAdventure', 5);
 
-            const { nextNodeKey, choiceText } = req.body; // choiceText 추가
+            const { nextNodeKey, choiceText } = req.body;
             const adventureId = req.params.id;
             const ref = db.collection('adventures').doc(adventureId);
             const snap = await ref.get();
@@ -242,7 +244,7 @@ export function mountAdventures(app) {
             await ref.update({
                 currentNodeKey: nextNodeKey,
                 characterState: newCharacterState,
-                history: FieldValue.arrayUnion(choiceText), // [추가] 선택지 텍스트를 history에 추가
+                history: FieldValue.arrayUnion(choiceText),
                 updatedAt: FieldValue.serverTimestamp(),
             });
 
