@@ -104,10 +104,10 @@ async function renderBattleLogs(container, characterId) {
 
         // 3. 렌더링 또는 빈 화면 표시
         if (battleLogsCache.length > 0) {
-            // [추가] 렌더링 과정에서 발생하는 오류를 잡기 위한 try-catch
             try {
                 const cardsHtml = battleLogsCache.map(log => battleLogCard(log, characterId)).join('');
-                container.innerHTML = '<div class="list">' + cardsHtml + '</div>';
+                // [수정] 애니메이션이 적용되도록 'v-list' 클래스를 추가합니다.
+                container.innerHTML = '<div class="list v-list">' + cardsHtml + '</div>';
             } catch (renderError) {
                 console.error('Timeline battle log rendering failed:', renderError);
                 container.innerHTML = `<div class="card pad err">전투 기록을 화면에 표시하는 중 오류가 발생했습니다: ${renderError.message}</div>`;
@@ -120,6 +120,8 @@ async function renderBattleLogs(container, characterId) {
         container.innerHTML = `<div class="card pad err">전투 기록을 불러오는 데 실패했습니다: ${e.message}</div>`;
     }
 }
+
+async function renderAdventureLogs(container, characterId) {
 
 async function renderAdventureLogs(container, characterId) {
     container.innerHTML = `<div class="spinner"></div>`;
