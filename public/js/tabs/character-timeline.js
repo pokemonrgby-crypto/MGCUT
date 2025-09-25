@@ -42,6 +42,7 @@ function battleLogCard(log, currentCharId) {
     const myEloBefore = isMeA ? log.eloMe : log.eloOp;
     
     const eloChange = (myEloAfter ?? myEloBefore) - myEloBefore;
+
     const eloChangeStr = eloChange >= 0 ? `+${eloChange}` : `${eloChange}`;
     
     let result = '무승부';
