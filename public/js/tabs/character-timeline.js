@@ -4,21 +4,19 @@ import { ui } from '../ui/frame.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
+// [수정] battle.js와 동일한 상세 파서 사용
 function parseRichText(text) {
   if (!text) return '';
-  return text.replace(/<대사>/g, '<div class="dialogue">')
-    .replace(/<\/대사>/g, '</div>')
-    .replace(/<서술>/g, '<div class="narrative">')
-    .replace(/<\/서술>/g, '</div>')
-    .replace(/<강조>/g, '<strong class="emphasis">')
-    .replace(/<\/강조>/g, '</strong>')
-    .replace(/<생각>/g, '<div class="thought">')
-    .replace(/<\/생각>/g, '</div>')
-    .replace(/<시스템>/g, '<div class="system">')
-    .replace(/<\/시스템>/g, '</div>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/\n/g, '<br>');
+  let t = esc(text);
+  t = t.replace(/&lt;서술&gt;([\s\S]*?)&lt;\/서술&gt;/g, '<div class="narrative">$1</div>');
+  t = t.replace(/&lt;대사&gt;([\s\S]*?)&lt;\/대사&gt;/g, '<div class="dialogue">$1</div>');
+  t = t.replace(/&lt;생각&gt;([\s\S]*?)&lt;\/생각&gt;/g, '<div class="thought">$1</div>');
+  t = t.replace(/&lt;강조&gt;([\s\S]*?)&lt;\/강조&gt;/g, '<strong class="emphasis">$1</strong>');
+  t = t.replace(/&lt;시스템&gt;([\s\S]*?)&lt;\/시스템&gt;/g, '<div class="system">$1</div>');
+  t = t.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  t = t.replace(/\n/g, '<br>');
+  return t;
 }
 
 function formatDate(date) {
@@ -35,10 +33,11 @@ function formatDate(date) {
 function battleLogCard(log, currentCharId) {
     const isMeA = log.meId === currentCharId;
     const opponentName = isMeA ? log.opName : log.meName;
-    const myEloAfter = isMeA ? log.eloMeAfter : log.eloOpAfter;
+    const myEloAfter = isMeA ? log.eloMeAfter : log.opAfter;
     const myEloBefore = isMeA ? log.eloMe : log.eloOp;
     
-    const eloChange = myEloAfter - myEloBefore;
+    // [수정] myEloAfter가 없을 경우(무승부 등) myEloBefore 값으로 대체
+    const eloChange = (myEloAfter ?? myEloBefore) - myEloBefore;
     const eloChangeStr = eloChange >= 0 ? `+${eloChange}` : `${eloChange}`;
     
     let result = '무승부';
@@ -60,7 +59,7 @@ function battleLogCard(log, currentCharId) {
             <div class="opponent-name">vs ${esc(opponentName)}</div>
             <div class="result-line">
                 <span class="${resultClass}">${result}</span>
-                (Elo ${myEloAfter} <span class="small ${resultClass}">(${eloChangeStr})</span>)
+                (Elo ${myEloAfter ?? myEloBefore} <span class="small ${resultClass}">(${eloChangeStr})</span>)
             </div>
             <div class="date">${formatDate(date)}</div>
         </div>
@@ -83,13 +82,15 @@ function adventureLogCard(log) {
 
 
 // --- 데이터 로딩 및 렌더링 ---
+let battleLogsCache = []; // [추가] 전투 기록을 캐시할 변수
 
 async function renderBattleLogs(container, characterId) {
     container.innerHTML = `<div class="spinner"></div>`;
     try {
         const res = await api.getCharacterBattleLogs(characterId);
-        if (res.ok && res.data.length > 0) {
-            container.innerHTML = '<div class="list">' + res.data.map(log => battleLogCard(log, characterId)).join('') + '</div>';
+        battleLogsCache = res.data || []; // [추가] 결과를 캐시에 저장
+        if (res.ok && battleLogsCache.length > 0) {
+            container.innerHTML = '<div class="list">' + battleLogsCache.map(log => battleLogCard(log, characterId)).join('') + '</div>';
         } else {
             container.innerHTML = '<div class="card pad small">아직 전투 기록이 없습니다.</div>';
         }
@@ -129,10 +130,8 @@ export function render(container, characterData) {
     const battlePanel = container.querySelector('.panel.battle');
     const adventurePanel = container.querySelector('.panel.adventure');
 
-    // 초기 탭 로드
     renderBattleLogs(battlePanel, characterId);
 
-    // 서브탭 이벤트 바인딩
     container.querySelector('.tabs-char').addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-subtab]');
         if (!btn) return;
@@ -144,14 +143,12 @@ export function render(container, characterData) {
         const targetPanel = container.querySelector(`.panel.${btn.dataset.subtab}`);
         targetPanel.style.display = '';
 
-        // 아직 로드되지 않은 탭이라면 데이터 로드
         if (btn.dataset.subtab === 'adventure' && !targetPanel.dataset.loaded) {
             renderAdventureLogs(targetPanel, characterId);
             targetPanel.dataset.loaded = '1';
         }
     });
 
-    // 배틀 로그 클릭 시 모달
     container.addEventListener('click', async (e) => {
         const card = e.target.closest('.battle-log-char-card');
         if (!card) return;
@@ -159,8 +156,8 @@ export function render(container, characterData) {
         const logId = card.dataset.logId;
         
         try {
-            const res = await api.getCharacterBattleLogs(characterId);
-            const log = res.data.find(l => l.id === logId);
+            // [수정] API 재호출 대신 캐시 사용
+            const log = battleLogsCache.find(l => l.id === logId);
             if (!log) return alert('로그 정보를 찾을 수 없습니다.');
             
             const [meRes, opRes] = await Promise.all([
@@ -190,7 +187,7 @@ export function render(container, characterData) {
                     <div class="grad"></div>
                     <div class="title shadow-title" style="bottom: 30px; font-size:16px;">${esc(name)}</div>
                     <div class="char-info" style="bottom: 8px; right: 8px;">
-                        ${resultText} (Elo: ${elo})
+                        ${resultText} (Elo: ${elo ?? (c.elo || 1000)})
                     </div>
                 </div>`;
             };
@@ -205,7 +202,7 @@ export function render(container, characterData) {
                 <button class="modal-close" aria-label="닫기">×</button>
                 <div class="modal-body">
                     <h3>전투 기록</h3>
-                    <div class="compare-row" style="margin: 12px 0 20px;">
+                    <div class="compare-row" style="margin: 12px 0 20px; display:flex; gap: 12px;">
                         ${meCard}
                         ${opCard}
                     </div>
@@ -229,7 +226,6 @@ export function render(container, characterData) {
         }
     });
 
-    // 모험 로그 클릭 시 이벤트 바인딩
     container.addEventListener('click', (e) => {
         const card = e.target.closest('.adventure-log-card, .resume-btn');
         if (card && card.dataset.adventureId) {
