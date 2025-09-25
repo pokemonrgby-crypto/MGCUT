@@ -65,29 +65,6 @@ function characterSelectTemplate(characters, purpose = 'explore') {
     `;
 }
 
-function inventoryDetailTemplate(character) {
-    const items = character.items || [];
-    const equipableItems = items.filter(item => (item.type || 'equipable') === 'equipable');
-    const consumableItems = items.filter(item => item.type === 'consumable');
-
-    return `
-    <button class="btn secondary back-btn" data-target="inventory-char-select" style="margin:16px;">‹ 캐릭터 다시 선택</button>
-    <div class="section-h" style="padding-top:0;">${character.name}의 가방</div>
-    
-    <div style="padding: 0 16px;">
-      <div class="small" style="margin-bottom: 8px; font-weight: 700;">장비 아이템</div>
-      <div class="grid3" style="padding: 0 0 16px;">
-        ${equipableItems.length > 0 ? equipableItems.map(item => itemCard(item)).join('') : '<div class="card pad small" style="grid-column: 1 / -1;">장비 아이템이 없습니다.</div>'}
-      </div>
-
-      <div class="small" style="margin-bottom: 8px; font-weight: 700;">소비 아이템</div>
-      <div class="grid3" style="padding: 0 0 16px;">
-        ${consumableItems.length > 0 ? consumableItems.map(item => itemCard(item)).join('') : '<div class="card pad small" style="grid-column: 1 / -1;">소비 아이템이 없습니다.</div>'}
-      </div>
-    </div>
-    `;
-}
-
 // ... (기존 탐험 관련 템플릿 함수들은 동일)
 function worldSelectTemplate(character) {
     return `
@@ -172,14 +149,6 @@ async function renderView(viewName, ...args) {
                 });
                 content = characterSelectTemplate(myCharacters, 'explore');
                 break;
-            case 'inventory-char-select':
-                 content = characterSelectTemplate(myCharacters, 'inventory');
-                break;
-            case 'inventory-detail':
-                const charIdForInv = args[0];
-                const characterForInv = myCharacters.find(c => c.id === charIdForInv) || (await api.getCharacter(charIdForInv)).data;
-                content = inventoryDetailTemplate(characterForInv);
-                break;
             case 'world-type-select':
                 const charId = args[0];
                 selectedCharacter = myCharacters.find(c => c.id === charId);
@@ -260,8 +229,12 @@ export function mount() {
         const hubCard = target.closest('[data-hub-action]');
         if (hubCard && !hubCard.classList.contains('disabled')) {
             const action = hubCard.dataset.hubAction;
-            if (action === 'explore') await withBlocker(() => renderView('explore-char-select'));
-            if (action === 'inventory') await withBlocker(() => renderView('inventory-char-select'));
+            if (action === 'explore') {
+                await withBlocker(() => renderView('explore-char-select'));
+            } else if (action === 'inventory') {
+                // [수정] 인벤토리 탭으로 이동
+                ui.navTo('inventory');
+            }
             return;
         }
 
@@ -271,9 +244,8 @@ export function mount() {
             const charId = charCard.dataset.charId;
             if (purpose === 'explore') {
                  await withBlocker(() => renderView('world-type-select', charId));
-            } else if (purpose === 'inventory') {
-                 await withBlocker(() => renderView('inventory-detail', charId));
             }
+            // [삭제] inventory purpose 관련 로직 제거
             return;
         }
 
