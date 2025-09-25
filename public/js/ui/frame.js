@@ -4,6 +4,9 @@ import * as Home from '../tabs/home.js';
 import * as Create from '../tabs/create.js';
 import * as Info from '../tabs/info.js';
 import * as Adventure from '../tabs/adventure.js';
+// ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
+import * as AdventureDetail from '../tabs/adventure-detail.js';
+// ▲▲▲ [수정] 여기까지 추가 ▲▲▲
 import * as Ranking from '../tabs/ranking.js';
 import * as CreateWorld from '../tabs/create-world.js';
 import * as CreateCharacter from '../tabs/create-character.js';
@@ -12,11 +15,9 @@ import * as CreateSite from '../tabs/create-site.js';
 import * as WorldDetail from '../tabs/world-detail.js';
 import * as EpisodeDetail from '../tabs/episode-detail.js';
 import * as CharacterDetail from '../tabs/character-detail.js';
-
-// ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
 import * as Matching from '../tabs/matching.js';
 import * as Battle from '../tabs/battle.js';
-// ▲▲▲ [수정] 여기까지 추가 ▲▲▲
+
 
 export const ui = {
   blocker: null,
@@ -44,6 +45,9 @@ function handleRouteChange() {
     'home': { view: 'home', mount: Home.mount },
     'create': { view: 'create', mount: Create.mount },
     'adventure': { view: 'adventure', mount: Adventure.mount },
+    // ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
+    'adventure-detail': { parentView: 'adventure', view: 'adventure-detail', mount: () => AdventureDetail.mount(param1) },
+    // ▲▲▲ [수정] 여기까지 추가 ▲▲▲
     'ranking': { view: 'ranking', mount: Ranking.mount },
     'info': { view: 'info', mount: Info.mount },
     'create-world': { parentView: 'create', view: 'create-world' },
@@ -53,7 +57,6 @@ function handleRouteChange() {
     'world': { parentView: 'home', view: 'world-detail', mount: () => WorldDetail.mount(param1) },
     'character': { parentView: 'home', view: 'character-detail', mount: () => CharacterDetail.mount(param1) },
     'episode': { parentView: 'home', view: 'episode-detail', mount: () => EpisodeDetail.mount(param1, decodeURIComponent(param2 || '')) },
-    // [수정] matching과 battle 페이지의 라우팅 정보를 다른 페이지와 동일한 방식으로 통합합니다.
     'matching': { parentView: 'home', view: 'matching', mount: Matching.mount },
     'battle': { parentView: 'home', view: 'battle', mount: Battle.mount },
   };
@@ -76,6 +79,7 @@ function handleRouteChange() {
   }
 }
 
+// (기존 나머지 코드와 동일)
 window.addEventListener('hashchange', handleRouteChange);
 window.addEventListener('DOMContentLoaded', () => {
   CreateWorld.mount();
