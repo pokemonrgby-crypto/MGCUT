@@ -2,7 +2,7 @@
 import { api, auth, storage } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
 import * as NarrativeTab from './character-narrative.js';
-import * as TimelineTab from './character-timeline.js'; // [수정] BattleLogTab -> TimelineTab
+import * as TimelineTab from './character-timeline.js';
 
 const ROOT = '[data-view="character-detail"]';
 
@@ -101,7 +101,7 @@ export async function mount(characterId){
 
     // 각 탭 컨텐츠 렌더링
     NarrativeTab.render(root.querySelector('.panel.narrative'), c);
-    TimelineTab.render(root.querySelector('.panel.timeline'), c); // [수정]
+    TimelineTab.render(root.querySelector('.panel.timeline'), c);
 
     const tabs = Array.from(root.querySelectorAll('.tabs-char button[data-tab]'));
     const panelContainer = root.querySelector('.tab-panels');
