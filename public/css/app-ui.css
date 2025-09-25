@@ -545,28 +545,32 @@ span.err { color: var(--err); }
   padding: 0 16px;
   animation: cardFadeIn 0.5s ease forwards;
 }
+/* public/css/app-ui.css */
+
 .situation-card {
-  background: rgba(20, 25, 35, 0.7);
-  border: 1px solid rgba(170, 183, 255, 0.15);
-  padding: 18px;
-  border-radius: var(--radius);
-  line-height: 1.7;
-  margin-bottom: 16px;
-  color: #e8eefc;
-  min-height: 150px;
+  background: rgba(20, 25, 35, 0.7);
+  border: 1px solid rgba(170, 183, 255, 0.15);
+  padding: 18px;
+  border-radius: var(--radius);
+  line-height: 1.7;
+  margin-bottom: 16px;
+  min-height: 150px;
 }
 .choices-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
+/* public/css/app-ui.css */
+
 .choice-btn {
-  width: 100%;
-  background: var(--card);
-  justify-content: flex-start;
-  text-align: left;
-  transition: background-color 0.2s ease;
-  padding: 14px 16px;
+  width: 100%;
+  background: var(--card);
+  justify-content: flex-start;
+  align-items: center; /* [추가] 텍스트를 세로 중앙에 정렬합니다. */
+  text-align: left;
+  transition: background-color 0.2s ease;
+  padding: 14px 16px;
 }
 .choice-btn:hover {
   background-color: #1a212d;
