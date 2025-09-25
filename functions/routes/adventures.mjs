@@ -6,6 +6,7 @@ import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 import { getApiKeySecret } from '../lib/secret-manager.mjs';
 import { preRollEvent } from '../lib/adventure-events.mjs';
+import { randomUUID } from 'crypto';
 
 // 헬퍼 함수: UID로 API 키를 가져옵니다.
 async function getApiKeyForUser(uid) {
@@ -84,7 +85,7 @@ ${eventInstructions}
 - 반드시 "startNode"와 3개의 노드를 포함하는 "nodes" 객체를 생성해야 합니다.
 - 각 노드는 "type", "situation", "choices"를 포함합니다.
 - 마지막 노드는 "isEndpoint": true, "outcome": "..."을 포함해야 합니다.
-- **아이템 발견 노드**: 'item' 키를 가져야 합니다. 아이템 설명은 등급에 따라 아래 규칙을 따릅니다.
+- **아이템 발견 노드**: 'item' 키를 가져야 합니다. 아이템 객체는 {"id": "임시ID", "name": "...", "description": "...", "grade": "...", "type": "equipable"} 형식을 따라야 합니다. (20% 확률로 type을 "consumable"로 설정)
     - **Common/Uncommon**: 아이템의 실용적인 기능과 외형을 간결하게 설명합니다. (예: "잘 벼려진 강철 단검", "상처를 막는 평범한 붕대")
     - **Rare/Epic**: 아이템에 얽힌 간단한 전설이나 특별한 장식을 덧붙여 설명합니다. (예: "달빛을 받으면 희미하게 빛나는 엘프의 활", "고대 왕국의 문장이 새겨진 방패")
     - **Legendary/Mythic/Exotic**: 아이템에 고유한 이름과 함께, 그 힘이나 역사에 대한 강력한 암시를 포함하여 서술합니다. (예: "이름: '서리이빨', 설명: 만년설의 심장에서 벼려내어 모든 것을 얼리는 냉기를 품은 단검")
@@ -316,7 +317,8 @@ export function mountAdventures(app) {
                 newCharacterState.stamina = Math.max(0, newCharacterState.stamina + (newNode.penalty.value || 0));
             }
             if (newNode.type === 'item' && newNode.item) {
-                newItem = newNode.item;
+                // [수정] 아이템에 고유 ID 부여
+                newItem = { ...newNode.item, id: randomUUID() };
                 await db.collection('characters').doc(adventure.characterId).update({
                     items: FieldValue.arrayUnion(newItem)
                 });
