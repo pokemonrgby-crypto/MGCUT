@@ -24,7 +24,7 @@ function parseRichText(text) {
 }
 
 function skillChip(sk){
-  const id = sk?.id || sk?.name || '';
+  const id = sk?.id || '';
   const name = sk?.name || '(이름없음)';
   const desc = sk?.desc || sk?.description || '';
   return `<button class="skill" data-skill-id="${esc(id)}" title="${esc(desc)}">
@@ -34,17 +34,19 @@ function skillChip(sk){
 }
 
 function itemChip(it){
+  const id = it?.id || '';
   const raw = String(it?.rarity || it?.grade || 'N').toUpperCase();
   const map = { COMMON:'N', NORMAL:'N', RARE:'R', EPIC:'SR', LEGENDARY:'UR', SSR:'SSR', UR:'UR' };
   const r = map[raw] || raw;
-  return `<div class="item" data-item-name="${esc(it?.name||'')}">
+  return `<div class="item" data-item-id="${esc(id)}" data-item-name="${esc(it?.name||'')}">
     <div style="font-weight:700">${esc(it?.name||'(아이템)')}</div>
     <div class="small" style="opacity:.85;margin-top:3px">등급: ${r}</div>
   </div>`;
 }
 
-function slotBox(content='', idx=0){
-  return `<div class="slot" data-slot="${idx}">${content || '<span class="small" style="opacity:.7">빈 슬롯</span>'}</div>`;
+function slotBox(content='', idx=0, itemId=''){
+  const idAttr = itemId ? `data-item-id="${esc(itemId)}"` : '';
+  return `<div class="slot" data-slot="${idx}" ${idAttr}>${content || '<span class="small" style="opacity:.7">빈 슬롯</span>'}</div>`;
 }
 
 function renderAdminPanel(container) {
@@ -152,7 +154,7 @@ export async function mount(characterId){
       };
     }
 
-    // ... (이하 스킬, 아이템 관련 로직은 기존과 동일)
+    // --- 스킬 로직 (ID 기반) ---
     const skillEls = Array.from(root.querySelectorAll('.skills-list .skill'));
     const countEl = root.querySelector('.skills-head .count');
     const savedSkills = new Set(c.chosen || []);
@@ -162,15 +164,14 @@ export async function mount(characterId){
 
     function syncSkillSelection(){
         skillEls.forEach(el => {
-            const skillIdentifier = el.dataset.skillId;
-            const isSelected = Array.from(selected).some(s => s === skillIdentifier || (typeof s === 'number' && c.abilities[s]?.name === skillIdentifier));
-            el.classList.toggle('selected', isSelected);
+            const skillId = el.dataset.skillId;
+            el.classList.toggle('selected', selected.has(skillId));
         });
         syncSkillCount();
     }
 
     function toggleSkill(el){
-      const id = el.getAttribute('data-skill-id');
+      const id = el.dataset.skillId;
       if (selected.has(id)) {
         selected.delete(id);
       } else {
@@ -188,45 +189,65 @@ export async function mount(characterId){
     root.querySelector('#btn-save-skills')?.addEventListener('click', async ()=>{
       const arr = Array.from(selected);
       try{
-        await api.updateAbilitiesEquipped(c.id, arr);
+        await withBlocker(() => api.updateAbilitiesEquipped(c.id, arr));
         alert('스킬이 저장되었어!');
       }catch(e){ alert('저장 실패: ' + (e.message||e)); }
     });
 
+    // --- 아이템 로직 (ID 기반) ---
     const slots = Array.from(root.querySelectorAll('.slots .slot'));
     const invItems = Array.from(root.querySelectorAll('.inventory .item'));
-    function putIntoFirstEmpty(itemHtml, itemName){
-      const empty = slots.find(s=>!s.dataset.itemName);
-      if (empty) {
-        empty.innerHTML = itemHtml;
-        empty.dataset.itemName = itemName;
+    const allItemsMap = new Map((c.items || []).map(item => [item.id, item]));
+
+    function renderItemInSlot(slotEl, itemId) {
+        const item = allItemsMap.get(itemId);
+        if (item) {
+            slotEl.innerHTML = `<div class="item in-slot" data-item-id="${esc(item.id)}">${itemChip(item)}</div>`;
+            slotEl.dataset.itemId = item.id;
+        } else {
+            slotEl.innerHTML = '<span class="small" style="opacity:.7">빈 슬롯</span>';
+            delete slotEl.dataset.itemId;
+        }
+    }
+    
+    // 초기에 장착된 아이템 렌더링
+    const equippedIds = c.equipped || [];
+    slots.forEach((slot, i) => {
+        if (equippedIds[i]) {
+            renderItemInSlot(slot, equippedIds[i]);
+        }
+    });
+
+    function putIntoFirstEmpty(itemEl){
+      const emptySlot = slots.find(s => !s.dataset.itemId);
+      if (emptySlot) {
+        const itemId = itemEl.dataset.itemId;
+        renderItemInSlot(emptySlot, itemId);
       }
     }
-    invItems.forEach(el=>{
-      el.onclick = ()=>{
-        const itemName = el.dataset.itemName || el.getAttribute('data-item-name') || '';
-        putIntoFirstEmpty(`<div class="item in-slot" data-item-name="${esc(itemName)}">${el.innerHTML}</div>`, itemName);
+    
+    invItems.forEach(el => {
+      el.onclick = () => putIntoFirstEmpty(el);
+    });
+
+    slots.forEach(s => {
+      s.onclick = () => {
+        renderItemInSlot(s, null); // 슬롯 비우기
       };
     });
-    slots.forEach(s=>{
-      s.onclick = ()=>{
-        s.innerHTML = '<span class="small" style="opacity:.7">빈 슬롯</span>';
-        delete s.dataset.itemName;
-      };
-    });
+
     root.querySelector('#btn-clear-slots')?.addEventListener('click', ()=>{
-      slots.forEach(s=>{
-        s.innerHTML = '<span class="small" style="opacity:.7">빈 슬롯</span>';
-        delete s.dataset.itemName;
-      });
+      slots.forEach(s => renderItemInSlot(s, null));
     });
+
     root.querySelector('#btn-save-items')?.addEventListener('click', async ()=>{
-      const names = slots.map(s=>s.dataset.itemName||null);
+      const ids = slots.map(s => s.dataset.itemId || null);
       try{
-        await api.updateItemsEquipped(c.id, names);
+        await withBlocker(() => api.updateItemsEquipped(c.id, ids));
         alert('아이템 장착이 저장되었어!');
       }catch(e){ alert('저장 실패: ' + (e.message||e)); }
     });
+
 
     const fab = root.querySelector('.fab-battle');
     if (isOwner) {
