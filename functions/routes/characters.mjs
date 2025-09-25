@@ -114,11 +114,24 @@ export function mountCharacters(app) {
       const q1 = db.collection('battles').where('meId', '==', charId).get();
       const q2 = db.collection('battles').where('opId', '==', charId).get();
       const [snap1, snap2] = await Promise.all([q1, q2]);
-      const logs = [...snap1.docs.map(d => ({ id: d.id, ...d.data() })), ...snap2.docs.map(d => ({ id: d.id, ...d.data() }))];
+      // === 교체 시작 ===
+const logs = [
+  ...snap1.docs.map(d => ({ id: d.id, ...d.data() })),
+  ...snap2.docs.map(d => ({ id: d.id, ...d.data() })),
+];
+// === 교체 끝 ===
+
       
       const uniqueLogs = Array.from(new Map(logs.map(log => [log.id, log])).values())
         .filter(log => log.status === 'finished')
-        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        // === 교체 시작 ===
+.sort((a, b) => {
+  const sa = (a.createdAt?.seconds ?? a.updatedAt?.seconds ?? 0);
+  const sb = (b.createdAt?.seconds ?? b.updatedAt?.seconds ?? 0);
+  return sb - sa;
+});
+// === 교체 끝 ===
+
 
       if (uniqueLogs.length === 0) {
         return res.json({ ok: true, data: [] });
