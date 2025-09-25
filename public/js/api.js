@@ -91,6 +91,7 @@ export const api = {
   proceedAdventure: (adventureId, payload) => call('POST', `/api/adventures/${adventureId}/proceed`, payload),
   continueAdventure: (adventureId) => call('POST', `/api/adventures/${adventureId}/continue`),
   getCharacterAdventures: (id, ongoingOnly = false) => call('GET', `/api/characters/${id}/adventures${ongoingOnly ? '/ongoing' : ''}`),
+  getAdventure: (id) => call('GET', `/api/adventures/${id}`),
 
   // prompts
   getSystemPrompt: (name) => call('GET', `/api/system-prompts/${name}`),
