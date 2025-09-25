@@ -78,42 +78,87 @@
 }
 
 /* --- 등급별 특수 효과 --- */
+@keyframes rare-shine {
+  0% { transform: translate(-100%, -100%) rotate(45deg); opacity: 0; }
+  50% { opacity: 0.8; }
+  100% { transform: translate(100%, 100%) rotate(45deg); opacity: 0; }
+}
 .item-card.grade-rare::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(45deg, rgba(74, 127, 210, 0), rgba(74, 127, 210, 0.1), rgba(74, 127, 210, 0));
-  animation: rare-shine 8s linear infinite;
+  inset: -50%;
+  background: linear-gradient(transparent, rgba(74, 127, 210, 0.4), transparent);
+  animation: rare-shine 6s ease-in-out infinite;
   pointer-events: none;
 }
-@keyframes rare-shine {
-  0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
-  100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
-}
 
+@keyframes epic-pulse {
+  0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.item-card.grade-epic {
+  background: 
+    radial-gradient(circle at 20% 80%, rgba(142, 78, 210, 0.3), transparent 40%),
+    radial-gradient(circle at 80% 30%, rgba(74, 127, 210, 0.2), transparent 40%),
+    radial-gradient(circle, #2a1a3a, #141922);
+}
 .item-card.grade-epic::before {
   content: '';
   position: absolute;
   top: 50%; left: 50%;
   width: 200%; height: 200%;
-  background: radial-gradient(circle, rgba(142, 78, 210, 0.15) 0%, transparent 40%);
-  animation: epic-pulse 5s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(142, 78, 210, 0.2) 0%, transparent 40%);
+  animation: epic-pulse 7s ease-in-out infinite;
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
-@keyframes epic-pulse {
-  0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+@keyframes legendary-rays {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.item-card.grade-legendary::before {
+  content: '';
+  position: absolute;
+  inset: -100%;
+  background: conic-gradient(from 90deg, transparent 20%, var(--grade-bg), transparent 30%);
+  animation: legendary-rays 20s linear infinite;
+  opacity: 0.15;
+  pointer-events: none;
 }
 
-.item-card.grade-legendary, .item-card.grade-mythic, .item-card.grade-exotic {
-  animation: border-glow 4s ease-in-out infinite;
+@keyframes mythic-sparkle {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 0.8; }
 }
+.item-card.grade-mythic::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background-image: 
+        radial-gradient(circle at 25% 30%, white, transparent 10%),
+        radial-gradient(circle at 70% 60%, white, transparent 10%),
+        radial-gradient(circle at 50% 90%, white, transparent 10%);
+    background-size: 2px 2px;
+    background-repeat: no-repeat;
+    animation: mythic-sparkle 5s ease-in-out infinite;
+    animation-delay: 1s;
+    pointer-events: none;
+}
+
+
 @keyframes border-glow {
   0%, 100% { border-color: rgba(170, 183, 255, 0.15); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
   50% { border-color: var(--grade-bg); box-shadow: 0 0 20px -5px var(--grade-bg); }
 }
+.item-card.grade-legendary, .item-card.grade-mythic, .item-card.grade-exotic {
+  animation: border-glow 4s ease-in-out infinite;
+}
 
+@keyframes mythic-spin {
+  to { --angle: 360deg; }
+}
 .item-card.grade-mythic::after, .item-card.grade-exotic::after {
   content: '';
   position: absolute;
@@ -125,16 +170,14 @@
   pointer-events: none;
   opacity: 0.3;
 }
-@keyframes mythic-spin {
-  to { --angle: 360deg; }
-}
 
-.item-card.grade-exotic {
-  animation: border-glow 3s ease-in-out infinite, exotic-bg-shift 10s linear infinite;
-  background-size: 200% 200%;
+@keyframes aurora-bg {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
 }
-@keyframes exotic-bg-shift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+.item-card.grade-exotic {
+  background: linear-gradient(125deg, #d24ac0, #8e4ed2, #4a8fd2, #5d9d5c, #d28e4a);
+  background-size: 400% 400%;
+  animation: border-glow 3s ease-in-out infinite, aurora-bg 15s ease infinite;
 }
