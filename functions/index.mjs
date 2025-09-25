@@ -1,7 +1,5 @@
-// (수정된 결과)
-// functions/index.mjs
+// functions/index.mjs (전체 코드)
 import express from 'express';
-// [수정] 아래 import 경로를 'firebase-functions/v2/https'로 변경
 import { onRequest } from 'firebase-functions/v2/https';
 
 import { mountWorlds } from './routes/worlds.mjs';
@@ -24,6 +22,5 @@ mountCharacters(app);
 mountRankings(app);
 mountUser(app);
 mountAdventures(app);
-
 
 export const api = onRequest({ region: 'asia-northeast3' }, app);
