@@ -1,5 +1,6 @@
 // public/js/tabs/character-timeline.js
 import { api } from '../api.js';
+import { ui } from '../ui/frame.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
@@ -36,12 +37,28 @@ function formatDate(date) {
 // ... (Line 31 부근)
 
 function battleLogCard(log, currentCharId) {
-// ... (중략)
+    const isMeA = log.meId === currentCharId;
+    const opponentName = isMeA ? log.opName : log.meName;
+    const myEloAfter = isMeA ? log.eloMeAfter : log.eloOpAfter;
+    const opponentEloAfter = isMeA ? log.eloOpAfter : log.eloMeAfter;
+    const myEloBefore = isMeA ? log.eloMe : log.eloOp;
+    
+    const eloChange = myEloAfter - myEloBefore;
+    const eloChangeStr = eloChange >= 0 ? `+${eloChange}` : `${eloChange}`;
+    
+    let result = '무승부';
+    let resultClass = '';
+    if (log.winner) {
+        const didIWin = (isMeA && log.winner === 'A') || (!isMeA && log.winner === 'B');
+        result = didIWin ? '승리' : '패배';
+        resultClass = didIWin ? 'ok' : 'err';
+    }
+    
     const opponentImageUrl = isMeA ? log.opImageUrl : log.meImageUrl;
     const date = new Date((log.createdAt?.seconds || 0) * 1000);
 
     return `
-    <div class="battle-log-char-card" data-log-id="${log.id}" data-me-id="${log.meId}" data-op-id="${log.opId}" data-me-name="${esc(log.meName)}" data-op-name="${esc(log.opName)}" style="cursor:pointer;">
+    <div class="battle-log-char-card" data-log-id="${log.id}" style="cursor:pointer;">
         <div class="bg" style="${opponentImageUrl ? `background-image:url('${esc(opponentImageUrl)}')` : ''}"></div>
         <div class="grad"></div>
         <div class="info-overlay">
@@ -58,7 +75,6 @@ function battleLogCard(log, currentCharId) {
 function adventureLogCard(log) {
     const date = new Date((log.createdAt?.seconds || 0) * 1000);
     const statusText = log.status === 'ongoing' ? '진행 중' : '완료';
-    // [수정] 클릭 가능하게 변경하고, 진행 중인 모험은 버튼 링크를 제공
     return `
     <div class="card info-card adventure-log-card" data-adventure-id="${log.id}" style="margin-bottom: 12px; cursor:pointer;">
         <div class="name">${log.siteName} 탐험</div>
@@ -245,26 +261,88 @@ export function render(container, characterData) {
     });
 
     // 배틀 로그 클릭 시 모달
-    container.addEventListener('click', (e) => {
+    container.addEventListener('click', async (e) => {
         const card = e.target.closest('.battle-log-char-card');
-        if (!card || !card.dataset.logJson) return;
+        if (!card) return;
+        
+        const logId = card.dataset.logId;
+        
+        try {
+            const res = await api.getCharacterBattleLogs(characterId);
+            const log = res.data.find(l => l.id === logId);
+            if (!log) return alert('로그 정보를 찾을 수 없습니다.');
+            
+            const [meRes, opRes] = await Promise.all([
+                api.getCharacter(log.meId),
+                api.getCharacter(log.opId)
+            ]);
+            
+            if (!meRes.ok || !opRes.ok) throw new Error('캐릭터 정보 로딩 실패');
+            
+            const me = meRes.data;
+            const op = opRes.data;
+            
+            const isMeA = log.meId === characterId;
+            const myEloAfter = isMeA ? log.eloMeAfter : log.eloOpAfter;
+            const opEloAfter = isMeA ? log.eloOpAfter : log.eloMeAfter;
 
-        const log = JSON.parse(card.dataset.logJson);
-        const modal = document.createElement('div');
-        modal.className = 'modal-layer';
-        modal.innerHTML = `
-        <div class="modal-card">
-            <button class="modal-close" aria-label="닫기">×</button>
-            <div class="modal-body">
-            <h3>전투 기록</h3>
-            <div>${parseRichText(log.log)}</div>
-            </div>
-        </div>`;
-        document.body.appendChild(modal);
-        modal.addEventListener('click', (ev) => {
-            if (ev.target === modal || ev.target.classList.contains('modal-close')) {
-                modal.remove();
-            }
-        });
+            const battleCharacterCard = (c, side, elo) => {
+                const bg = c.imageUrl || '';
+                const name = c.name || '(이름없음)';
+                const isWinner = (log.winner === 'A' && c.id === log.meId) || (log.winner === 'B' && c.id === log.opId);
+                const isLoser = (log.winner === 'A' && c.id === log.opId) || (log.winner === 'B' && c.id === log.meId);
+                const resultText = log.winner ? (isWinner ? '<span class="ok">승리</span>' : (isLoser ? '<span class="err">패배</span>' : '무승부')) : '무승부';
+                
+                return `
+                <div class="card character-card" data-nav-to="#character/${c.id}" style="cursor:pointer; flex:1; height: 160px; margin:0;">
+                    <div class="bg" style="background-image:url('${esc(bg)}')"></div>
+                    <div class="grad"></div>
+                    <div class="title shadow-title" style="bottom: 30px; font-size:16px;">${esc(name)}</div>
+                    <div class="char-info" style="bottom: 8px; right: 8px;">
+                        ${resultText} (Elo: ${elo})
+                    </div>
+                </div>`;
+            };
+            
+            const meCard = battleCharacterCard(isMeA ? me : op, '나', myEloAfter);
+            const opCard = battleCharacterCard(isMeA ? op : me, '상대', opEloAfter);
+
+            const modal = document.createElement('div');
+            modal.className = 'modal-layer';
+            modal.innerHTML = `
+            <div class="modal-card">
+                <button class="modal-close" aria-label="닫기">×</button>
+                <div class="modal-body">
+                    <h3>전투 기록</h3>
+                    <div class="compare-row" style="margin: 12px 0 20px;">
+                        ${meCard}
+                        ${opCard}
+                    </div>
+                    <div class="md-body">${parseRichText(log.log)}</div>
+                </div>
+            </div>`;
+            document.body.appendChild(modal);
+            modal.addEventListener('click', (ev) => {
+                const navTo = ev.target.closest('[data-nav-to]');
+                if (navTo) {
+                    window.location.hash = navTo.dataset.navTo;
+                    modal.remove();
+                    return;
+                }
+                if (ev.target === modal || ev.target.classList.contains('modal-close')) {
+                    modal.remove();
+                }
+            });
+        } catch (err) {
+            alert(`오류: ${err.message}`);
+        }
+    });
+
+    // 모험 로그 클릭 시 이벤트 바인딩
+    container.addEventListener('click', (e) => {
+        const card = e.target.closest('.adventure-log-card, .resume-btn');
+        if (card && card.dataset.adventureId) {
+            ui.navTo(`adventure-detail/${card.dataset.adventureId}`);
+        }
     });
 }
