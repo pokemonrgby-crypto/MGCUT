@@ -1,8 +1,6 @@
-// (수정된 결과)
 // public/js/tabs/adventure.js
 import { api, auth } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
-import { sessionKeyManager } from '../session-key-manager.js';
 
 const ROOT_SELECTOR = '[data-view="adventure"]';
 let myCharacters = [];
@@ -277,7 +275,7 @@ export function mount() {
 
         const backBtn = target.closest('.back-btn');
         if (backBtn) {
-            const targetView = backBtn.dataset.target;
+            const targetView = back-btn.dataset.target;
             await withBlocker(async () => {
                 if (targetView === 'hub') await renderView('hub');
                 else if (targetView === 'char-select') await renderView('char-select');
@@ -347,13 +345,11 @@ export function mount() {
                 const startNew = confirm("새로운 모험을 시작하시겠습니까? 이 캐릭터의 기존 모험 기록은 사라집니다.");
                 if (!startNew) return;
                 try {
-                    const password = await sessionKeyManager.getPassword();
                     await withBlocker(async () => {
                         const res = await api.startAdventure({
                             characterId: currentAdventure.character.id,
                             worldId: currentAdventure.selectedWorldId,
                             siteName: site.name,
-                            password
                         });
                         currentAdventure.id = res.data.adventureId;
                         await renderView('play', {
@@ -363,7 +359,7 @@ export function mount() {
                         });
                     });
                 } catch (err) {
-                    if (!err.message.includes('사용자가')) alert(`모험 시작 실패: ${err.message}`);
+                    alert(`모험 시작 실패: ${err.message}`);
                 }
             }
             return;
@@ -374,7 +370,7 @@ export function mount() {
             const nextNodeKey = choiceBtn.dataset.nextNode;
             const choiceText = choiceBtn.textContent.trim();
             await withBlocker(async () => {
-                await sleep(5000); // 의도된 딜레이
+                await sleep(1000); // 인공적인 딜레이를 줄임
                 const res = await api.proceedAdventure(currentAdventure.id, { nextNodeKey, choiceText });
                 
                 const { newNode, newCharacterState, newItem } = res.data;
@@ -396,12 +392,10 @@ export function mount() {
         
         const continueBtn = target.closest('.continue-btn');
         if (continueBtn) {
-             // [수정] withBlocker 밖에서 비밀번호를 먼저 받도록 수정
              try {
                 alert("에피소드가 마무리되었습니다. 다음 모험을 계속 생성합니다.");
-                const password = await sessionKeyManager.getPassword();
                 await withBlocker(async () => {
-                    const continueRes = await api.continueAdventure(currentAdventure.id, { password });
+                    const continueRes = await api.continueAdventure(currentAdventure.id);
                     
                     currentAdventure.graph = continueRes.data.storyGraph;
                     
@@ -412,7 +406,7 @@ export function mount() {
                     });
                 });
              } catch (err) {
-                if (!err.message.includes('사용자가')) alert(`모험 계속하기 실패: ${err.message}`);
+                alert(`모험 계속하기 실패: ${err.message}`);
              }
         }
     });
