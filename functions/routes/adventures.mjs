@@ -6,6 +6,7 @@ import { getUserFromReq } from '../lib/auth.mjs';
 import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 import { decryptWithPassword } from '../lib/crypto.mjs';
+import { preRollEvent } from '../lib/adventure-events.mjs'; // [추가] 프리롤 모듈 import
 
 async function getDecryptedKey(uid, password) {
     if (!password) throw new Error('PASSWORD_REQUIRED: 비밀번호가 요청에 포함되지 않았습니다.');
@@ -43,69 +44,73 @@ async function buildAdventureContext(db, characterId, worldIdOverride = null) {
     };
 }
 
-// [수정] AI가 더 나은 품질의 JSON을 출력하도록 프롬프트에 예시 추가
-function getAdventureStartPrompt(context, site, previousSummary = '') {
-    const previous = previousSummary ? `\n# 이전 줄거리\n${previousSummary}` : '';
+// [수정] 프리롤 이벤트를 기반으로 시나리오를 생성하도록 프롬프트 수정
+function getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents) {
+    const eventInstructions = preRolledEvents.map((event, index) => {
+        switch (event.type) {
+            case 'FIND_ITEM':
+                return `${index + 1}. ${event.tier} 등급 아이템을 발견하는 이벤트를 포함하세요. 아이템 노드는 반드시 {"name": "...", "description": "...", "grade": "${event.tier}"} 형식의 'item' 키를 가져야 합니다.`;
+            case 'ENCOUNTER_ENEMY_EASY':
+            case 'ENCOUNTER_ENEMY_NORMAL':
+            case 'ENCOUNTER_ENEMY_HARD':
+            case 'ENCOUNTER_MINIBOSS':
+                return `${index + 1}. '${event.type.split('_').pop()}' 난이도의 적과 조우하는 전투 이벤트를 포함하세요.`;
+            case 'TRIGGER_TRAP':
+                return `${index + 1}. 캐릭터가 스태미나를 잃는 함정 이벤트를 포함하세요.`;
+            default:
+                return `${index + 1}. 특별한 사건 없이 탐험이 계속되는 서사 이벤트를 포함하세요.`;
+        }
+    }).join('\n');
+
     return `
 # 역할: 당신은 최고의 TRPG 마스터(GM)입니다.
-
 # 핵심 정보
-- 세계관: ${context.world.name} - ${context.world.summary}
-- 캐릭터: ${context.character.name} - ${context.character.summary}
-- 탐험 장소: ${site.name} (${site.difficulty}) - ${site.description}
-- 캐릭터 현재 상태: 스태미나 ${context.character.stamina}
-${previous}
+- 세계관: ${context.world.name}
+- 캐릭터: ${context.character.name}
+- 탐험 장소: ${site.name} (${site.difficulty})
+- 이전 상황 요약: ${previousOutcome}
 
 # 임무
-위 정보를 바탕으로, 흥미진진한 모험 에피소드를 '이야기 지도' JSON 형식으로 생성해줘.
-- 에피소드는 **최대 3개의 노드**를 포함해야 합니다.
-- 각 노드(Node)는 "situation", "choices" 배열, "type" (narrative, combat, trap 등)을 포함해야 합니다.
-- 선택지(choice)는 "text"와 다음 노드를 가리키는 "nextNode"를 포함해야 합니다.
-- 에피소드의 마지막 노드는 "isEndpoint": true 와 다음 에피소드를 위한 "outcome" 요약을 포함해야 합니다.
+아래에 미리 정해진 순서대로, 총 3개의 사건이 포함된 '이야기 지도' JSON을 생성하세요.
+${eventInstructions}
 
-# 좋은 출력의 예시 (이 구조를 반드시 따르세요):
-{
-  "startNode": "forest_entry",
-  "nodes": {
-    "forest_entry": {
-      "type": "narrative",
-      "situation": "울창한 고대 숲의 입구에 도착했습니다. 안쪽에서는 기이한 동물의 울음소리가 들려옵니다.",
-      "choices": [
-        { "text": "소리를 따라 조심스럽게 들어간다.", "nextNode": "encounter_beast" },
-        { "text": "안전하게 우회로를 찾는다.", "nextNode": "find_hidden_path" }
-      ]
-    },
-    "encounter_beast": {
-      "type": "combat",
-      "situation": "소리의 근원지에 다가가자, 굶주린 '그림자 늑대'가 당신을 발견하고 이빨을 드러냅니다!",
-      "enemy": { "name": "그림자 늑대", "description": "숲의 그림자에 몸을 숨기는 교활한 육식 동물입니다." },
-      "choices": [
-        { "text": "전투를 준비한다.", "nextNode": "battle_result" }
-      ]
-    },
-    "find_hidden_path": {
-        "type": "narrative",
-        "situation": "숲을 헤매던 중, 이끼 낀 고대 유적으로 이어지는 숨겨진 길을 발견했습니다.",
-        "isEndpoint": true,
-        "outcome": "당신은 위험한 짐승을 피해 고대 유적에 도착했습니다.",
-        "choices": []
-    }
-  }
-}
-
-# 규칙
-- 설명이나 코드 펜스 없이 순수한 JSON 객체만 출력해야 합니다.
-- situation 텍스트는 간결하고 흥미롭게 작성하세요.
+# JSON 구조 규칙
+- 반드시 "startNode"와 3개의 노드를 포함하는 "nodes" 객체를 생성해야 합니다.
+- 각 노드는 "type", "situation", "choices"를 포함합니다.
+- 마지막 노드는 "isEndpoint": true, "outcome": "..."을 포함해야 합니다.
+- 전투 노드는 "enemy": {"name": "...", "description": "..."} 객체를 포함해야 합니다.
+- 함정 노드는 "penalty": {"stat": "stamina", "value": -15} 객체를 포함해야 합니다.
+- 아이템 발견 노드는 "item": {"name": "...", "description": "...", "grade": "..."} 객체를 포함해야 합니다.
+- 설명이나 코드 펜스 없이 순수한 JSON 객체만 출력하세요.
 `;
 }
+
+// [신규] 새로운 이야기 지도를 생성하고 DB에 저장하는 헬퍼 함수
+async function generateAndUpdateStoryGraph(adventureRef, geminiKey, context, site, previousOutcome) {
+    const preRolledEvents = [preRollEvent(site.difficulty), preRollEvent(site.difficulty), preRollEvent(site.difficulty)];
+    
+    const prompt = getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents);
+    const { json: storyGraph } = await callGemini({ key: geminiKey, model: pickModels().primary, user: prompt });
+
+    if (!storyGraph || !storyGraph.startNode || !storyGraph.nodes) {
+        throw new Error('AI_INVALID_STORY_GRAPH');
+    }
+
+    await adventureRef.update({
+        storyGraph,
+        currentNodeKey: storyGraph.startNode,
+        updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return storyGraph;
+}
+
 
 export function mountAdventures(app) {
     app.post('/api/adventures/start', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
             if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-
-            await checkAndUpdateCooldown(db, user.uid, 'startAdventure', 60);
 
             const { characterId, worldId, siteName, password } = req.body;
             if (!characterId || !worldId || !siteName || !password) {
@@ -120,38 +125,61 @@ export function mountAdventures(app) {
             if (!site) return res.status(404).json({ ok: false, error: 'SITE_NOT_FOUND' });
             
             const existingAdventures = await db.collection('adventures')
-                .where('characterId', '==', characterId)
-                .where('status', '==', 'ongoing')
-                .get();
+                .where('characterId', '==', characterId).where('status', '==', 'ongoing').get();
             const batch = db.batch();
             existingAdventures.forEach(doc => batch.delete(doc.ref));
             await batch.commit();
-
-            const prompt = getAdventureStartPrompt(context, site);
-            const { primary } = pickModels();
-            const { json } = await callGemini({ key: geminiKey, model: primary, user: prompt });
-
-            if (!json || !json.startNode || !json.nodes) {
-                console.error("AI Generation Error: Invalid Story Graph", json);
-                throw new Error('AI_INVALID_STORY_GRAPH');
-            }
-
+            
             const now = FieldValue.serverTimestamp();
-            const adventureRef = await db.collection('adventures').add({
-                ownerUid: user.uid,
-                characterId,
-                worldId: context.world.id,
-                siteName,
-                status: 'ongoing',
-                createdAt: now,
-                updatedAt: now,
-                storyGraph: json,
-                currentNodeKey: json.startNode,
-                characterState: context.character,
-                history: [],
+            const adventureRef = db.collection('adventures').doc(); // 미리 참조 생성
+            
+            const initialGraph = await generateAndUpdateStoryGraph(adventureRef, geminiKey, context, site, "탐험을 시작합니다.");
+
+            await adventureRef.set({
+                ownerUid: user.uid, characterId, worldId, siteName, site,
+                status: 'ongoing', createdAt: now,
+                characterState: context.character, history: [],
+                storyGraph: initialGraph,
+                currentNodeKey: initialGraph.startNode
             });
 
-            res.json({ ok: true, data: { adventureId: adventureRef.id, storyGraph: json, characterState: context.character } });
+            res.json({ ok: true, data: { adventureId: adventureRef.id, storyGraph: initialGraph, characterState: context.character } });
+
+        } catch (e) {
+            console.error(e);
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+    
+    // [신규] 에피소드가 끝났을 때 다음 이야기 지도를 요청하는 API
+    app.post('/api/adventures/:id/continue', async (req, res) => {
+        try {
+            const user = await getUserFromReq(req);
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+            const { password } = req.body;
+            const adventureId = req.params.id;
+
+            const adventureRef = db.collection('adventures').doc(adventureId);
+            const snap = await adventureRef.get();
+            if (!snap.exists || snap.data().ownerUid !== user.uid) {
+                return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+            }
+
+            const adventure = snap.data();
+            const lastNode = adventure.storyGraph.nodes[adventure.currentNodeKey];
+
+            if (adventure.characterState.stamina <= 0) {
+                await adventureRef.update({ status: 'finished' });
+                return res.json({ ok: false, error: 'STAMINA_DEPLETED' });
+            }
+
+            const geminiKey = await getDecryptedKey(user.uid, password);
+            const context = { character: adventure.characterState, world: { id: adventure.worldId, name: adventure.site.worldName } };
+            
+            const newGraph = await generateAndUpdateStoryGraph(adventureRef, geminiKey, context, adventure.site, lastNode.outcome);
+
+            res.json({ ok: true, data: { storyGraph: newGraph } });
 
         } catch (e) {
             console.error(e);
@@ -163,24 +191,15 @@ export function mountAdventures(app) {
         try {
             const user = await getUserFromReq(req);
             if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-
             const characterId = req.params.id;
             const qs = await db.collection('adventures')
                 .where('characterId', '==', characterId)
                 .where('ownerUid', '==', user.uid)
                 .where('status', '==', 'ongoing')
-                .limit(1)
-                .get();
-            
-            if (qs.empty) {
-                return res.json({ ok: true, data: null });
-            }
-            
-            const adventure = { id: qs.docs[0].id, ...qs.docs[0].data() };
-            res.json({ ok: true, data: adventure });
-
+                .limit(1).get();
+            if (qs.empty) return res.json({ ok: true, data: null });
+            res.json({ ok: true, data: { id: qs.docs[0].id, ...qs.docs[0].data() } });
         } catch (e) {
-            console.error('Error fetching ongoing adventure:', e);
             res.status(500).json({ ok: false, error: String(e) });
         }
     });
@@ -189,13 +208,12 @@ export function mountAdventures(app) {
         try {
             const user = await getUserFromReq(req);
             if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-            
+            await checkAndUpdateCooldown(db, user.uid, 'proceedAdventure', 5); // [추가] 5초 쿨다운
+
             const { nextNodeKey } = req.body;
             const adventureId = req.params.id;
-            
             const ref = db.collection('adventures').doc(adventureId);
             const snap = await ref.get();
-            
             if (!snap.exists || snap.data().ownerUid !== user.uid) {
                 return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
             }
@@ -203,9 +221,16 @@ export function mountAdventures(app) {
             const adventure = snap.data();
             const newNode = adventure.storyGraph.nodes[nextNodeKey];
             let newCharacterState = { ...adventure.characterState };
+            let newItem = null;
 
             if (newNode.type === 'trap' && newNode.penalty) {
                 newCharacterState.stamina = Math.max(0, newCharacterState.stamina + (newNode.penalty.value || 0));
+            }
+            if (newNode.type === 'item' && newNode.item) {
+                newItem = newNode.item;
+                await db.collection('characters').doc(adventure.characterId).update({
+                    items: FieldValue.arrayUnion(newItem)
+                });
             }
 
             await ref.update({
@@ -214,10 +239,9 @@ export function mountAdventures(app) {
                 updatedAt: FieldValue.serverTimestamp(),
             });
 
-            res.json({ ok: true, data: { newNode, newCharacterState } });
+            res.json({ ok: true, data: { newNode, newCharacterState, newItem } });
         } catch (e) {
-            console.error('Error proceeding adventure:', e);
-            res.status(500).json({ ok: false, error: String(e) });
+            res.status(500).json({ ok: false, error: e.message });
         }
     });
 }
