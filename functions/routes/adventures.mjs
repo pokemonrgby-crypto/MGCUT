@@ -6,7 +6,7 @@ import { getUserFromReq } from '../lib/auth.mjs';
 import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 import { decryptWithPassword } from '../lib/crypto.mjs';
-import { preRollEvent } from '../lib/adventure-events.mjs'; // [추가] 프리롤 모듈 import
+import { preRollEvent } from '../lib/adventure-events.mjs';
 
 async function getDecryptedKey(uid, password) {
     if (!password) throw new Error('PASSWORD_REQUIRED: 비밀번호가 요청에 포함되지 않았습니다.');
@@ -44,8 +44,8 @@ async function buildAdventureContext(db, characterId, worldIdOverride = null) {
     };
 }
 
-// [수정] 프리롤 이벤트를 기반으로 시나리오를 생성하도록 프롬프트 수정
-function getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents) {
+// [수정] 프롬프트에 사용자의 '선택 이력'을 추가
+function getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents, history = []) {
     const eventInstructions = preRolledEvents.map((event, index) => {
         switch (event.type) {
             case 'FIND_ITEM':
@@ -62,16 +62,21 @@ function getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents
         }
     }).join('\n');
 
+    const historyLog = history.length > 0
+        ? `# 이전 선택 기록 (시간순)\n${history.map((choice, i) => `- ${i + 1}: ${choice}`).join('\n')}`
+        : '';
+
     return `
 # 역할: 당신은 최고의 TRPG 마스터(GM)입니다.
 # 핵심 정보
 - 세계관: ${context.world.name}
 - 캐릭터: ${context.character.name}
 - 탐험 장소: ${site.name} (${site.difficulty})
-- 이전 상황 요약: ${previousOutcome}
+- 이전 에피소드 요약: ${previousOutcome}
+${historyLog}
 
 # 임무
-아래에 미리 정해진 순서대로, 총 3개의 사건이 포함된 '이야기 지도' JSON을 생성하세요.
+**이전 선택 기록을 바탕으로**, 아래에 미리 정해진 순서대로, 총 3개의 사건이 포함된 '이야기 지도' JSON을 생성하세요.
 ${eventInstructions}
 
 # JSON 구조 규칙
@@ -85,11 +90,10 @@ ${eventInstructions}
 `;
 }
 
-// [신규] 새로운 이야기 지도를 생성하고 DB에 저장하는 헬퍼 함수
-async function generateAndUpdateStoryGraph(adventureRef, geminiKey, context, site, previousOutcome) {
+async function generateAndUpdateStoryGraph(adventureRef, geminiKey, context, site, previousOutcome, history) {
     const preRolledEvents = [preRollEvent(site.difficulty), preRollEvent(site.difficulty), preRollEvent(site.difficulty)];
     
-    const prompt = getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents);
+    const prompt = getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents, history);
     const { json: storyGraph } = await callGemini({ key: geminiKey, model: pickModels().primary, user: prompt });
 
     if (!storyGraph || !storyGraph.startNode || !storyGraph.nodes) {
@@ -131,14 +135,15 @@ export function mountAdventures(app) {
             await batch.commit();
             
             const now = FieldValue.serverTimestamp();
-            const adventureRef = db.collection('adventures').doc(); // 미리 참조 생성
+            const adventureRef = db.collection('adventures').doc();
             
-            const initialGraph = await generateAndUpdateStoryGraph(adventureRef, geminiKey, context, site, "탐험을 시작합니다.");
+            // [수정] 초기 생성 시에는 history가 비어있음
+            const initialGraph = await generateAndUpdateStoryGraph(adventureRef, geminiKey, context, site, "탐험을 시작합니다.", []);
 
             await adventureRef.set({
                 ownerUid: user.uid, characterId, worldId, siteName, site,
                 status: 'ongoing', createdAt: now,
-                characterState: context.character, history: [],
+                characterState: context.character, history: [], // history 필드 초기화
                 storyGraph: initialGraph,
                 currentNodeKey: initialGraph.startNode
             });
@@ -151,7 +156,6 @@ export function mountAdventures(app) {
         }
     });
     
-    // [신규] 에피소드가 끝났을 때 다음 이야기 지도를 요청하는 API
     app.post('/api/adventures/:id/continue', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
@@ -177,7 +181,8 @@ export function mountAdventures(app) {
             const geminiKey = await getDecryptedKey(user.uid, password);
             const context = { character: adventure.characterState, world: { id: adventure.worldId, name: adventure.site.worldName } };
             
-            const newGraph = await generateAndUpdateStoryGraph(adventureRef, geminiKey, context, adventure.site, lastNode.outcome);
+            // [수정] 다음 그래프 생성 시 현재 history를 전달
+            const newGraph = await generateAndUpdateStoryGraph(adventureRef, geminiKey, context, adventure.site, lastNode.outcome, adventure.history);
 
             res.json({ ok: true, data: { storyGraph: newGraph } });
 
@@ -204,13 +209,14 @@ export function mountAdventures(app) {
         }
     });
     
+    // [수정] proceed API에서 history 업데이트 로직 추가
     app.post('/api/adventures/:id/proceed', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
             if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-            await checkAndUpdateCooldown(db, user.uid, 'proceedAdventure', 5); // [추가] 5초 쿨다운
+            await checkAndUpdateCooldown(db, user.uid, 'proceedAdventure', 5);
 
-            const { nextNodeKey } = req.body;
+            const { nextNodeKey, choiceText } = req.body; // choiceText 추가
             const adventureId = req.params.id;
             const ref = db.collection('adventures').doc(adventureId);
             const snap = await ref.get();
@@ -236,6 +242,7 @@ export function mountAdventures(app) {
             await ref.update({
                 currentNodeKey: nextNodeKey,
                 characterState: newCharacterState,
+                history: FieldValue.arrayUnion(choiceText), // [추가] 선택지 텍스트를 history에 추가
                 updatedAt: FieldValue.serverTimestamp(),
             });
 
