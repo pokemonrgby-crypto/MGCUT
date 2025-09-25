@@ -114,7 +114,7 @@ function siteSelectTemplate(sites, worldName) {
     <div class="section-h" style="padding-bottom: 12px;">${worldName}: 탐험할 명소 선택</div>
     <div class="rail" style="padding-left: 16px; padding-right: 16px;">
         ${sites.map(s => `
-        <div class="card site-card" data-site-json='${JSON.stringify(s)}' style="cursor:pointer;">
+        <div class="card site-card" data-site-json='${JSON.stringify(s).replace(/'/g, '&#39;')}' style="cursor:pointer;">
             <div class="bg" style="background-image:url('${s.imageUrl || ''}')"></div>
             <div class="grad"></div>
             <div class="title shadow-title">${s.name}</div>
