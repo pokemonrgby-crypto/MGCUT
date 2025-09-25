@@ -7,6 +7,7 @@ import { loadCharacterBasePrompt } from '../lib/prompts.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 import { getApiKeySecret } from '../lib/secret-manager.mjs';
 import { preRollEvent } from '../lib/adventure-events.mjs';
+import { randomUUID } from 'crypto';
 
 // 헬퍼 함수: UID로 API 키를 가져옵니다.
 async function getApiKeyForUser(uid) {
@@ -47,19 +48,17 @@ async function findOpponentByElo({ db, elo, excludeCharId, excludeUid, band = 15
 
 function buildOneShotBattlePrompt({ me, op, world }) {
   const pick = (c) => {
-    const chosen = Array.isArray(c.chosen) ? c.chosen : [];
-    const skills = Array.isArray(c.abilities) ? c.abilities : [];
-    const pickedSkills = chosen
-      .map(x => skills[x] || skills.find(s => s?.id === x || s?.name === x))
-      .filter(Boolean);
-    const items = (Array.isArray(c.items) ? c.items : []).map(i => ({name: i.name, description: i.description})).filter(Boolean);
+    const chosenIds = new Set(Array.isArray(c.chosen) ? c.chosen : []);
+    const skills = (Array.isArray(c.abilities) ? c.abilities : []).filter(s => chosenIds.has(s.id));
+    const equippedIds = new Set(Array.isArray(c.equipped) ? c.equipped : []);
+    const items = (Array.isArray(c.items) ? c.items : []).filter(i => equippedIds.has(i.id));
     const narrative = (Array.isArray(c.narratives) && c.narratives.length > 0) ? c.narratives[0].long : (c.introShort || c.description || '');
     return {
       name: c.name || '',
       elo: Number(c.elo ?? 1000),
       narrative: String(narrative).slice(0, 500),
-      skills: pickedSkills.map(s => ({name: s.name, description: s.description})),
-      items,
+      skills: skills.map(s => ({name: s.name, description: s.description})),
+      items: items.map(i => ({name: i.name, description: i.description})),
     };
   };
   const A = pick(me);
@@ -182,14 +181,26 @@ export function mountCharacters(app) {
 
       if (!characterJson || !characterJson.name) throw new Error('AI_GENERATION_FAILED');
       
-      if (Array.isArray(characterJson.abilities) && characterJson.abilities.length > 0) {
-        const indices = Array.from({length: characterJson.abilities.length}, (_, i) => i);
-        indices.sort(() => 0.5 - Math.random());
-        characterJson.chosen = indices.slice(0, 3);
+      // [수정] 스킬과 아이템에 고유 ID 부여
+      if (Array.isArray(characterJson.abilities)) {
+        characterJson.abilities.forEach(a => a.id = randomUUID());
       }
+      if (Array.isArray(characterJson.items)) {
+        characterJson.items.forEach(i => i.id = randomUUID());
+      }
+
+      // [수정] ID 기반으로 chosen 스킬 선택
+      if (Array.isArray(characterJson.abilities) && characterJson.abilities.length > 0) {
+        const abilityIds = characterJson.abilities.map(a => a.id);
+        abilityIds.sort(() => 0.5 - Math.random());
+        characterJson.chosen = abilityIds.slice(0, 3);
+      } else {
+        characterJson.chosen = [];
+      }
+      
       if (Math.random() < 0.2) {
         characterJson.items = characterJson.items || [];
-        characterJson.items.push({ name: "낡은 단검", description: "평범한 모험가의 시작 아이템입니다.", grade: "common" });
+        characterJson.items.push({ id: randomUUID(), name: "낡은 단검", description: "평범한 모험가의 시작 아이템입니다.", grade: "common" });
       }
 
       const now = FieldValue.serverTimestamp();
@@ -198,6 +209,7 @@ export function mountCharacters(app) {
         worldId, worldName: world.name, promptId, imageUrl,
         ownerUid: user.uid,
         elo: 1000,
+        equipped: [], // 장착 아이템 필드 초기화
         createdAt: now, updatedAt: now
       });
 
@@ -231,7 +243,7 @@ export function mountCharacters(app) {
     try {
       const user = await getUserFromReq(req);
       if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-      const { equipped } = req.body || {};
+      const { equipped } = req.body || {}; // equipped는 이제 ID 배열
       if (!Array.isArray(equipped)) return res.status(400).json({ ok: false, error: 'EQUIPPED_REQUIRED' });
       
       const ref = db.collection('characters').doc(req.params.id);
@@ -240,11 +252,12 @@ export function mountCharacters(app) {
       const c = snap.data();
       if ((c.ownerUid || '') !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
       
-      const inv = (Array.isArray(c.items) ? c.items : []).map(x => String(x?.name || ''));
-      const norm = equipped.map(n => (n && inv.includes(String(n))) ? String(n) : null);
+      // [수정] ID 기반으로 장착 아이템 유효성 검사
+      const inventoryIds = new Set((c.items || []).map(i => i.id));
+      const validEquippedIds = equipped.map(id => (id && inventoryIds.has(id)) ? id : null);
       
-      await ref.update({ equipped: norm, updatedAt: FieldValue.serverTimestamp() });
-      res.json({ ok: true, data: { id: req.params.id, equipped: norm } });
+      await ref.update({ equipped: validEquippedIds, updatedAt: FieldValue.serverTimestamp() });
+      res.json({ ok: true, data: { id: req.params.id, equipped: validEquippedIds } });
     } catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
   });
 
@@ -320,7 +333,8 @@ export function mountCharacters(app) {
       if (meSnap.data().ownerUid !== user.uid) return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
       if (!opSnap.exists) return res.status(404).json({ ok: false, error: 'CHARACTER_NOT_FOUND (OPPONENT)' });
 
-      const me = meSnap.data(), op = opSnap.data();
+      const me = { id: meSnap.id, ...meSnap.data() };
+      const op = { id: opSnap.id, ...opSnap.data() };
       let world = null;
       if (me.worldId) {
           const w = await db.collection('worlds').doc(me.worldId).get();
@@ -346,22 +360,21 @@ export function mountCharacters(app) {
           bRef.update({ status: 'finished', winner: winner, log: markdown, eloMeAfter: newA, eloOpAfter: newB, updatedAt: now, })
         ];
 
+        let meUpdatePayload = { elo: newA, updatedAt: now };
+
         if (Sa === 1) {
             const dropEvent = preRollEvent('hard');
             if (dropEvent.type === 'FIND_ITEM') {
-                // [수정] 아이템 생성 프롬프트에 type 필드 추가
                 const itemPrompt = `TRPG 게임의 ${world.name} 세계관에 어울리는 "${dropEvent.tier}" 등급 아이템 1개를 {"name": "...", "description": "...", "grade": "${dropEvent.tier}", "type": "equipable"} JSON 형식으로 생성해줘. 20% 확률로 "type"을 "consumable"로 설정해줘. 설명이나 코드 펜스 없이 순수 JSON 객체만 출력해줘.`;
-                const { json: newItem } = await callGemini({ key: geminiKey, model: pickModels().primary, user: itemPrompt });
-                if (newItem && newItem.name) {
-                    droppedItem = newItem;
-                    updates.push(meRef.update({ elo: newA, items: FieldValue.arrayUnion(newItem), updatedAt: now }));
+                const { json: newItemJson } = await callGemini({ key: geminiKey, model: pickModels().primary, user: itemPrompt });
+                if (newItemJson && newItemJson.name) {
+                    droppedItem = { ...newItemJson, id: randomUUID() };
+                    meUpdatePayload.items = FieldValue.arrayUnion(droppedItem);
                 }
             }
         }
         
-        if (updates.length < 3) {
-            updates.push(meRef.update({ elo: newA, updatedAt: now }));
-        }
+        updates.push(meRef.update(meUpdatePayload));
 
         await Promise.all(updates);
       } else {
