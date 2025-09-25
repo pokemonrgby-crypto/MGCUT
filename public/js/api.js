@@ -62,11 +62,10 @@ async function call(method, path, body, extraHeaders = {}) {
 
 export const api = {
   // user key
-  saveEncryptedKey: (encryptedKey) => call('POST', '/api/user/encrypted-key', { encryptedKey }),
-  getEncryptedKey: () => call('GET', '/api/user/encrypted-key'),
+  saveApiKey: (apiKey) => call('POST', '/api/user/api-key', { apiKey }),
 
   // worlds
-  generateWorld: (payload, password) => call('POST', '/api/worlds/generate', { ...payload, password }),
+  generateWorld: (payload) => call('POST', '/api/worlds/generate', payload),
   saveWorld: (worldData) => call('POST', '/api/worlds', worldData),
   listWorlds: () => call('GET', '/api/worlds'),
   updateWorldCover: (id, coverUrl) => call('PATCH', `/api/worlds/${id}/cover`, { coverUrl }),
@@ -74,11 +73,11 @@ export const api = {
   likeWorld: (id) => call('POST', `/api/worlds/${id}/like`),
   createSite: (worldId, siteData) => call('POST', `/api/worlds/${worldId}/sites`, siteData),
   updateSiteImage: (worldId, siteName, imageUrl) => call('PATCH', `/api/worlds/${worldId}/siteImage`, { siteName, imageUrl }),
-  addWorldElement: (worldId, type, data, password) => call('POST', `/api/worlds/${worldId}/elements`, { type, data, password }),
+  addWorldElement: (worldId, type, data) => call('POST', `/api/worlds/${worldId}/elements`, { type, data }),
   deleteWorldElement: (worldId, type, name) => call('DELETE', `/api/worlds/${worldId}/elements`, { type, name }),
 
   // characters
-  generateCharacter: (payload, password) => call('POST', '/api/characters/generate', { ...payload, password }),
+  generateCharacter: (payload) => call('POST', '/api/characters/generate', payload),
   getCharacter: (id) => call('GET', `/api/characters/${id}`),
   getMyCharacters: () => call('GET', '/api/my-characters'),
   getCharacterBattleLogs: (id) => call('GET', `/api/characters/${id}/battle-logs`),
@@ -90,7 +89,7 @@ export const api = {
   // adventures
   startAdventure: (payload) => call('POST', '/api/adventures/start', payload),
   proceedAdventure: (adventureId, payload) => call('POST', `/api/adventures/${adventureId}/proceed`, payload),
-  continueAdventure: (adventureId, payload) => call('POST', `/api/adventures/${adventureId}/continue`, payload),
+  continueAdventure: (adventureId) => call('POST', `/api/adventures/${adventureId}/continue`),
   getCharacterAdventures: (id, ongoingOnly = false) => call('GET', `/api/characters/${id}/adventures${ongoingOnly ? '/ongoing' : ''}`),
 
   // prompts
@@ -106,5 +105,5 @@ export const api = {
   getWorldRanking: ({ limit=50 }={}) => call('GET', `/api/rankings/worlds?limit=${limit}`),
   findMatch: (charId) => call('POST', '/api/matchmaking/find', { charId }),
   createBattle: (meId, opId) => call('POST', '/api/battle/create', { meId, opId }),
-  battleSimulate: (battleId, password) => call('POST', '/api/battle/simulate', { battleId, password }),
+  battleSimulate: (battleId) => call('POST', '/api/battle/simulate', { battleId }),
 };
