@@ -1,13 +1,15 @@
+// (수정된 결과)
 // functions/index.mjs
 import express from 'express';
-import { onRequest } from 'firebase-functions/v2/onRequest';
+// [수정] 아래 import 경로를 'firebase-functions/v2/https'로 변경
+import { onRequest } from 'firebase-functions/v2/https';
 
 import { mountWorlds } from './routes/worlds.mjs';
 import { mountPrompts } from './routes/prompts.mjs';
 import { mountCharacters } from './routes/characters.mjs';
 import { mountRankings } from './routes/rankings.mjs';
 import { mountUser } from './routes/user.mjs';
-import { mountAdventures } from './routes/adventures.mjs'; // [추가]
+import { mountAdventures } from './routes/adventures.mjs';
 
 const app = express();
 app.use(express.json());
@@ -21,7 +23,7 @@ mountPrompts(app);
 mountCharacters(app);
 mountRankings(app);
 mountUser(app);
-mountAdventures(app); // [추가]
+mountAdventures(app);
 
 
 export const api = onRequest({ region: 'asia-northeast3' }, app);
