@@ -2,7 +2,7 @@
 // functions/routes/adventures.mjs
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../lib/firebase.mjs';
-import { getUserFromReq } from '../lib/auth.mjs';
+import { getUserFromReq } from '../lib/auth.mjs' 
 import { callGemini, pickModels } from '../lib/gemini.mjs';
 import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 import { decryptWithPassword } from '../lib/crypto.mjs';
