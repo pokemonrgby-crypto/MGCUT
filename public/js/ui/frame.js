@@ -4,9 +4,8 @@ import * as Home from '../tabs/home.js';
 import * as Create from '../tabs/create.js';
 import * as Info from '../tabs/info.js';
 import * as Adventure from '../tabs/adventure.js';
-// ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
 import * as AdventureDetail from '../tabs/adventure-detail.js';
-// ▲▲▲ [수정] 여기까지 추가 ▲▲▲
+import * as Inventory from '../tabs/inventory.js'; // [추가]
 import * as Ranking from '../tabs/ranking.js';
 import * as CreateWorld from '../tabs/create-world.js';
 import * as CreateCharacter from '../tabs/create-character.js';
@@ -45,9 +44,8 @@ function handleRouteChange() {
     'home': { view: 'home', mount: Home.mount },
     'create': { view: 'create', mount: Create.mount },
     'adventure': { view: 'adventure', mount: Adventure.mount },
-    // ▼▼▼ [수정] 이 부분을 추가하세요 ▼▼▼
     'adventure-detail': { parentView: 'adventure', view: 'adventure-detail', mount: () => AdventureDetail.mount(param1) },
-    // ▲▲▲ [수정] 여기까지 추가 ▲▲▲
+    'inventory': { view: 'inventory', mount: Inventory.mount }, // [추가]
     'ranking': { view: 'ranking', mount: Ranking.mount },
     'info': { view: 'info', mount: Info.mount },
     'create-world': { parentView: 'create', view: 'create-world' },
@@ -86,6 +84,7 @@ window.addEventListener('DOMContentLoaded', () => {
   CreateCharacter.mount();
   CreatePrompt.mount();
   CreateSite.mount();
+  Inventory.mount(); // [추가]
 
   const fbAuth = auth || window.__FBAPP__?.auth;
   fbAuth?.onAuthStateChanged?.((user) => {
