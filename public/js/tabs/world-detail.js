@@ -7,15 +7,17 @@ const rootSel = '[data-view="world-detail"]';
 function siteCard(s) {
   const img = s?.imageUrl || s?.img || '';
   const name = s?.name || '';
+  const desc = s?.description || ''; // [추가] description 가져오기
+  const difficulty = s?.difficulty || 'Normal'; // [추가] 난이도 가져오기
   return `
-    <div class="card site-card h-card" data-site-name="${name}">
+    <div class="card site-card h-card" data-site-name="${name}" data-site-desc="${desc}" data-site-difficulty="${difficulty}">
       <div class="bg" style="${img ? `background-image:url('${img}')` : ''}"></div>
       <div class="grad"></div>
       <div class="title shadow-title">${name}</div>
+      <div class="difficulty small">${difficulty}</div>
     </div>
   `;
 }
-
 function characterListCard(c) {
   const bg = c.imageUrl || '';
   return `
@@ -135,9 +137,36 @@ function bindEvents(container, world) {
       window.location.hash = navTo.dataset.navTo;
       return;
     }
-    const card = e.target.closest('.episode-card');
-    if (card) {
-      window.location.hash = `episode/${card.dataset.worldId}/${encodeURIComponent(card.dataset.episodeTitle)}`;
+    const episodeCard = e.target.closest('.episode-card');
+    if (episodeCard) {
+      // [수정] 변수명 오류 수정
+      window.location.hash = `episode/${episodeCard.dataset.worldId}/${encodeURIComponent(episodeCard.dataset.episodeTitle)}`;
+    }
+
+    // [추가] 명소 카드 클릭 시 모달 띄우기
+    const siteCard = e.target.closest('.site-card');
+    if (siteCard) {
+        const name = siteCard.dataset.siteName;
+        const desc = siteCard.dataset.siteDesc;
+        const difficulty = siteCard.dataset.siteDifficulty;
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-layer site-confirm-modal'; // site-confirm-modal 클래스 재활용
+        modal.innerHTML = `
+            <div class="modal-card">
+                <button class="modal-close" aria-label="닫기">×</button>
+                <div class="modal-body">
+                    <h3>${name}</h3>
+                    <p class="small" style="margin-top:4px;">난이도: ${difficulty}</p>
+                    <p style="margin-top:12px; white-space: pre-wrap;">${desc}</p>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (ev) => {
+            if (ev.target.classList.contains('modal-layer') || ev.target.classList.contains('modal-close')) {
+                modal.remove();
+            }
+        });
     }
   });
   
