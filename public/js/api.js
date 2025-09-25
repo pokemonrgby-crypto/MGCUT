@@ -102,7 +102,9 @@ export const api = {
   startAdventure: (payload) => call('POST', '/api/adventures/start', payload),
   proceedAdventure: (adventureId, payload) => call('POST', `/api/adventures/${adventureId}/proceed`, payload),
   continueAdventure: (adventureId) => call('POST', `/api/adventures/${adventureId}/continue`),
-  getCharacterAdventures: (id, ongoingOnly = false) => call('GET', `/api/characters/${id}/adventures${ongoingOnly ? '/ongoing' : ''}`),
+  // [수정] 두 개의 다른 함수로 명확하게 분리
+  getCharacterAdventures: (id) => call('GET', `/api/characters/${id}/adventures`),
+  getOngoingAdventure: (id) => call('GET', `/api/characters/${id}/adventures/ongoing`),
   getAdventure: (id) => call('GET', `/api/adventures/${id}`),
 
   // prompts
