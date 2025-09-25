@@ -80,16 +80,29 @@ function handleRouteChange() {
 // (기존 나머지 코드와 동일)
 window.addEventListener('hashchange', handleRouteChange);
 window.addEventListener('DOMContentLoaded', () => {
-  CreateWorld.mount();
-  CreateCharacter.mount();
-  CreatePrompt.mount();
-  CreateSite.mount();
-  Inventory.mount(); // [추가]
+  // [수정] 인증 상태가 확립되기 전에 mount를 미리 호출하지 않도록 아래 5줄을 삭제합니다.
+  // CreateWorld.mount();
+  // CreateCharacter.mount();
+  // CreatePrompt.mount();
+  // CreateSite.mount();
+  // Inventory.mount();
 
   const fbAuth = auth || window.__FBAPP__?.auth;
+  // [핵심] onAuthStateChanged가 앱의 첫 렌더링을 책임지도록 합니다.
   fbAuth?.onAuthStateChanged?.((user) => {
     updateAuthUI(user);
-    handleRouteChange();
+    
+    // [추가] 로그인 후 최초 한 번, 모든 컴포넌트의 mount 로직을 실행하도록 설정
+    if (user && !window.appMounted) {
+        CreateWorld.mount();
+        CreateCharacter.mount();
+        CreatePrompt.mount();
+        CreateSite.mount();
+        Inventory.mount();
+        window.appMounted = true; // 중복 실행 방지 플래그
+    }
+    
+    handleRouteChange(); // 현재 URL 해시에 맞는 뷰를 렌더링합니다.
   });
 
   bindBottomBar();
