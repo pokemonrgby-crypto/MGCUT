@@ -287,6 +287,37 @@ export function mountAdventures(app) {
             res.status(500).json({ ok: false, error: String(e) });
         }
     });
+
+app.get('/api/characters/:id/adventures', async (req, res) => {
+    try {
+        const user = await getUserFromReq(req);
+        if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+        const characterId = req.params.id;
+        
+        // 해당 캐릭터가 소유자인지 확인하는 로직 (선택적이지만 보안상 권장)
+        const charSnap = await db.collection('characters').doc(characterId).get();
+        if (!charSnap.exists || charSnap.data().ownerUid !== user.uid) {
+            return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
+        }
+
+        const qs = await db.collection('adventures')
+            .where('characterId', '==', characterId)
+            .where('ownerUid', '==', user.uid)
+            .orderBy('createdAt', 'desc')
+            .limit(50)
+            .get();
+
+        const adventures = qs.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        res.json({ ok: true, data: adventures });
+
+    } catch (e) {
+        console.error(`Error fetching all adventures for character ${req.params.id}:`, e);
+        res.status(500).json({ ok: false, error: String(e) });
+    }
+});
+
+
     
     app.post('/api/adventures/:id/proceed', async (req, res) => {
         try {
