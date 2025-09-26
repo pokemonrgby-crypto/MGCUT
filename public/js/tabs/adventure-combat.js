@@ -114,6 +114,46 @@ function combatTemplate(state) {
     `;
 }
 
+/**
+ * [신규] 전투 UI 전체를 다시 그리는 대신, 변경된 부분만 업데이트하는 함수
+ * @param {object} state - 최신 combatState
+ */
+function updateCombatUI(state) {
+    const root = document.querySelector(ROOT_SELECTOR);
+    if (!root || !state) return;
+
+    // 플레이어와 적의 정보 (HP, 상태이상)만 업데이트
+    const entities = [
+        { data: state.player, selector: '.combat-entity-card.player' },
+        { data: state.enemy, selector: '.combat-entity-card.enemy' }
+    ];
+
+    entities.forEach(entityInfo => {
+        const card = root.querySelector(entityInfo.selector);
+        if (card) {
+            const healthPercent = (entityInfo.data.health / entityInfo.data.maxHealth) * 100;
+            card.querySelector('.bar-fill').style.width = `${healthPercent}%`;
+            card.querySelector('.value').textContent = `${entityInfo.data.health} / ${entityInfo.data.maxHealth}`;
+            
+            const effectsContainer = card.querySelector('.status-effects');
+            if (effectsContainer) {
+                effectsContainer.innerHTML = (entityInfo.data.status || []).filter(s => s.duration > 0).map(s => `
+                    <div class="effect-badge" title="${s.name}">
+                        <span class="icon">${s.icon || '❓'}</span>
+                        <span class="duration">${s.duration}</span>
+                    </div>
+                `).join('');
+            }
+        }
+    });
+
+    // 턴이 끝났으므로 버튼들을 다시 활성화
+    if (state.status === 'ongoing') {
+        root.querySelectorAll('.combat-action-btn, .tabs .tab').forEach(el => el.disabled = false);
+    }
+}
+
+
 function render(state) {
     const root = document.querySelector(ROOT_SELECTOR);
     root.innerHTML = combatTemplate(state);
@@ -142,12 +182,16 @@ async function takeTurn(action) {
     if (isProcessingTurn) return;
     isProcessingTurn = true;
     
-    // [수정] 전체 로딩창(blocker) 대신 버튼들만 비활성화
     const root = document.querySelector(ROOT_SELECTOR);
     root.querySelectorAll('.combat-action-btn, .tabs .tab').forEach(el => el.disabled = true);
     
     const logArea = document.querySelector('.combat-log-container');
-    logArea.innerHTML = '<p class="small combat-log-line"><i>처리 중...</i></p>';
+    // [수정] 로그 영역을 비우지 않고 "처리 중" 메시지만 추가
+    const processingMsg = document.createElement('p');
+    processingMsg.className = 'small combat-log-line';
+    processingMsg.innerHTML = '<i>처리 중...</i>';
+    logArea.appendChild(processingMsg);
+    logArea.scrollTop = logArea.scrollHeight;
 
     try {
         const res = await api.takeCombatTurn(currentAdventureId, action);
@@ -155,11 +199,17 @@ async function takeTurn(action) {
             const newLogs = res.data.turnLog || [];
             currentCombatState = res.data.combatState;
 
-            logArea.innerHTML = ''; // "처리 중..." 메시지 제거
+            logArea.removeChild(processingMsg); // "처리 중..." 메시지 제거
+            
             showLogsSequentially(logArea, newLogs, () => {
-                // 모든 로그가 표시된 후 최종 상태로 UI를 다시 렌더링 (이때 버튼도 새로 그려지므로 활성화됨)
-                render(currentCombatState);
                 isProcessingTurn = false;
+                // [수정] 전투가 끝나면 결과 화면을 위해 전체 렌더링
+                if (currentCombatState.status !== 'ongoing') {
+                    render(currentCombatState);
+                } else {
+                // [수정] 전투가 계속되면 UI의 일부만 업데이트
+                    updateCombatUI(currentCombatState);
+                }
             });
 
         } else {
@@ -168,8 +218,9 @@ async function takeTurn(action) {
     } catch (e) {
         alert(`오류: ${e.message}`);
         isProcessingTurn = false;
-        // [수정] 에러 발생 시 UI를 마지막으로 성공한 상태로 복구하고 버튼 활성화
-        render(currentCombatState);
+        logArea.removeChild(processingMsg);
+        // 에러 발생 시 버튼만 다시 활성화
+        root.querySelectorAll('.combat-action-btn, .tabs .tab').forEach(el => el.disabled = false);
     }
 }
 
