@@ -110,12 +110,6 @@ export async function mount(characterId){
         const targetPanel = panelContainer.querySelector(`.panel.${btn.dataset.tab}`);
         targetPanel?.classList.add('active');
 
-        // === 교체 시작 ===
-        // 타임라인 탭을 클릭하면 항상 내용을 새로 렌더링
-        if(btn.dataset.tab === 'timeline') {
-            TimelineTab.render(targetPanel, c);
-        }
-        // === 교체 끝 ===
       };
     });
 
