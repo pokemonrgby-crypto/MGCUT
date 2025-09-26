@@ -6,6 +6,11 @@ export const MODEL_POOL = [
   'models/gemini-2.5-flash-lite',
 ];
 
+export function pickModels() {
+  const sorted = [...MODEL_POOL].sort(() => 0.5 - Math.random());
+  return { primary: sorted[0], secondary: sorted[1] || sorted[0] };
+}
+
 function stripFences(s = '') {
   return String(s)
     .trim()
