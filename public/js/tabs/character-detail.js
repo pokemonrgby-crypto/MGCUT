@@ -98,6 +98,7 @@ export async function mount(characterId){
 
     // 각 탭 컨텐츠 렌더링
     NarrativeTab.render(root.querySelector('.panel.narrative'), c);
+    TimelineTab.render(root.querySelector('.panel.timeline'), c);
     
     const tabs = Array.from(root.querySelectorAll('.tabs-char button[data-tab]'));
     const panelContainer = root.querySelector('.tab-panels');
@@ -109,10 +110,12 @@ export async function mount(characterId){
         const targetPanel = panelContainer.querySelector(`.panel.${btn.dataset.tab}`);
         targetPanel?.classList.add('active');
 
-        if(btn.dataset.tab === 'timeline' && !targetPanel.dataset.loaded) {
+        // === 교체 시작 ===
+        // 타임라인 탭을 클릭하면 항상 내용을 새로 렌더링
+        if(btn.dataset.tab === 'timeline') {
             TimelineTab.render(targetPanel, c);
-            targetPanel.dataset.loaded = 'true';
         }
+        // === 교체 끝 ===
       };
     });
 
