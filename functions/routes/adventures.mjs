@@ -162,7 +162,7 @@ export function mountAdventures(app) {
     app.post('/api/adventures/start', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
-            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATION' });
             const { characterId, worldId, siteName } = req.body;
             await checkAndUpdateCooldown(db, user.uid, `startAdventure:${characterId}`, 60);
             const geminiKey = await getApiKeyForUser(user.uid);
@@ -197,7 +197,7 @@ export function mountAdventures(app) {
     app.post('/api/adventures/:id/proceed', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
-            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATION' });
             await checkAndUpdateCooldown(db, user.uid, 'proceedAdventure', 10);
             const { choice } = req.body;
             const ref = db.collection('adventures').doc(req.params.id);
@@ -243,7 +243,7 @@ export function mountAdventures(app) {
     app.post('/api/adventures/:id/next', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
-            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATION' });
             const ref = db.collection('adventures').doc(req.params.id);
             await ref.update({ lastResult: FieldValue.delete() });
             res.json({ ok: true });
@@ -253,7 +253,7 @@ export function mountAdventures(app) {
     app.post('/api/adventures/:id/start-combat', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
-            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATION' });
             const { enemy } = req.body;
             const adventureRef = db.collection('adventures').doc(req.params.id);
             const snap = await adventureRef.get();
@@ -265,7 +265,6 @@ export function mountAdventures(app) {
             const healthRange = enemyHealthRanges[enemy.difficulty] || enemyHealthRanges.normal;
             const enemyMaxHealth = getRandomInRange(healthRange[0], healthRange[1]);
             
-            // [수정] 플레이어의 전투 시작 체력을 모험의 현재 체력(stamina)으로 설정
             const playerHealth = adventure.characterState?.stamina || 100;
 
             const combatState = {
@@ -283,7 +282,7 @@ export function mountAdventures(app) {
     app.post('/api/adventures/:id/combat-turn', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
-            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATION' });
             const { action } = req.body;
             const adventureRef = db.collection('adventures').doc(req.params.id);
             const snap = await adventureRef.get();
@@ -293,6 +292,7 @@ export function mountAdventures(app) {
                 return res.status(400).json({ ok: false, error: 'INVALID_TURN' });
             }
             let turnLog = [];
+            let droppedItem = null; // [추가] 획득 아이템 변수
             combatState.turn = 'processing';
             [combatState.player, combatState.enemy].forEach(entity => {
                 let stillActiveEffects = [];
@@ -341,14 +341,33 @@ export function mountAdventures(app) {
             if (combatState.status !== 'ongoing') {
                 turnLog.push(`--- 전투 종료: ${combatState.status} ---`);
                 
-                // [수정] 전투 종료 후 캐릭터의 최종 체력을 모험의 characterState에 반영
                 const finalPlayerHealth = combatState.player.health;
                 let updatedCharacterState = { ...adventure.characterState, stamina: finalPlayerHealth };
 
                 if (combatState.status === 'lost') {
                     await adventureRef.update({ combatState, status: 'failed', characterState: updatedCharacterState, updatedAt: FieldValue.serverTimestamp() });
-                } else {
+                } else { // won 또는 fled
                     const geminiKey = await getApiKeyForUser(user.uid);
+                    
+                    // [추가] 전투 승리 시 아이템 드랍 로직
+                    if (combatState.status === 'won') {
+                        const dropEvent = preRollEvent(combatState.enemy.difficulty || 'normal');
+                        if (dropEvent.type === 'FIND_ITEM') {
+                            const worldSnap = await db.collection('worlds').doc(adventure.worldId).get();
+                            const worldName = worldSnap.exists ? worldSnap.data().name : '-';
+                            const itemPrompt = `TRPG 게임(${worldName} 세계관)에서 플레이어가 "${combatState.enemy.name}"(${combatState.enemy.description}) (을)를 처치하고 얻은 전리품 컨셉의 "${dropEvent.tier}" 등급 아이템 1개를 {"name": "...", "description": "...", "grade": "${dropEvent.tier}"} JSON 형식으로 생성해줘. 20% 확률로 "type"을 "consumable"로 설정해줘. 설명이나 코드 펜스 없이 순수 JSON 객체만 출력해줘.`;
+                            const { json: newItemJson } = await callGemini({ key: geminiKey, model, user: itemPrompt });
+
+                            if (newItemJson && newItemJson.name) {
+                                droppedItem = { ...newItemJson, id: randomUUID() };
+                                await db.collection('characters').doc(adventure.characterId).update({
+                                    items: FieldValue.arrayUnion(droppedItem)
+                                });
+                                turnLog.push(`[시스템] 전리품으로 아이템 [${droppedItem.name}] (을)를 획득했다!`);
+                            }
+                        }
+                    }
+
                     const charSnap = await db.collection('characters').doc(adventure.characterId).get();
                     const worldSnap = await db.collection('worlds').doc(adventure.worldId).get();
                     const worldData = worldSnap.data();
@@ -360,7 +379,7 @@ export function mountAdventures(app) {
                         status: 'ongoing',
                         combatState: null,
                         currentNode: nextNode,
-                        characterState: updatedCharacterState, // [수정] 업데이트된 체력 정보 저장
+                        characterState: updatedCharacterState,
                         updatedAt: FieldValue.serverTimestamp()
                     });
                 }
@@ -368,7 +387,7 @@ export function mountAdventures(app) {
                 combatState.turn = 'player';
                 await adventureRef.update({ combatState, modelIndex: (adventure.modelIndex || 0) + 1 });
             }
-            res.json({ ok: true, data: { combatState, turnLog } });
+            res.json({ ok: true, data: { combatState, turnLog, droppedItem } }); // [수정] droppedItem 반환
         } catch (e) {
             const snap = await db.collection('adventures').doc(req.params.id).get();
             if (snap.exists) {
@@ -385,7 +404,7 @@ export function mountAdventures(app) {
     app.get('/api/adventures/:id', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
-            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATION' });
             const ref = db.collection('adventures').doc(req.params.id);
             const snap = await ref.get();
             if (!snap.exists || snap.data().ownerUid !== user.uid) return res.status(404).json({ ok: false, error: 'ADVENTURE_NOT_FOUND' });
@@ -396,7 +415,7 @@ export function mountAdventures(app) {
     app.get('/api/characters/:id/adventures/ongoing', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
-            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATION' });
             const characterId = req.params.id;
             const qs = await db.collection('adventures')
                 .where('characterId', '==', characterId)
