@@ -1,13 +1,10 @@
 // functions/lib/gemini.mjs
 export const MODEL_POOL = [
-  'models/gemini-1.5-flash',
-  'models/gemini-pro',
-  'models/gemini-1.0-pro',
-  'models/gemini-1.5-pro',
+  'models/gemini-2.0-flash',
+  'models/gemini-2.5-flash',
+  'models/gemini-2.0-flash-lite',
+  'models/gemini-2.5-flash-lite',
 ];
-
-// 모델 선택 로직을 Adventure State와 연동하기 위해 단순 배열만 남김
-// export function pickModels() { ... } 함수는 삭제합니다.
 
 function stripFences(s = '') {
   return String(s)
