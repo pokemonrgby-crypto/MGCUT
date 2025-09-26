@@ -3,7 +3,7 @@ import { api, auth, storage } from '../api.js';
 import { withBlocker, ui } from '../ui/frame.js';
 import * as NarrativeTab from './character-narrative.js';
 import * as TimelineTab from './character-timeline.js';
-import { itemCard } from '../ui/components/item-card.js';
+import { itemCard, simpleItemCard } from '../ui/components/item-card.js';
 
 const ROOT = '[data-view="character-detail"]';
 
@@ -68,11 +68,12 @@ export async function mount(characterId){
         <div class="title shadow-title">${esc(c.name || '(이름없음)')}</div>
       </div>
 
-      <div class="tabs tabs-char" style="grid-template-columns: repeat(${isOwner ? 5:4}, 1fr);">
+      <div class="tabs tabs-char" style="grid-template-columns: repeat(${isOwner ? 6:5}, 1fr);">
         <button data-tab="about" class="active">소개</button>
         <button data-tab="narrative">서사</button>
         <button data-tab="skills">스킬</button>
         <button data-tab="items">아이템</button>
+        <button data-tab="timeline">타임라인</button>
         ${isOwner ? '<button data-tab="admin">관리</button>' : ''}
       </div>
 
@@ -81,13 +82,13 @@ export async function mount(characterId){
         <div class="panel narrative"></div>
         <div class="panel skills"><div class="skills-head"><span class="count">0/3</span><div style="flex:1"></div><button class="btn small" id="btn-save-skills">저장</button></div><div class="skills-list vlist">${ Array.isArray(c.abilities) && c.abilities.length ? c.abilities.map(skillChip).join('') : `<div class="small" style="opacity:.8">등록된 스킬이 없어요.</div>` }</div></div>
         <div class="panel items">
-            <div class="small" style="opacity:.9;margin:6px 0 8px">장착 슬롯 (3칸)</div>
-            <div class="slots" style="grid-template-columns: repeat(3, 1fr); display: grid; gap: 8px;"></div>
+            <div class="small" style="opacity:.9;margin:6px 0 8px"><b>장착</b></div>
+            <div class="equipment-slots"></div>
             <div style="display:flex;gap:8px;margin:10px 0 12px">
                 <button class="btn small" id="btn-save-items">장착 정보 저장</button>
             </div>
-            <div class="small" style="opacity:.9;margin:10px 0 6px">인벤토리</div>
-            <div class="inventory grid3">${ Array.isArray(c.items) && c.items.length ? c.items.map(item => itemCard(item, 'inv-item')).join('') : `<div class="card pad small">아이템이 없어요.</div>` }</div>
+            <div class="small" style="opacity:.9;margin:10px 0 6px"><b>인벤토리</b></div>
+            <div class="inventory grid3">${ Array.isArray(c.items) && c.items.length ? c.items.map(item => simpleItemCard(item, 'inv-item')).join('') : `<div class="card pad small">아이템이 없어요.</div>` }</div>
         </div>
         <div class="panel timeline"></div> 
         ${isOwner ? '<div class="panel admin"></div>' : ''}
@@ -97,8 +98,7 @@ export async function mount(characterId){
 
     // 각 탭 컨텐츠 렌더링
     NarrativeTab.render(root.querySelector('.panel.narrative'), c);
-    TimelineTab.render(root.querySelector('.panel.timeline'), c); // 타임라인 탭 렌더링 추가
-
+    
     const tabs = Array.from(root.querySelectorAll('.tabs-char button[data-tab]'));
     const panelContainer = root.querySelector('.tab-panels');
     tabs.forEach(btn=>{
@@ -109,7 +109,6 @@ export async function mount(characterId){
         const targetPanel = panelContainer.querySelector(`.panel.${btn.dataset.tab}`);
         targetPanel?.classList.add('active');
 
-        // [추가] 타임라인 탭이 활성화될 때 렌더링 함수 호출
         if(btn.dataset.tab === 'timeline' && !targetPanel.dataset.loaded) {
             TimelineTab.render(targetPanel, c);
             targetPanel.dataset.loaded = 'true';
@@ -193,8 +192,8 @@ export async function mount(characterId){
       }catch(e){ alert('저장 실패: ' + (e.message||e)); }
     });
 
-    // --- 아이템 로직 (모달 기반) ---
-    const slotsContainer = root.querySelector('.slots');
+    // --- 아이템 로직 (모달 기반, 심플 카드) ---
+    const slotsContainer = root.querySelector('.equipment-slots');
     const allItemsMap = new Map((c.items || []).map(item => [item.id, item]));
     let equippedItemIds = [...(c.equipped || [null, null, null])];
 
@@ -202,13 +201,13 @@ export async function mount(characterId){
         slotsContainer.innerHTML = equippedItemIds.map((itemId, index) => {
             const item = itemId ? allItemsMap.get(itemId) : null;
             if (item) {
-                return `<div class="slot equipped" data-slot-index="${index}" data-item-id="${item.id}">${itemCard(item)}</div>`;
+                return `<div class="equipment-slot equipped" data-slot-index="${index}" data-item-id="${item.id}">${simpleItemCard(item)}</div>`;
             }
-            return `<div class="slot empty" data-slot-index="${index}"><span class="small" style="opacity:.7">빈 슬롯</span></div>`;
+            return `<div class="equipment-slot empty" data-slot-index="${index}"><span class="small" style="opacity:.7">장착 가능</span></div>`;
         }).join('');
 
         // 슬롯에 이벤트 리스너 다시 바인딩
-        slotsContainer.querySelectorAll('.slot.equipped').forEach(slot => {
+        slotsContainer.querySelectorAll('.equipment-slot.equipped').forEach(slot => {
             slot.onclick = () => {
                 const itemId = slot.dataset.itemId;
                 const item = allItemsMap.get(itemId);
@@ -231,9 +230,9 @@ export async function mount(characterId){
             if(isAlreadyEquippedInAnotherSlot) {
                  actionButton = `<button class="btn full" disabled>이미 장착된 아이템입니다</button>`;
             } else if (canEquip) {
-                 actionButton = `<button class="btn full" id="btn-equip">첫번째 빈 슬롯에 장착</button>`;
+                 actionButton = `<button class="btn full" id="btn-equip">장착</button>`;
             } else {
-                 actionButton = `<button class="btn full" disabled>장착 슬롯이 가득 찼습니다</button>`;
+                 actionButton = `<button class="btn full" disabled>장착 칸이 가득 찼습니다</button>`;
             }
         }
 
@@ -279,8 +278,8 @@ export async function mount(characterId){
         }
     }
     
-    root.querySelectorAll('.inventory .item-card.inv-item').forEach(cardEl => {
-        const itemId = cardEl.closest('[data-item-id]')?.dataset.itemId;
+    root.querySelectorAll('.inventory .simple-item-card.inv-item').forEach(cardEl => {
+        const itemId = cardEl.dataset.itemId;
         if (!itemId) return;
         const item = allItemsMap.get(itemId);
         if (item) {
