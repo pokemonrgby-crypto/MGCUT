@@ -80,7 +80,11 @@ export async function loadCharacterBasePrompt() {
     }
   ],
   "abilities": [
-    { "id": "placeholder_id_1", "name": "어빌리티 이름", "description": "어빌리티의 효과와 기능에 대한 설명." }
+    { 
+      "id": "placeholder_id_1", 
+      "name": "어빌리티 이름", 
+      "description": "어빌리티의 효과와 기능에 대한 설명."
+    }
   ],
   "chosen": ["placeholder_id_1"],
   "items": [
@@ -91,10 +95,11 @@ export async function loadCharacterBasePrompt() {
 규칙:
 - narratives 배열은 정확히 1개여야 합니다.
 - abilities 배열은 정확히 6개여야 합니다.
+- [중요] abilities 에는 스킬의 이름과 설명만 포함합니다. 구체적인 데미지, 타입, 효과 등은 여기서 정의하지 않습니다.
 - id 필드는 고유한 문자열이어야 합니다. (실제 ID는 서버에서 재생성되므로 임시 값을 사용하세요)
-- [추가] 각 어빌리티는 캐릭터의 성격이나 배경 서사와 연관성이 느껴지도록 독창적으로 생성해야 합니다.
+- 각 어빌리티는 캐릭터의 성격이나 배경 서사와 연관성이 느껴지도록 독창적으로 생성해야 합니다.
 - chosen 배열은 abilities 중 3개를 골라 그 id 값으로 채워야 합니다.
-- [중요] items 배열은 기본적으로 빈 배열([])이어야 합니다. 특별한 요청이 없는 한 아이템을 추가하지 마세요.
+- items 배열은 기본적으로 빈 배열([])이어야 합니다.
 - stats의 각 수치는 1~20 사이의 정수여야 하며, 총합은 40을 넘지 않도록 분배해주세요.
 - 각 필드의 내용은 풍부하고 상세하게 작성해야 합니다.
 `
