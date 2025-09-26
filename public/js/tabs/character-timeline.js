@@ -129,21 +129,34 @@ async function renderAdventureLogs(container, characterId) {
 
 export function render(container, characterData) {
     const characterId = characterData.id;
-    container.innerHTML = `
-        <div class="tabs tabs-char" style="grid-template-columns: repeat(2, 1fr); padding: 8px 0; margin-bottom: 12px;">
-            <button data-subtab="battle" class="active">배틀</button>
-            <button data-subtab="adventure">탐험</button>
-        </div>
-        <div class="tab-panels">
-            <div class="panel subpanel battle active"></div>
-            <div class="panel subpanel adventure" style="display:none;"></div>
-        </div>
-    `;
+
+    // === 교체 시작 ===
+    // 초기 HTML 구조가 없으면 생성
+    if (!container.querySelector('.tabs-char')) {
+        container.innerHTML = `
+            <div class="tabs tabs-char" style="grid-template-columns: repeat(2, 1fr); padding: 8px 0; margin-bottom: 12px;">
+                <button data-subtab="battle" class="active">배틀</button>
+                <button data-subtab="adventure">탐험</button>
+            </div>
+            <div class="tab-panels">
+                <div class="panel subpanel battle active"></div>
+                <div class="panel subpanel adventure" style="display:none;"></div>
+            </div>
+        `;
+    }
 
     const battlePanel = container.querySelector('.panel.battle');
     const adventurePanel = container.querySelector('.panel.adventure');
 
+    // 항상 배틀 로그는 새로 렌더링
     renderBattleLogs(battlePanel, characterId);
+    
+    // 이벤트 리스너가 이미 등록되었다면, 중복 등록 방지
+    if (container.dataset.eventsAttached === 'true') {
+        return;
+    }
+    container.dataset.eventsAttached = 'true';
+    // === 교체 끝 ===
 
     container.querySelector('.tabs-char').addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-subtab]');
