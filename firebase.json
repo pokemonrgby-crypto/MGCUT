@@ -5,12 +5,14 @@
     "site": "tale-of-heros-staging",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "headers": [
-      { 
+      {
         "source": "**/*.@(js|mjs|css)",
-        "headers": [{ 
-          "key": "Cache-Control", 
-          "value": "public, max-age=3600, must-revalidate" 
-        }] 
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          }
+        ]
       },
       { 
         "source": "**/*.@(png|jpg|jpeg|webp|svg|gif|woff2|ttf)",
