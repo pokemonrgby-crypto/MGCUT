@@ -3,20 +3,20 @@
 import { api } from '../api.js';
 import { ui } from '../ui/frame.js';
 
-const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'gt;','"':'&quot;',"'":'&#39;'}[m]));
 
 function parseRichText(text) {
   if (!text) return '';
   // HTML 태그가 변환되기 전에 리치 텍스트를 먼저 처리하도록 순서 변경
-  return text.replace(/<대사>/g, '<div class="dialogue">')
+  return text.replace(/<대사>/g, '<div class="dialogue"></div>')
     .replace(/<\/대사>/g, '</div>')
-    .replace(/<서술>/g, '<div class="narrative">')
+    .replace(/<서술>/g, '<div class="narrative"></div>')
     .replace(/<\/서술>/g, '</div>')
-    .replace(/<강조>/g, '<strong class="emphasis">')
+    .replace(/<강조>/g, '<strong class="emphasis"></strong>')
     .replace(/<\/강조>/g, '</strong>')
-    .replace(/<생각>/g, '<div class="thought">')
+    .replace(/<생각>/g, '<div class="thought"></div>')
     .replace(/<\/생각>/g, '</div>')
-    .replace(/<시스템>/g, '<div class="system">')
+    .replace(/<시스템>/g, '<div class="system"></div>')
     .replace(/<\/시스템>/g, '</div>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -38,26 +38,30 @@ function formatDate(date) {
 function battleLogCard(log, currentCharId) {
   const isMeA = String(log.meId) === String(currentCharId);
 
+  // 이름/이미지 안전 기본값
   const meName = String(log.meName || '나의 캐릭터');
   const opName = String(log.opName || '상대 캐릭터');
   const opponentName = isMeA ? opName : meName;
   const opponentImageUrl = isMeA ? (log.opImageUrl || '') : (log.meImageUrl || '');
 
+  // Elo 안전 숫자화
   const myEloBefore = Number(isMeA ? log.eloMe : log.eloOp);
-  const myEloAfter = Number(isMeA ? log.eloMeAfter : log.eloOpAfter);
+  const myEloAfter  = Number(isMeA ? log.eloMeAfter : log.eloOpAfter);
   const safeEloBefore = Number.isFinite(myEloBefore) ? myEloBefore : 1000;
-  const safeEloAfter = Number.isFinite(myEloAfter) ? myEloAfter : safeEloBefore;
+  const safeEloAfter  = Number.isFinite(myEloAfter)  ? myEloAfter  : safeEloBefore;
   const eloChange = safeEloAfter - safeEloBefore;
   const eloChangeStr = (eloChange >= 0 ? `+${eloChange}` : `${eloChange}`);
 
+  // 승패 표시
   let result = '무승부';
   let resultClass = '';
   if (log.winner === 'A' || log.winner === 'B') {
     const didIWin = (isMeA && log.winner === 'A') || (!isMeA && log.winner === 'B');
     result = didIWin ? '승리' : '패배';
-    resultClass = didIWin ? 'win' : 'lose';
+    resultClass = didIWin ? 'ok' : 'err';
   }
 
+  // 날짜 안전 처리
   const tsSec = (log.createdAt?.seconds ?? log.updatedAt?.seconds ?? 0);
   const date = new Date(tsSec * 1000);
   const dateStr = Number.isFinite(date.getTime()) ? formatDate(date) : '';
