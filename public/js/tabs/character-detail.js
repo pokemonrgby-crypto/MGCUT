@@ -155,6 +155,7 @@ export async function mount(characterId){
     }
 
     // --- 스킬 로직 (ID 기반) ---
+    // === 교체 시작 ===
     const skillEls = Array.from(root.querySelectorAll('.skills-list .skill'));
     const countEl = root.querySelector('.skills-head .count');
     const savedSkills = new Set(c.chosen || []);
@@ -175,14 +176,17 @@ export async function mount(characterId){
       if (selected.has(id)) {
         selected.delete(id);
       } else {
-        if (selected.size >= 3) {
-          const first = selected.values().next().value;
-          if (first) selected.delete(first);
+        // 3개 미만일 때만 추가
+        if (selected.size < 3) {
+          selected.add(id);
+        } else {
+          // 사용자에게 알림 (선택사항)
+          // alert('스킬은 최대 3개까지만 선택할 수 있습니다.');
         }
-        selected.add(id);
       }
       syncSkillSelection();
     }
+    // === 교체 끝 ===
     skillEls.forEach(el=> el.onclick = ()=> toggleSkill(el));
     syncSkillSelection();
 
