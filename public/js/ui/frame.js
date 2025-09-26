@@ -5,6 +5,7 @@ import * as Create from '../tabs/create.js';
 import * as Info from '../tabs/info.js';
 import * as Adventure from '../tabs/adventure.js';
 import * as AdventureDetail from '../tabs/adventure-detail.js';
+import * as AdventureCombat from '../tabs/adventure-combat.js';
 import * as Inventory from '../tabs/inventory.js';
 import * as Ranking from '../tabs/ranking.js';
 import * as CreateWorld from '../tabs/create-world.js';
@@ -16,7 +17,6 @@ import * as EpisodeDetail from '../tabs/episode-detail.js';
 import * as CharacterDetail from '../tabs/character-detail.js';
 import * as Matching from '../tabs/matching.js';
 import * as Battle from '../tabs/battle.js';
-
 
 export const ui = {
   blocker: null,
@@ -45,7 +45,8 @@ function handleRouteChange() {
     'create': { view: 'create', mount: Create.mount },
     'adventure': { view: 'adventure', mount: Adventure.mount },
     'adventure-detail': { parentView: 'adventure', view: 'adventure-detail', mount: () => AdventureDetail.mount(param1) },
-    'inventory': { parentView: 'adventure', view: 'inventory', mount: Inventory.mount }, // [수정]
+    'adventure-combat': { parentView: 'adventure', view: 'adventure-combat', mount: () => AdventureCombat.mount(param1) },
+    'inventory': { view: 'inventory', mount: Inventory.mount },
     'ranking': { view: 'ranking', mount: Ranking.mount },
     'info': { view: 'info', mount: Info.mount },
     'create-world': { parentView: 'create', view: 'create-world' },
@@ -77,32 +78,22 @@ function handleRouteChange() {
   }
 }
 
-// (기존 나머지 코드와 동일)
 window.addEventListener('hashchange', handleRouteChange);
 window.addEventListener('DOMContentLoaded', () => {
-  // [수정] 인증 상태가 확립되기 전에 mount를 미리 호출하지 않도록 아래 5줄을 삭제합니다.
-  // CreateWorld.mount();
-  // CreateCharacter.mount();
-  // CreatePrompt.mount();
-  // CreateSite.mount();
-  // Inventory.mount();
-
   const fbAuth = auth || window.__FBAPP__?.auth;
-  // [핵심] onAuthStateChanged가 앱의 첫 렌더링을 책임지도록 합니다.
   fbAuth?.onAuthStateChanged?.((user) => {
     updateAuthUI(user);
     
-    // [추가] 로그인 후 최초 한 번, 모든 컴포넌트의 mount 로직을 실행하도록 설정
     if (user && !window.appMounted) {
         CreateWorld.mount();
         CreateCharacter.mount();
         CreatePrompt.mount();
         CreateSite.mount();
         Inventory.mount();
-        window.appMounted = true; // 중복 실행 방지 플래그
+        window.appMounted = true;
     }
     
-    handleRouteChange(); // 현재 URL 해시에 맞는 뷰를 렌더링합니다.
+    handleRouteChange();
   });
 
   bindBottomBar();
@@ -156,15 +147,12 @@ export function handleCooldown(error, button) {
     }
 }
 
-
-// (기존 내용과 동일)
 export async function withBlocker(task, button = null) {
   ui.busy(true);
   try {
     return await task();
   } catch (e) {
     console.error(e);
-    // [수정 제안] 사용자에게 에러 알림 추가
     alert(`오류가 발생했습니다: ${e.message}`); 
     if (button) {
         handleCooldown(e, button);
