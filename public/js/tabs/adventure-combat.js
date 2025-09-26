@@ -7,6 +7,48 @@ let currentAdventureId = null;
 let currentCombatState = null;
 let isProcessingTurn = false;
 
+/**
+ * [신규] 로그 한 줄을 분석하여 실시간으로 UI를 업데이트하는 함수
+ * @param {string} logLine - 분석할 로그 텍스트
+ */
+function parseLogAndUpdateUI(logLine) {
+    if (!currentCombatState) return;
+
+    const root = document.querySelector(ROOT_SELECTOR);
+    let entityCard;
+
+    // 정규식을 사용하여 로그에서 HP 변경 정보 추출
+    const hpMatch = logLine.match(/([^\s(]+)은\(는\) (\d+)의 피해를 입었다\. \(HP: (\d+)\)|([^\s(]+)의 체력이 (\d+)만큼 회복되었다\. \(HP: (\d+)\)|\[효과\] ([^\s(]+)은\(는\) .*? (\d+)의 피해를 입었다|\[효과\] ([^\s(]+)은\(는\) .*? (\d+) 회복했다/);
+
+    if (hpMatch) {
+        const name = hpMatch[1] || hpMatch[4] || hpMatch[7] || hpMatch[9];
+        const newHp = parseInt(hpMatch[3] || hpMatch[6] || (currentCombatState.player.name === name ? currentCombatState.player.health : currentCombatState.enemy.health), 10);
+        
+        const isPlayer = currentCombatState.player.name === name;
+        const entity = isPlayer ? currentCombatState.player : currentCombatState.enemy;
+        entityCard = root.querySelector(isPlayer ? '.player' : '.enemy');
+        
+        // 실제 상태 업데이트
+        entity.health = newHp;
+
+        if (entityCard) {
+            const healthPercent = (entity.health / entity.maxHealth) * 100;
+            entityCard.querySelector('.bar-fill').style.width = `${healthPercent}%`;
+            entityCard.querySelector('.value').textContent = `${entity.health} / ${entity.maxHealth}`;
+        }
+    }
+    
+    // [신규] 상태이상 발생/제거 시 실시간 아이콘 업데이트
+    const statusAddMatch = logLine.match(/([^\s(]+)은\(는\) (.*?) 효과에 걸렸다!/);
+    const statusRemoveMatch = logLine.match(/([^\s(]+)의 (.*?) 효과가 사라졌다\./);
+
+    if (statusAddMatch || statusRemoveMatch) {
+        // 상태이상 변경이 감지되면 플레이어와 적의 상태 UI를 모두 최신 정보로 갱신
+        updateCombatUI(currentCombatState);
+    }
+}
+
+
 // 한 줄씩 로그를 표시하는 함수
 function showLogsSequentially(logArea, logs, callback) {
     if (logs.length === 0) {
@@ -14,6 +56,10 @@ function showLogsSequentially(logArea, logs, callback) {
         return;
     }
     const log = logs.shift();
+    
+    // [수정] 로그를 표시하기 직전에 UI 업데이트 함수 호출
+    parseLogAndUpdateUI(log);
+
     const p = document.createElement('p');
     p.className = 'small combat-log-line';
     p.innerHTML = log;
@@ -47,16 +93,10 @@ function entityCardTemplate(entity, isPlayer = false) {
 
 function combatTemplate(state) {
     if (!state) return '<div class="spinner"></div>';
-
     const player = state.player;
     const enemy = state.enemy;
-
-    // 전투 종료 화면
     if (state.status !== 'ongoing') {
-        let resultTitle = '';
-        let resultMessage = '';
-        // [수정] 패배 시 버튼 텍스트 변경
-        let buttonText = '모험 계속하기';
+        let resultTitle = '', resultMessage = '', buttonText = '모험 계속하기';
         if (state.status === 'won') {
             resultTitle = '승리!';
             resultMessage = '적을 물리치고 모험을 계속합니다.';
@@ -75,16 +115,12 @@ function combatTemplate(state) {
                 ${state.log.map(line => `<p class="small">${line}</p>`).join('')}
             </div>
             <div class="card pad" style="text-align: center;">
-                <h2>${resultTitle}</h2>
-                <p>${resultMessage}</p>
+                <h2>${resultTitle}</h2><p>${resultMessage}</p>
                 <button class="btn full" id="btn-return-to-adventure" style="margin-top: 16px;">${buttonText}</button>
             </div>
              ${entityCardTemplate(player, true)}
-        </div>
-        `;
+        </div>`;
     }
-
-    // 전투 진행 화면
     return `
     <div class="combat-view">
         ${entityCardTemplate(enemy)}
@@ -99,28 +135,18 @@ function combatTemplate(state) {
                 <button class="tab" data-action-tab="etc">기타</button>
             </div>
             <div class="action-panels">
-                <div class="action-panel skills active">
-                    ${player.skills.length > 0 ? player.skills.map(s => `<button class="btn full combat-action-btn" data-action-type="skill" data-action-id="${s.id}">${s.name}</button>`).join('') : '<div class="small-text">사용할 스킬이 없습니다.</div>'}
-                </div>
-                <div class="action-panel items">
-                     ${player.items.length > 0 ? player.items.map(i => `<button class="btn full combat-action-btn" data-action-type="item" data-action-id="${i.id}">${i.name} <small>(${i.grade})</small></button>`).join('') : '<div class="small-text">사용할 아이템이 없습니다.</div>'}
-                </div>
-                <div class="action-panel etc">
-                    <button class="btn full secondary combat-action-btn" data-action-type="flee">도망치기</button>
-                </div>
+                <div class="action-panel skills active">${player.skills.length > 0 ? player.skills.map(s => `<button class="btn full combat-action-btn" data-action-type="skill" data-action-id="${s.id}">${s.name}</button>`).join('') : '<div class="small-text">사용할 스킬이 없습니다.</div>'}</div>
+                <div class="action-panel items">${player.items.length > 0 ? player.items.map(i => `<button class="btn full combat-action-btn" data-action-type="item" data-action-id="${i.id}">${i.name} <small>(${i.grade})</small></button>`).join('') : '<div class="small-text">사용할 아이템이 없습니다.</div>'}</div>
+                <div class="action-panel etc"><button class="btn full secondary combat-action-btn" data-action-type="flee">도망치기</button></div>
             </div>
         </div>
-    </div>
-    `;
+    </div>`;
 }
 
 function updateCombatUI(state) {
     const root = document.querySelector(ROOT_SELECTOR);
     if (!root || !state) return;
-    const entities = [
-        { data: state.player, selector: '.combat-entity-card.player' },
-        { data: state.enemy, selector: '.combat-entity-card.enemy' }
-    ];
+    const entities = [{ data: state.player, selector: '.combat-entity-card.player' }, { data: state.enemy, selector: '.combat-entity-card.enemy' }];
     entities.forEach(entityInfo => {
         const card = root.querySelector(entityInfo.selector);
         if (card) {
@@ -189,7 +215,7 @@ async function takeTurn(action) {
     } catch (e) {
         alert(`오류: ${e.message}`);
         isProcessingTurn = false;
-        logArea.removeChild(processingMsg);
+        if(logArea.contains(processingMsg)) logArea.removeChild(processingMsg);
         root.querySelectorAll('.combat-action-btn, .tabs .tab').forEach(el => el.disabled = false);
     }
 }
@@ -216,11 +242,10 @@ export function mount(adventureId) {
         }
         const returnBtn = e.target.closest('#btn-return-to-adventure');
         if (returnBtn) {
-            // [수정] 전투 결과에 따라 분기 처리
             if (currentCombatState.status === 'lost') {
-                ui.navTo('adventure'); // 패배 시 허브로
+                ui.navTo('adventure');
             } else {
-                ui.navTo(`adventure-detail/${currentAdventureId}`); // 승리/후퇴 시 모험 계속
+                ui.navTo(`adventure-detail/${currentAdventureId}`);
             }
         }
     });
