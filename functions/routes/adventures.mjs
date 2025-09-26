@@ -7,13 +7,17 @@ import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 import { getApiKeySecret } from '../lib/secret-manager.mjs';
 import { preRollEvent } from '../lib/adventure-events.mjs';
 import { randomUUID } from 'crypto';
-import { damageLevels, FLEE_CHANCE } from '../lib/adventure-combat-rules.mjs';
+import { enemyHealthRanges, combatEffects, FLEE_CHANCE } from '../lib/adventure-combat-rules.mjs';
 
 // --- 헬퍼 함수 ---
 async function getApiKeyForUser(uid) {
     const apiKey = await getApiKeySecret(uid);
     if (!apiKey) throw new Error('API_KEY_NOT_FOUND: 내 정보 탭에서 API 키를 먼저 등록해주세요.');
     return apiKey;
+}
+
+function getRandomInRange(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 // --- 프롬프트 생성 함수 ---
@@ -32,7 +36,7 @@ function getNextNodePrompt(context, site, history) {
         case 'ENCOUNTER_ENEMY_HARD':
         case 'ENCOUNTER_MINIBOSS':
             const difficulty = preRolledEvent.type.split('_').pop();
-            eventInstruction = `[전투] 이벤트: '${difficulty}' 난이도의 적과 조우하는 상황을 묘사하세요. 이 이벤트의 "choices" 배열에는 반드시 {"text": "전투 시작", "action": "enter_battle"} 객체 하나만 포함해야 합니다.`;
+            eventInstruction = `[전투] 이벤트: 현재 세계관 컨셉에 어울리는 '${difficulty}' 난이도의 적(enemy)을 구체적으로 설정하고, 그 적과 조우하는 상황을 묘사하세요. 이 이벤트의 "choices" 배열에는 반드시 {"text": "전투 시작", "action": "enter_battle"} 객체 하나만 포함해야 합니다.`;
             break;
         case 'TRIGGER_TRAP':
             eventInstruction = `[함정] 이벤트: 캐릭터가 스태미나를 잃는 함정을 발동시킵니다.`;
@@ -44,7 +48,7 @@ function getNextNodePrompt(context, site, history) {
     return `
 # 역할: TRPG 마스터(GM)
 # 정보
-- 세계관: ${context.world.name}
+- 세계관: ${context.world.name} (${context.world.introShort})
 - 캐릭터: ${context.character.name} (현재 체력: ${context.characterState.stamina}/100)
 - 탐험 장소: ${site.name} (난이도: ${site.difficulty})
 ${historyLog}
@@ -60,7 +64,7 @@ ${historyLog}
      "type": "이벤트 타입 (item, combat, trap, narrative)",
      "situation": "현재 상황에 대한 상세한 묘사",
      "choices": [ { "text": "선택지 1" }, ... ],
-     "enemy": { "name": "...", "description": "...", "difficulty": "..." },
+     "enemy": { "name": "...", "description": "...", "difficulty": "${preRolledEvent.type.split('_').pop()?.toLowerCase() || 'normal'}" },
      "item": { "name": "...", "description": "...", "grade": "..." },
      "penalty": { "stat": "stamina", "value": -15 }
    }
@@ -68,44 +72,123 @@ ${historyLog}
    - 설명이나 코드 펜스 없이 순수 JSON 객체만 출력하세요.`;
 }
 
-function getResultPrompt(context, site, history, choice) {
-    const historyLog = history.length > 0 ? `# 이전 기록\n${history.map(h => `- ${h}`).join('\n')}` : '';
+// [신규] 전투 턴 AI 프롬프트 생성 함수
+function getCombatTurnPrompt(combatState, action) {
+    const { player, enemy, log } = combatState;
+    const actionSource = action.type === 'skill' ? player.skills.find(s => s.id === action.id) : player.items.find(i => i.id === action.id);
+    const lastLogs = log.slice(-5).join('\n');
+
+    const effectList = Object.entries(combatEffects).map(([key, val]) => `- ${key}: ${val.name} (${val.stackable ? '중첩 가능' : '중첩 불가'})`).join('\n');
 
     return `
-# 역할: TRPG 마스터(GM)
-# 정보
-- 세계관: ${context.world.name}
-- 캐릭터: ${context.character.name} (체력: ${context.characterState.stamina}/100)
-- 탐험 장소: ${site.name}
-${historyLog}
-- 캐릭터의 직전 행동: "${choice}"
+# 역할: 창의적이고 균형감 있는 TRPG 전투 마스터(GM)
+# 현재 전투 상황
+- 플레이어: ${player.name} (HP: ${player.health}/${player.maxHealth}, 상태: ${player.status.map(s=>s.name).join(', ')||'없음'})
+- 적: ${enemy.name} (HP: ${enemy.health}/${enemy.maxHealth}, 상태: ${enemy.status.map(s=>s.name).join(', ')||'없음'})
+- 최근 로그: ${lastLogs}
+- 플레이어의 행동: "${actionSource.name}" (${actionSource.description}) 사용
 
-# 임무: 캐릭터의 직전 행동에 대한 **결과**를 1~2문장의 간결하고 흥미로운 서술로 작성해줘. 다른 말은 붙이지 말고, 결과 서술 텍스트만 출력해줘.`;
-}
-
-function getCombatScriptPrompt(character, enemy, world) {
-    const skills = (character.abilities || []).filter(a => (character.chosen || []).includes(a.id));
-    const items = (character.items || []).filter(i => (character.equipped || []).includes(i.id));
-
-    return `
-# 역할: 전투 묘사에 매우 능숙한 TRPG 마스터(GM).
-# 정보
-- 세계관: ${world.name}
-- 캐릭터: ${character.name}
-- 적: ${enemy.name} - ${enemy.description}
-
-# 임무: 아래 JSON 구조에 맞춰, 플레이어가 스킬/아이템을 사용했을 때 나올 법한 전투 묘사 대사를 총 60개 생성해줘. 각 묘사는 1~2 문장으로 생생하고 역동적으로 표현해야 해.
+# 임무: 플레이어의 행동에 대한 결과를 아래 JSON 형식에 맞춰 생성해줘.
 {
-  "skill_dialogues": {
-    ${skills.map(s => `"${s.name}": ["묘사 1", "묘사 2", "묘사 3", "묘사 4", "묘사 5"]`).join(',\n    ') || ''}
-  },
-  "item_dialogues": {
-     ${items.map(i => `"${i.name}": ["묘사 1", "묘사 2", "묘사 3", "묘사 4", "묘사 5"]`).join(',\n    ') || ''}
-  },
-  "finishers": ["결정타 묘사 1", "결정타 묘사 2", "결정타 묘사 3", "결정타 묘사 4", "결정타 묘사 5"]
+  "description": "플레이어의 행동과 그 결과를 1~2 문장의 흥미진진한 묘사로 서술.",
+  "effects": [
+    {
+      "target": "player" | "enemy",
+      "type": "damage" | "heal" | "status" | "shield",
+      "value": 숫자 (damage는 음수, heal/shield는 양수),
+      "effectType": "${Object.keys(combatEffects).join(' | ')}",
+      "duration": 숫자 (status 효과의 지속 턴)
+    }
+  ],
+  "enemyActionDescription": "적의 반격 또는 행동에 대한 1문장 묘사.",
+  "enemyEffects": [
+      { "target": "player", ... }
+  ]
 }
-- 설명이나 코드 펜스 없이 순수 JSON 객체만 출력해야 합니다.`;
+
+# 규칙
+1.  **결과 생성**: 행동의 이름과 설명, 현재 상황을 종합적으로 고려하여 결과를 창의적으로 생성해줘. (예: '화염구' 스킬을 물의 정령에게 쓰면 데미지가 감소하고 '증기 발생' 같은 특수 효과를 부여)
+2.  **효과 적용**:
+    * `effects`: 플레이어 행동의 직접적인 결과.
+    * `enemyEffects`: 적의 반격 결과.
+    * `damage`는 항상 음수, `heal`과 `shield`는 항상 양수로 표현.
+    * `status` 타입의 경우, `effectType`에 아래 목록 중 하나를 명시하고 `duration`을 설정.
+3.  **밸런스**: 플레이어가 너무 강력하거나 약해지지 않도록 효과 수치를 적절히 조절. 적의 난이도(${enemy.difficulty})를 고려할 것.
+4.  **효과 목록**: ${effectList}
+5.  **출력**: 설명이나 코드 펜스 없이 순수 JSON 객체만 출력.
+`;
 }
+
+
+// [신규] AI가 생성한 효과를 combatState에 적용하는 헬퍼 함수
+function applyEffects(combatState, effects, log, sourceName) {
+    if (!Array.isArray(effects)) return;
+
+    for (const effect of effects) {
+        const target = effect.target === 'player' ? combatState.player : combatState.enemy;
+        if (!target) continue;
+
+        switch (effect.type) {
+            case 'damage':
+                let finalDamage = Math.abs(effect.value) || 0;
+                // 방어 증가 효과 적용
+                const defUp = target.status.find(s => s.type === 'def_up' && s.duration > 0);
+                if (defUp) {
+                    finalDamage = Math.round(finalDamage * defUp.multiplier);
+                    log.push(`  L ${target.name}의 방어력 증가 효과로 피해가 ${finalDamage}로 감소했다!`);
+                }
+                // 보호막 효과 적용
+                const barrier = target.status.find(s => s.type === 'barrier' && s.duration > 0 && s.amount > 0);
+                if (barrier) {
+                    const absorbed = Math.min(barrier.amount, finalDamage);
+                    barrier.amount -= absorbed;
+                    finalDamage -= absorbed;
+                    log.push(`  L ${target.name}의 보호막이 ${absorbed}의 피해를 흡수했다! (남은 보호막: ${barrier.amount})`);
+                }
+                target.health = Math.max(0, target.health - finalDamage);
+                log.push(`  L ${target.name}은(는) ${finalDamage}의 피해를 입었다. (HP: ${target.health})`);
+                break;
+
+            case 'heal':
+                const healAmount = effect.value || 0;
+                target.health = Math.min(target.maxHealth, target.health + healAmount);
+                log.push(`  L ${target.name}의 체력이 ${healAmount}만큼 회복되었다. (HP: ${target.health})`);
+                break;
+            
+            case 'shield':
+                const shieldAmount = effect.value || 0;
+                const existingShield = target.status.find(s => s.type === 'barrier');
+                if (existingShield) {
+                    existingShield.amount += shieldAmount;
+                    existingShield.duration = Math.max(existingShield.duration, effect.duration || 2);
+                } else {
+                    target.status.push({ ...combatEffects.barrier, amount: shieldAmount, duration: effect.duration || 2 });
+                }
+                log.push(`  L ${target.name}에게 ${shieldAmount}의 보호막이 생겼다.`);
+                break;
+
+            case 'status':
+                const effectTemplate = combatEffects[effect.effectType];
+                if (!effectTemplate) continue;
+                
+                const existingEffect = target.status.find(s => s.type === effect.effectType);
+                if (existingEffect && effectTemplate.stackable) {
+                    if (existingEffect.stack < (effectTemplate.maxStack || 3)) {
+                        existingEffect.stack = (existingEffect.stack || 1) + 1;
+                        existingEffect.duration = Math.max(existingEffect.duration, effect.duration);
+                        log.push(`  L ${target.name}의 ${effectTemplate.name} 효과가 중첩되었다! (x${existingEffect.stack})`);
+                    } else {
+                         log.push(`  L ${target.name}의 ${effectTemplate.name} 효과가 최대 중첩 상태다.`);
+                    }
+                } else if (!existingEffect) {
+                    target.status.push({ ...effectTemplate, type: effect.effectType, duration: effect.duration, stack: 1 });
+                    log.push(`  L ${target.name}은(는) ${effectTemplate.name} 효과에 걸렸다!`);
+                }
+                break;
+        }
+    }
+}
+
 
 // --- API 엔드포인트 ---
 export function mountAdventures(app) {
@@ -124,7 +207,9 @@ export function mountAdventures(app) {
             if (!charSnap.exists) throw new Error('CHARACTER_NOT_FOUND');
             const worldSnap = await db.collection('worlds').doc(worldId).get();
             if (!worldSnap.exists) throw new Error('WORLD_NOT_FOUND');
-            const site = worldSnap.data()?.sites?.find(s => s.name === siteName);
+            
+            const worldData = worldSnap.data();
+            const site = worldData?.sites?.find(s => s.name === siteName);
             if (!site) return res.status(404).json({ ok: false, error: 'SITE_NOT_FOUND' });
 
             const batch = db.batch();
@@ -132,7 +217,7 @@ export function mountAdventures(app) {
             existingAdventures.forEach(doc => batch.delete(doc.ref));
             await batch.commit();
 
-            const context = { character: charSnap.data(), world: worldSnap.data(), characterState: { stamina: 100 } };
+            const context = { character: charSnap.data(), world: {name: worldData.name, introShort: worldData.introShort }, characterState: { stamina: 100 } };
             const firstNodePrompt = getNextNodePrompt(context, site, ["탐험을 시작했다."]);
             const { json: firstNode } = await callGemini({ key: geminiKey, model: MODEL_POOL[0], user: firstNodePrompt });
             if (!firstNode || !firstNode.situation) throw new Error("Failed to generate initial node.");
@@ -144,7 +229,7 @@ export function mountAdventures(app) {
                 characterState: { stamina: 100 },
                 history: ["탐험을 시작했다."],
                 currentNode: firstNode,
-                modelIndex: 1, // 다음 호출에 사용할 모델 인덱스
+                modelIndex: 1,
             });
 
             res.json({ ok: true, data: { adventureId: adventureRef.id } });
@@ -154,7 +239,7 @@ export function mountAdventures(app) {
         }
     });
 
-    // 선택지 진행 (결과 생성 + 다음 상황 생성)
+    // 선택지 진행
     app.post('/api/adventures/:id/proceed', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
@@ -172,20 +257,18 @@ export function mountAdventures(app) {
             
             const charSnap = await db.collection('characters').doc(adventure.characterId).get();
             const worldSnap = await db.collection('worlds').doc(adventure.worldId).get();
-            const context = { character: charSnap.data(), world: worldSnap.data(), characterState: adventure.characterState };
+            const worldData = worldSnap.data();
+            const context = { character: charSnap.data(), world: {name: worldData.name, introShort: worldData.introShort }, characterState: adventure.characterState };
 
-            // 1. 결과 생성 (모델 순환)
             const resultModel = MODEL_POOL[adventure.modelIndex % MODEL_POOL.length];
             const resultPrompt = getResultPrompt(context, adventure.site, adventure.history, choice);
             const { text: resultText } = await callGemini({ key: geminiKey, model: resultModel, user: resultPrompt, responseMimeType: "text/plain" });
 
-            // 2. 다음 상황 생성 (모델 순환)
             const nextNodeModel = MODEL_POOL[(adventure.modelIndex + 1) % MODEL_POOL.length];
             const newHistoryEntry = `[선택: ${choice}] -> [결과: ${resultText}]`;
             const updatedHistory = [...adventure.history, newHistoryEntry];
             let updatedCharacterState = { ...adventure.characterState };
             
-            // 3. 상태 업데이트 (아이템, 페널티 등)
             let newItem = null;
             const lastNode = adventure.currentNode;
             if (lastNode.type === 'trap' && lastNode.penalty) {
@@ -196,19 +279,17 @@ export function mountAdventures(app) {
                 await db.collection('characters').doc(adventure.characterId).update({ items: FieldValue.arrayUnion(newItem) });
             }
 
-            // 업데이트된 상태로 다음 노드 생성 요청
             const nextNodeContext = { ...context, characterState: updatedCharacterState };
             const nextNodePrompt = getNextNodePrompt(nextNodeContext, adventure.site, updatedHistory);
             const { json: nextNode } = await callGemini({ key: geminiKey, model: nextNodeModel, user: nextNodePrompt });
             if (!nextNode || !nextNode.situation) throw new Error("Failed to generate next node.");
             
-            // 4. DB 업데이트
             await ref.update({
                 currentNode: nextNode,
                 characterState: updatedCharacterState,
                 history: updatedHistory,
-                lastResult: resultText, // 결과를 임시 저장
-                modelIndex: adventure.modelIndex + 2, // 2개의 모델을 사용했으므로 +2
+                lastResult: resultText,
+                modelIndex: adventure.modelIndex + 2,
                 updatedAt: FieldValue.serverTimestamp(),
             });
 
@@ -219,13 +300,12 @@ export function mountAdventures(app) {
         }
     });
 
-    // "다음으로" 버튼 클릭 시, 임시 결과(lastResult)를 지우는 역할
     app.post('/api/adventures/:id/next', async(req, res) => {
         try {
             const user = await getUserFromReq(req);
             if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
             const ref = db.collection('adventures').doc(req.params.id);
-            await ref.update({ lastResult: FieldValue.delete() }); // null 대신 delete 사용
+            await ref.update({ lastResult: FieldValue.delete() });
             res.json({ ok: true });
         } catch (e) {
             res.status(500).json({ ok: false, error: String(e) });
@@ -244,39 +324,32 @@ export function mountAdventures(app) {
 
             const adventure = snap.data();
             const charSnap = await db.collection('characters').doc(adventure.characterId).get();
-            const worldSnap = await db.collection('worlds').doc(adventure.worldId).get();
             const character = charSnap.data();
-            const world = worldSnap.data();
 
             const combatSkills = (character.abilities || []).filter(a => (character.chosen || []).includes(a.id));
             const combatItems = (character.items || []).filter(i => (character.equipped || []).includes(i.id));
 
-            const geminiKey = await getApiKeyForUser(user.uid);
-            const scriptModel = MODEL_POOL[adventure.modelIndex % MODEL_POOL.length];
-            const scriptPrompt = getCombatScriptPrompt(character, enemy, world);
-            const { json: combatScript } = await callGemini({ key: geminiKey, model: scriptModel, user: scriptPrompt });
-            if (!combatScript || !combatScript.finishers) throw new Error("AI failed to generate combat script.");
+            const healthRange = enemyHealthRanges[enemy.difficulty] || enemyHealthRanges.normal;
+            const enemyMaxHealth = getRandomInRange(healthRange[0], healthRange[1]);
 
             const combatState = {
                 status: 'ongoing',
                 player: { 
                     name: character.name, 
-                    health: 100,
-                    maxHealth: 100,
-                    skills: combatSkills, 
-                    items: combatItems 
+                    health: 100, maxHealth: 100,
+                    skills: combatSkills, items: combatItems,
+                    status: [],
                 },
                 enemy: { 
                     ...enemy, 
-                    health: 100,
-                    maxHealth: 100,
+                    health: enemyMaxHealth, maxHealth: enemyMaxHealth,
+                    status: [],
                 },
                 turn: 'player',
-                log: [`${enemy.name}과의 전투가 시작되었다!`],
-                script: combatScript,
+                log: [`${enemy.name}(이)가 나타났다!`],
             };
 
-            await adventureRef.update({ combatState, modelIndex: adventure.modelIndex + 1 });
+            await adventureRef.update({ combatState, status: 'combat' });
             res.json({ ok: true, data: { combatState } });
         } catch (e) {
             console.error('Error starting combat:', e);
@@ -292,91 +365,95 @@ export function mountAdventures(app) {
             const { action } = req.body;
             const adventureRef = db.collection('adventures').doc(req.params.id);
             const snap = await adventureRef.get();
-            const combatState = snap.data()?.combatState;
+            const adventure = snap.data();
+            const combatState = adventure?.combatState;
 
             if (!combatState || combatState.status !== 'ongoing' || combatState.turn !== 'player') {
                 return res.status(400).json({ ok: false, error: 'INVALID_TURN' });
             }
 
             let turnLog = [];
-            
-            // --- 플레이어 턴 ---
-            if (action.type === 'flee') {
-                if (Math.random() < FLEE_CHANCE) {
-                    combatState.status = 'fled';
-                    turnLog.push('성공적으로 도망쳤습니다!');
-                    combatState.log.push(...turnLog);
-                    await adventureRef.update({ combatState });
-                    return res.json({ ok: true, data: { combatState } });
-                } else {
-                    turnLog.push('도망에 실패했습니다! 빈틈을 보이고 말았습니다.');
-                }
-            } else {
-                const isSkill = action.type === 'skill';
-                const source = isSkill ? combatState.player.skills.find(s => s.id === action.id) : combatState.player.items.find(i => i.id === action.id);
-                if (!source) return res.status(404).json({ ok: false, error: 'ACTION_SOURCE_NOT_FOUND' });
-                
-                const dialogues = (isSkill ? combatState.script.skill_dialogues[source.name] : combatState.script.item_dialogues[source.name]) || ["정해진 묘사가 없어, 임기응변으로 대처했다."];
-                turnLog.push(`[${combatState.player.name}]의 행동: ${dialogues[Math.floor(Math.random() * dialogues.length)]}`);
-                
-                // 데미지/회복 로직 (예시)
-                let damage = 0;
-                let heal = 0;
-                // '회복', '흡수', '치유' 등의 키워드가 있으면 회복 스킬로 간주
-                const isHealSkill = /회복|흡수|치유|생명|활력/.test(source.name) || /회복|흡수|치유|생명|활력/.test(source.description);
+            combatState.turn = 'processing';
 
-                if(isHealSkill && isSkill) {
-                    heal = Math.floor(Math.random() * 20) + 10; // 10 ~ 29 회복
-                    combatState.player.health = Math.min(combatState.player.maxHealth, combatState.player.health + heal);
-                    turnLog.push(`생명력이 ${heal}만큼 회복되었습니다! (현재 HP: ${combatState.player.health})`);
-
-                    // 흡혈류 스킬 (데미지도 줌)
-                    if(/흡수|흡혈/.test(source.name) || /흡수|흡혈/.test(source.description)) {
-                        damage = Math.floor(Math.random() * 15) + 5; // 5 ~ 19 데미지
+            // --- 1. 턴 시작 및 상태 효과 처리 (양측 모두) ---
+            [combatState.player, combatState.enemy].forEach(entity => {
+                let stillActiveEffects = [];
+                for (const effect of entity.status) {
+                    if (effect.type === 'dot' || effect.type === 'hot') {
+                        const amount = effect.type === 'dot' ? -(effect.damage * (effect.stack || 1)) : (effect.heal * (effect.stack || 1));
+                        entity.health += amount;
+                        if(amount > 0) log.push(`  L [효과] ${entity.name}은(는) ${effect.name}으로 체력을 ${amount} 회복했다.`);
+                        else log.push(`  L [효과] ${entity.name}은(는) ${effect.name}으로 ${-amount}의 피해를 입었다.`);
                     }
-                } else {
-                     damage = Math.floor(Math.random() * 25) + 10; // 10 ~ 34 데미지
+                    effect.duration--;
+                    if (effect.duration > 0) stillActiveEffects.push(effect);
+                    else log.push(`  L [효과] ${entity.name}의 ${effect.name} 효과가 사라졌다.`);
                 }
-
-                if (damage > 0) {
-                    combatState.enemy.health = Math.max(0, combatState.enemy.health - damage);
-                    turnLog.push(`적에게 ${damage}의 피해를 입혔습니다! (적 HP: ${combatState.enemy.health})`);
-                }
-
-                if (combatState.enemy.health <= 0) {
-                    combatState.status = 'won';
-                    turnLog.push(...[
-                        combatState.script.finishers[Math.floor(Math.random() * combatState.script.finishers.length)],
-                        `전투에서 승리했습니다!`
-                    ]);
-                    combatState.log.push(...turnLog);
-                    await adventureRef.update({ combatState });
-                    return res.json({ ok: true, data: { combatState } });
-                }
-            }
-
-            // --- 적 턴 ---
-            const enemyDifficulty = combatState.enemy.difficulty || 'normal';
-            const damageRanges = { easy: 15, normal: 20, hard: 25, miniboss: 35 };
-            const enemyBaseDamage = damageRanges[enemyDifficulty] || 20;
-            const enemyDamage = Math.floor(Math.random() * enemyBaseDamage) + 5; // 5 ~ (base+4) 데미지
-
-            combatState.player.health = Math.max(0, combatState.player.health - enemyDamage);
-            turnLog.push(`[${combatState.enemy.name}]의 반격! ${enemyDamage}의 피해를 받았습니다. (현재 HP: ${combatState.player.health})`);
-
-            if (combatState.player.health <= 0) {
-                combatState.status = 'lost';
-                turnLog.push('치명상을 입고 정신을 잃었습니다... 전투 패배.');
-                combatState.log.push(...turnLog);
-                await adventureRef.update({ combatState });
-                return res.json({ ok: true, data: { combatState } });
+                entity.status = stillActiveEffects;
+                entity.health = Math.max(0, Math.min(entity.maxHealth, entity.health));
+            });
+            if (combatState.player.health <= 0 || combatState.enemy.health <= 0) {
+                 // DoT/HoT 처리 후 전투 종료 검사
             }
             
+            // --- 2. 플레이어 행동 처리 (AI 호출) ---
+            const isStunned = combatState.player.status.some(s => s.type === 'control' && s.duration > 0);
+            if(isStunned) {
+                turnLog.push(`[플레이어] 기절해서 움직일 수 없다!`);
+            } else if (action.type === 'flee') {
+                 if (Math.random() < FLEE_CHANCE) {
+                    combatState.status = 'fled';
+                    turnLog.push('[플레이어] 성공적으로 도망쳤다!');
+                 } else {
+                    turnLog.push('[플레이어] 도망에 실패했다!');
+                 }
+            } else {
+                const geminiKey = await getApiKeyForUser(user.uid);
+                const model = MODEL_POOL[adventure.modelIndex % MODEL_POOL.length];
+                const prompt = getCombatTurnPrompt(combatState, action);
+                const { json: turnResult } = await callGemini({ key: geminiKey, model, user: prompt });
+
+                if (!turnResult || !turnResult.description) throw new Error("AI turn generation failed.");
+
+                turnLog.push(`[플레이어] ${turnResult.description}`);
+                applyEffects(combatState, turnResult.effects, turnLog, "player");
+
+                // 적의 행동도 AI가 결정
+                if (combatState.enemy.health > 0) {
+                    turnLog.push(`[적] ${turnResult.enemyActionDescription}`);
+                    applyEffects(combatState, turnResult.enemyEffects, turnLog, "enemy");
+                }
+            }
+
+            // --- 3. 전투 종료 판정 ---
+            if (combatState.status === 'ongoing') {
+                if (combatState.player.health <= 0) combatState.status = 'lost';
+                else if (combatState.enemy.health <= 0) combatState.status = 'won';
+            }
+            if (combatState.status !== 'ongoing') {
+                turnLog.push(`--- 전투 종료: ${combatState.status} ---`);
+                // 전투 종료 후 모험 상태 업데이트
+                await adventureRef.update({ combatState, status: 'ongoing', currentNode: null }); // 전투 노드 클리어
+            } else {
+                combatState.turn = 'player'; // 턴 넘기기
+            }
+
             combatState.log.push(...turnLog);
-            await adventureRef.update({ combatState });
-            res.json({ ok: true, data: { combatState } });
+            await adventureRef.update({ 
+                combatState, 
+                modelIndex: (adventure.modelIndex || 0) + 1 
+            });
+            res.json({ ok: true, data: { combatState, turnLog } });
+
         } catch(e) {
             console.error('Error processing combat turn:', e);
+            // 에러 발생 시 턴을 다시 플레이어에게 돌려줌
+            const snap = await db.collection('adventures').doc(req.params.id).get();
+            if (snap.exists) {
+                const combatState = snap.data().combatState;
+                combatState.turn = 'player';
+                await snap.ref.update({ combatState });
+            }
             res.status(500).json({ ok: false, error: e.message });
         }
     });
@@ -400,7 +477,12 @@ export function mountAdventures(app) {
             const user = await getUserFromReq(req);
             if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
             const characterId = req.params.id;
-            const qs = await db.collection('adventures').where('characterId', '==', characterId).where('ownerUid', '==', user.uid).where('status', '==', 'ongoing').limit(1).get();
+            const qs = await db.collection('adventures')
+                .where('characterId', '==', characterId)
+                .where('ownerUid', '==', user.uid)
+                .where('status', 'in', ['ongoing', 'combat'])
+                .limit(1).get();
+
             if (qs.empty) return res.json({ ok: true, data: null });
             res.json({ ok: true, data: { id: qs.docs[0].id, ...qs.docs[0].data() } });
         } catch (e) {
