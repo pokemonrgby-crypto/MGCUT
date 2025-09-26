@@ -7,6 +7,7 @@ import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 import { getApiKeySecret } from '../lib/secret-manager.mjs';
 import { preRollEvent } from '../lib/adventure-events.mjs';
 import { randomUUID } from 'crypto';
+import { damageLevels, itemGradeWeights, FLEE_CHANCE } from '../lib/adventure-combat-rules.mjs';
 
 // 헬퍼 함수: UID로 API 키를 가져옵니다.
 async function getApiKeyForUser(uid) {
@@ -44,19 +45,25 @@ async function buildAdventureContext(db, characterId, worldIdOverride = null) {
 
 function getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents, history = []) {
     const eventInstructions = preRolledEvents.map((event, index) => {
+        let instruction = '';
         switch (event.type) {
             case 'FIND_ITEM':
-                return `${index + 1}. [아이템 발견] 이벤트: ${event.tier} 등급 아이템을 발견합니다.`;
+                instruction = `${index + 1}. [아이템 발견] 이벤트: ${event.tier} 등급 아이템을 발견합니다.`;
+                break;
             case 'ENCOUNTER_ENEMY_EASY':
             case 'ENCOUNTER_ENEMY_NORMAL':
             case 'ENCOUNTER_ENEMY_HARD':
             case 'ENCOUNTER_MINIBOSS':
-                return `${index + 1}. [전투] 이벤트: '${event.type.split('_').pop()}' 난이도의 적과 조우합니다.`;
+                const difficulty = event.type.split('_').pop();
+                instruction = `${index + 1}. [전투] 이벤트: '${difficulty}' 난이도의 적과 조우합니다. 이 이벤트의 "choices" 배열에는 반드시 {"text": "전투 시작", "action": "enter_battle"} 객체 하나만 포함해야 합니다.`;
+                break;
             case 'TRIGGER_TRAP':
-                return `${index + 1}. [함정] 이벤트: 캐릭터가 스태미나를 잃는 함정을 발동시킵니다.`;
+                instruction = `${index + 1}. [함정] 이벤트: 캐릭터가 스태미나를 잃는 함정을 발동시킵니다.`;
+                break;
             default:
-                return `${index + 1}. [서사] 이벤트: 특별한 사건 없이 탐험이 계속되는 서술형 이벤트를 진행합니다.`;
+                instruction = `${index + 1}. [서사] 이벤트: 특별한 사건 없이 탐험이 계속되는 서술형 이벤트를 진행합니다.`;
         }
+        return instruction;
     }).join('\n');
 
     const historyLog = history.length > 0
@@ -77,92 +84,19 @@ ${historyLog}
 ${eventInstructions}
 
 # 서사 규칙
-1.  **생생한 묘사**: 모든 'situation'은 최소 3문장 이상으로, 시각, 청각, 후각 등 감각적인 묘사를 풍부하게 사용하여 캐릭터가 실제로 그 장소에 있는 것처럼 느끼게 만드세요. (예: '축축한 이끼 냄새가 코를 찌른다.', '멀리서 물방울 떨어지는 소리가 들려온다.')
-2.  **흥미로운 선택지**: 'choices'는 단순한 '간다/안 간다'가 아닌, 캐릭터의 성향이나 능력을 활용할 수 있는 전략적이고 흥미로운 선택지를 2~3개 제공하세요. 각 선택은 뚜렷하게 다른 결과로 이어질 잠재력을 가져야 합니다.
-3.  **다양성**: 매번 비슷한 패턴(예: 계속 동굴만 탐험)이 반복되지 않도록, 지형, 날씨, NPC, 유물 등 다양한 요소를 활용하여 사건을 구성하세요.
+1.  **생생한 묘사**: 모든 'situation'은 최소 3문장 이상으로, 시각, 청각, 후각 등 감각적인 묘사를 풍부하게 사용하여 캐릭터가 실제로 그 장소에 있는 것처럼 느끼게 만드세요.
+2.  **흥미로운 선택지**: 'choices'는 단순한 '간다/안 간다'가 아닌, 캐릭터의 성향이나 능력을 활용할 수 있는 전략적이고 흥미로운 선택지를 2~3개 제공하세요.
+3.  **다양성**: 매번 비슷한 패턴이 반복되지 않도록, 지형, 날씨, NPC, 유물 등 다양한 요소를 활용하여 사건을 구성하세요.
 
 # JSON 구조 규칙
 - 반드시 "startNode"와 3개의 노드를 포함하는 "nodes" 객체를 생성해야 합니다.
 - 각 노드는 "type", "situation", "choices"를 포함합니다.
 - 마지막 노드는 "isEndpoint": true, "outcome": "..."을 포함해야 합니다.
-- **아이템 발견 노드**: 'item' 키를 가져야 합니다. 아이템 객체는 {"id": "임시ID", "name": "...", "description": "...", "grade": "...", "type": "equipable"} 형식을 따라야 합니다. (20% 확률로 type을 "consumable"로 설정)
-    - **Common/Uncommon**: 아이템의 실용적인 기능과 외형을 간결하게 설명합니다. (예: "잘 벼려진 강철 단검", "상처를 막는 평범한 붕대")
-    - **Rare/Epic**: 아이템에 얽힌 간단한 전설이나 특별한 장식을 덧붙여 설명합니다. (예: "달빛을 받으면 희미하게 빛나는 엘프의 활", "고대 왕국의 문장이 새겨진 방패")
-    - **Legendary/Mythic/Exotic**: 아이템에 고유한 이름과 함께, 그 힘이나 역사에 대한 강력한 암시를 포함하여 서술합니다. (예: "이름: '서리이빨', 설명: 만년설의 심장에서 벼려내어 모든 것을 얼리는 냉기를 품은 단검")
-- **전투 노드**: "enemy": {"name": "...", "description": "..."} 객체를 포함해야 합니다. 적의 외형과 분위기를 생생하게 묘사하세요.
-- **함정 노드**: "penalty": {"stat": "stamina", "value": -15} 객체를 포함해야 합니다. 함정이 어떻게 작동하고 캐릭터가 어떻게 피해를 입는지 묘사하세요.
+- **아이템 발견 노드**: 'item' 키를 가져야 합니다. 아이템 객체는 {"id": "임시ID", "name": "...", "description": "...", "grade": "...", "type": "equipable"} 형식을 따라야 합니다.
+- **전투 노드**: "enemy": {"name": "...", "description": "...", "difficulty": "난이도"} 객체를 포함해야 합니다.
+- **함정 노드**: "penalty": {"stat": "stamina", "value": -15} 객체를 포함해야 합니다.
 - 설명이나 코드 펜스 없이 순수한 JSON 객체만 출력하세요.
 `;
-}
-
-/**
- * 생성된 이야기 지도의 구조적 무결성을 검증합니다.
- * @param {object} graph - AI가 생성한 storyGraph JSON 객체
- * @returns {boolean} - 그래프가 유효하면 true, 아니면 false
- */
-function validateStoryGraph(graph) {
-    if (!graph || typeof graph.nodes !== 'object' || !graph.startNode) {
-        console.error('Validation Error: Missing basic graph structure (nodes, startNode).');
-        return false;
-    }
-
-    if (!graph.nodes[graph.startNode]) {
-        console.error(`Validation Error: startNode key "${graph.startNode}" does not exist in nodes.`);
-        return false;
-    }
-
-    for (const key in graph.nodes) {
-        const node = graph.nodes[key];
-        if (!node || typeof node.situation !== 'string' || node.situation.trim() === '') {
-             console.error(`Validation Error: Node "${key}" is missing or has an empty 'situation'.`);
-            return false;
-        }
-
-        if (node.isEndpoint) {
-            if (typeof node.outcome !== 'string' || node.outcome.trim() === '') {
-                console.error(`Validation Error: Endpoint node "${key}" is missing or has an empty 'outcome'.`);
-                return false;
-            }
-        } else {
-            if (!Array.isArray(node.choices) || node.choices.length === 0) {
-                 console.error(`Validation Error: Non-endpoint node "${key}" is missing 'choices'.`);
-                return false;
-            }
-            for (const choice of node.choices) {
-                if (!choice.text || !choice.nextNode || !graph.nodes[choice.nextNode]) {
-                    console.error(`Validation Error: Node "${key}" has an invalid choice pointing to "${choice.nextNode}".`);
-                    return false;
-                }
-            }
-        }
-    }
-
-    return true;
-}
-
-async function generateStoryGraph(geminiKey, context, site, previousOutcome, history) {
-    const preRolledEvents = [preRollEvent(site.difficulty), preRollEvent(site.difficulty), preRollEvent(site.difficulty)];
-    const prompt = getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents, history);
-
-    let lastError = null;
-    for (let i = 0; i < 3; i++) { // 최대 3번 재시도
-        try {
-            const { json: storyGraph } = await callGemini({ key: geminiKey, model: pickModels().primary, user: prompt });
-            
-            if (validateStoryGraph(storyGraph)) {
-                return storyGraph; // 검증 성공 시 즉시 반환
-            } else {
-                lastError = new Error('AI_INVALID_STORY_GRAPH');
-                console.warn(`Attempt ${i + 1} failed: Invalid story graph generated. Retrying...`);
-            }
-        } catch (e) {
-            lastError = e;
-            console.warn(`Attempt ${i + 1} failed with API error: ${e.message}. Retrying...`);
-        }
-    }
-    
-    // 3번 모두 실패하면 최종적으로 에러를 발생시킴
-    throw lastError || new Error('AI_GENERATION_FAILED_AFTER_RETRIES');
 }
 
 function getCombatScriptPrompt(character, enemy, world) {
@@ -183,10 +117,10 @@ function getCombatScriptPrompt(character, enemy, world) {
 
 {
   "skill_dialogues": {
-    ${skills.map(s => `"${s.name}": ["${s.name} 사용 시 묘사 1", "${s.name} 사용 시 묘사 2", ... (총 5개)]`).join(',\n    ') || ''}
+    ${skills.map(s => `"${s.name}": ["${s.name} 사용 시 묘사 1", "${s.name} 사용 시 묘사 2", "${s.name} 사용 시 묘사 3", "${s.name} 사용 시 묘사 4", "${s.name} 사용 시 묘사 5"]`).join(',\n    ') || ''}
   },
   "item_dialogues": {
-     ${items.map(i => `"${i.name}": ["${i.name} 사용 시 묘사 1", "${i.name} 사용 시 묘사 2", ... (총 5개)]`).join(',\n    ') || ''}
+     ${items.map(i => `"${i.name}": ["${i.name} 사용 시 묘사 1", "${i.name} 사용 시 묘사 2", "${i.name} 사용 시 묘사 3", "${i.name} 사용 시 묘사 4", "${i.name} 사용 시 묘사 5"]`).join(',\n    ') || ''}
   },
   "finishers": [
     "결정타 묘사 1 (예: <서술>마지막 일격이 적의 심장을 꿰뚫었다.</서술>)",
@@ -199,6 +133,41 @@ function getCombatScriptPrompt(character, enemy, world) {
 `;
 }
 
+function validateStoryGraph(graph) {
+    if (!graph || typeof graph.nodes !== 'object' || !graph.startNode) return false;
+    if (!graph.nodes[graph.startNode]) return false;
+    for (const key in graph.nodes) {
+        const node = graph.nodes[key];
+        if (!node || typeof node.situation !== 'string' || node.situation.trim() === '') return false;
+        if (node.isEndpoint) {
+            if (typeof node.outcome !== 'string' || node.outcome.trim() === '') return false;
+        } else {
+            if (!Array.isArray(node.choices) || node.choices.length === 0) return false;
+            for (const choice of node.choices) {
+                if (!choice.text || !choice.nextNode || !graph.nodes[choice.nextNode]) return false;
+            }
+        }
+    }
+    return true;
+}
+
+async function generateStoryGraph(geminiKey, context, site, previousOutcome, history) {
+    const preRolledEvents = [preRollEvent(site.difficulty), preRollEvent(site.difficulty), preRollEvent(site.difficulty)];
+    const prompt = getAdventureStartPrompt(context, site, previousOutcome, preRolledEvents, history);
+    let lastError = null;
+    for (let i = 0; i < 3; i++) {
+        try {
+            const { json: storyGraph } = await callGemini({ key: geminiKey, model: pickModels().primary, user: prompt });
+            if (validateStoryGraph(storyGraph)) return storyGraph;
+            else {
+                lastError = new Error('AI_INVALID_STORY_GRAPH');
+            }
+        } catch (e) {
+            lastError = e;
+        }
+    }
+    throw lastError || new Error('AI_GENERATION_FAILED_AFTER_RETRIES');
+}
 
 export function mountAdventures(app) {
     app.post('/api/adventures/start', async (req, res) => {
@@ -304,7 +273,6 @@ export function mountAdventures(app) {
         }
     });
 
-    
     app.get('/api/characters/:id/adventures/ongoing', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
@@ -322,37 +290,29 @@ export function mountAdventures(app) {
         }
     });
 
-app.get('/api/characters/:id/adventures', async (req, res) => {
-    try {
-        const user = await getUserFromReq(req);
-        if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-
-        const characterId = req.params.id;
-        
-        // 해당 캐릭터가 소유자인지 확인하는 로직 (선택적이지만 보안상 권장)
-        const charSnap = await db.collection('characters').doc(characterId).get();
-        if (!charSnap.exists || charSnap.data().ownerUid !== user.uid) {
-            return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
+    app.get('/api/characters/:id/adventures', async (req, res) => {
+        try {
+            const user = await getUserFromReq(req);
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+            const characterId = req.params.id;
+            const charSnap = await db.collection('characters').doc(characterId).get();
+            if (!charSnap.exists || charSnap.data().ownerUid !== user.uid) {
+                return res.status(403).json({ ok: false, error: 'NOT_OWNER' });
+            }
+            const qs = await db.collection('adventures')
+                .where('characterId', '==', characterId)
+                .where('ownerUid', '==', user.uid)
+                .orderBy('createdAt', 'desc')
+                .limit(50)
+                .get();
+            const adventures = qs.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            res.json({ ok: true, data: adventures });
+        } catch (e) {
+            console.error(`Error fetching all adventures for character ${req.params.id}:`, e);
+            res.status(500).json({ ok: false, error: String(e) });
         }
+    });
 
-        const qs = await db.collection('adventures')
-            .where('characterId', '==', characterId)
-            .where('ownerUid', '==', user.uid)
-            .orderBy('createdAt', 'desc')
-            .limit(50)
-            .get();
-
-        const adventures = qs.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        res.json({ ok: true, data: adventures });
-
-    } catch (e) {
-        console.error(`Error fetching all adventures for character ${req.params.id}:`, e);
-        res.status(500).json({ ok: false, error: String(e) });
-    }
-});
-
-
-    
     app.post('/api/adventures/:id/proceed', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
@@ -371,7 +331,6 @@ app.get('/api/characters/:id/adventures', async (req, res) => {
             const newNode = adventure.storyGraph.nodes[nextNodeKey];
 
             if (!newNode) {
-                console.error(`Node not found for key: ${nextNodeKey} in adventure ${adventureId}`);
                 return res.status(404).json({ ok: false, error: 'STORY_NODE_NOT_FOUND' });
             }
 
@@ -382,7 +341,6 @@ app.get('/api/characters/:id/adventures', async (req, res) => {
                 newCharacterState.stamina = Math.max(0, newCharacterState.stamina + (newNode.penalty.value || 0));
             }
             if (newNode.type === 'item' && newNode.item) {
-                // [수정] 아이템에 고유 ID 부여
                 newItem = { ...newNode.item, id: randomUUID() };
                 await db.collection('characters').doc(adventure.characterId).update({
                     items: FieldValue.arrayUnion(newItem)
@@ -401,8 +359,8 @@ app.get('/api/characters/:id/adventures', async (req, res) => {
             res.status(500).json({ ok: false, error: e.message });
         }
     });
-
-
+    
+    // [신규] 전투 시작 API
     app.post('/api/adventures/:id/start-combat', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
@@ -442,7 +400,7 @@ app.get('/api/characters/:id/adventures', async (req, res) => {
                 status: 'ongoing',
                 player: {
                     name: character.name,
-                    healthState: '온전함', // 텍스트 기반 체력
+                    healthState: '온전함',
                     skills: combatSkills,
                     items: combatItems,
                 },
@@ -451,7 +409,7 @@ app.get('/api/characters/:id/adventures', async (req, res) => {
                     healthState: '온전함',
                 },
                 turn: 'player',
-                log: ['전투가 시작되었다!'],
+                log: [`${enemy.name}과의 전투가 시작되었다!`],
                 script: combatScript,
             };
 
@@ -494,25 +452,20 @@ app.get('/api/characters/:id/adventures', async (req, res) => {
                     turnLog.push('도망에 실패했다! 빈틈을 보이고 말았다.');
                 }
             } else {
-                // 스킬 또는 아이템 사용
                 const isSkill = action.type === 'skill';
                 const source = isSkill ? combatState.player.skills.find(s => s.id === action.id) : combatState.player.items.find(i => i.id === action.id);
                 if (!source) return res.status(404).json({ ok: false, error: 'ACTION_SOURCE_NOT_FOUND' });
                 
-                // 1. 대사 선택
                 const dialogues = isSkill ? combatState.script.skill_dialogues[source.name] : combatState.script.item_dialogues[source.name];
                 turnLog.push(dialogues[Math.floor(Math.random() * dialogues.length)]);
 
-                // 2. 피해량 텍스트 선택
-                const damageRoll = Math.random(); // 0 ~ 1
-                let damageIndex = 1; // 보통
-                if (damageRoll < 0.2) damageIndex = 0; // 최소
-                else if (damageRoll > 0.8) damageIndex = 2; // 최대
+                const damageRoll = Math.random();
+                let damageIndex = 1;
+                if (damageRoll < 0.2) damageIndex = 0;
+                else if (damageRoll > 0.8) damageIndex = 2;
                 
                 const damageText = isSkill ? damageLevels.player.skill[damageIndex] : damageLevels.player.item[damageIndex];
                 turnLog.push(damageText);
-                
-                // TODO: 실제 healthState 변경 로직 추가 (예: '온전함' -> '약간 다침')
             }
 
             // --- 적 턴 (전투가 끝나지 않았다면) ---
@@ -525,8 +478,6 @@ app.get('/api/characters/:id/adventures', async (req, res) => {
 
                  const enemyAttackText = damageLevels.enemy[enemyDifficulty][enemyDamageIndex];
                  turnLog.push(`적의 차례: ${enemyAttackText}`);
-                 
-                 // TODO: 플레이어 healthState 변경 로직 추가
             }
             
             combatState.log.push(...turnLog);
@@ -538,6 +489,4 @@ app.get('/api/characters/:id/adventures', async (req, res) => {
             res.status(500).json({ ok: false, error: e.message });
         }
     });
-
-    
 }
