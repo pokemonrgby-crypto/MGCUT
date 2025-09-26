@@ -8,20 +8,24 @@ export const enemyHealthRanges = {
   miniboss: [200, 300],
 };
 
-// 스킬 타입별 데미지/회복량 기본 범위
-export const skillPowerRanges = {
-  attack: [15, 25],
-  heal: [20, 30],
-  defense: [0.3, 0.5], // 30% ~ 50% 데미지 감소
-  special: [10, 20], // 상태이상 등 특수 스킬의 기본 데미지
+// AI가 사용할 수 있는 상태이상 및 버프/디버프 목록
+export const combatEffects = {
+  // --- 상태이상 (Debuffs) ---
+  poison: { name: '중독', icon: '☠️', type: 'dot', damage: 5, duration: 3, stackable: true, maxStack: 3 },
+  bleed: { name: '출혈', icon: '🩸', type: 'dot', damage: 7, duration: 2, stackable: true, maxStack: 3 },
+  burn: { name: '화상', icon: '🔥', type: 'dot', damage: 6, duration: 2, stackable: false },
+  stun: { name: '기절', icon: '😵', type: 'control', duration: 1, stackable: false },
+  def_down: { name: '방어 감소', icon: '🛡️', type: 'stat', stat: 'defense', multiplier: 1.5, duration: 2, stackable: false },
+  atk_down: { name: '공격 감소', icon: '⚔️', type: 'stat', stat: 'attack', multiplier: 0.7, duration: 2, stackable: false },
+  slow: { name: '둔화', icon: '🐢', type: 'stat', stat: 'speed', value: -10, duration: 3, stackable: true, maxStack: 2 },
+  
+  // --- 버프 (Buffs) ---
+  regeneration: { name: '재생', icon: '🌿', type: 'hot', heal: 8, duration: 3, stackable: true, maxStack: 3 },
+  def_up: { name: '방어 증가', icon: '🛡️', type: 'stat', stat: 'defense', multiplier: 0.5, duration: 2, stackable: false },
+  atk_up: { name: '공격 증가', icon: '⚔️', type: 'stat', stat: 'attack', multiplier: 1.3, duration: 2, stackable: false },
+  haste: { name: '가속', icon: '⚡', type: 'stat', stat: 'speed', value: 15, duration: 3, stackable: false },
+  barrier: { name: '보호막', icon: '💠', type: 'shield', amount: 30, duration: 2, stackable: false },
 };
 
-// 상태 이상 효과 정의
-export const statusEffects = {
-  poison: { name: '중독', icon: '☠️', duration: 3, damage: 5 }, // 매 턴 시작 시 5의 고정 데미지
-  def_down: { name: '방어 감소', icon: '🛡️', duration: 2, multiplier: 1.5 }, // 받는 데미지 1.5배
-  stun: { name: '기절', icon: '😵', duration: 1 }, // 1턴 동안 행동 불가
-};
-
-// 도망 성공 확률 (기본 50%)
+// 도망 성공 확률
 export const FLEE_CHANCE = 0.5;
