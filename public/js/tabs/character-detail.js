@@ -198,7 +198,8 @@ export async function mount(characterId){
     // --- 아이템 로직 (모달 기반, 심플 카드) ---
     const slotsContainer = root.querySelector('.equipment-slots');
     const allItemsMap = new Map((c.items || []).map(item => [item.id, item]));
-    let equippedItemIds = [...(c.equipped || [null, null, null])];
+    const currentEquipped = Array.isArray(c.equipped) ? c.equipped : [];
+    let equippedItemIds = Array(3).fill(null).map((_, i) => currentEquipped[i] || null);
 
     function renderSlots() {
         slotsContainer.innerHTML = equippedItemIds.map((itemId, index) => {
