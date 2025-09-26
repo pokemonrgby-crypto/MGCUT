@@ -259,8 +259,18 @@ export function mountAdventures(app) {
 
             const combatState = {
                 status: 'ongoing',
-                player: { name: character.name, healthState: '온전함', skills: combatSkills, items: combatItems },
-                enemy: { ...enemy, healthState: '온전함' },
+                player: { 
+                    name: character.name, 
+                    health: 100,
+                    maxHealth: 100,
+                    skills: combatSkills, 
+                    items: combatItems 
+                },
+                enemy: { 
+                    ...enemy, 
+                    health: 100,
+                    maxHealth: 100,
+                },
                 turn: 'player',
                 log: [`${enemy.name}과의 전투가 시작되었다!`],
                 script: combatScript,
@@ -289,36 +299,77 @@ export function mountAdventures(app) {
             }
 
             let turnLog = [];
-            let isBattleOver = false;
-
-            // 플레이어 턴
+            
+            // --- 플레이어 턴 ---
             if (action.type === 'flee') {
                 if (Math.random() < FLEE_CHANCE) {
                     combatState.status = 'fled';
-                    turnLog.push('성공적으로 도망쳤다!');
-                    isBattleOver = true;
+                    turnLog.push('성공적으로 도망쳤습니다!');
+                    combatState.log.push(...turnLog);
+                    await adventureRef.update({ combatState });
+                    return res.json({ ok: true, data: { combatState } });
                 } else {
-                    turnLog.push('도망에 실패했다! 빈틈을 보이고 말았다.');
+                    turnLog.push('도망에 실패했습니다! 빈틈을 보이고 말았습니다.');
                 }
             } else {
                 const isSkill = action.type === 'skill';
                 const source = isSkill ? combatState.player.skills.find(s => s.id === action.id) : combatState.player.items.find(i => i.id === action.id);
                 if (!source) return res.status(404).json({ ok: false, error: 'ACTION_SOURCE_NOT_FOUND' });
                 
-                const dialogues = (isSkill ? combatState.script.skill_dialogues[source.name] : combatState.script.item_dialogues[source.name]) || ["정해진 대사가 없어, 임기응변으로 대처했다."];
-                turnLog.push(dialogues[Math.floor(Math.random() * dialogues.length)]);
+                const dialogues = (isSkill ? combatState.script.skill_dialogues[source.name] : combatState.script.item_dialogues[source.name]) || ["정해진 묘사가 없어, 임기응변으로 대처했다."];
+                turnLog.push(`[${combatState.player.name}]의 행동: ${dialogues[Math.floor(Math.random() * dialogues.length)]}`);
                 
-                const damageRoll = Math.random();
-                let damageIndex = (damageRoll < 0.2) ? 0 : (damageRoll > 0.8) ? 2 : 1;
-                turnLog.push(isSkill ? damageLevels.player.skill[damageIndex] : damageLevels.player.item[damageIndex]);
+                // 데미지/회복 로직 (예시)
+                let damage = 0;
+                let heal = 0;
+                // '회복', '흡수', '치유' 등의 키워드가 있으면 회복 스킬로 간주
+                const isHealSkill = /회복|흡수|치유|생명|활력/.test(source.name) || /회복|흡수|치유|생명|활력/.test(source.description);
+
+                if(isHealSkill && isSkill) {
+                    heal = Math.floor(Math.random() * 20) + 10; // 10 ~ 29 회복
+                    combatState.player.health = Math.min(combatState.player.maxHealth, combatState.player.health + heal);
+                    turnLog.push(`생명력이 ${heal}만큼 회복되었습니다! (현재 HP: ${combatState.player.health})`);
+
+                    // 흡혈류 스킬 (데미지도 줌)
+                    if(/흡수|흡혈/.test(source.name) || /흡수|흡혈/.test(source.description)) {
+                        damage = Math.floor(Math.random() * 15) + 5; // 5 ~ 19 데미지
+                    }
+                } else {
+                     damage = Math.floor(Math.random() * 25) + 10; // 10 ~ 34 데미지
+                }
+
+                if (damage > 0) {
+                    combatState.enemy.health = Math.max(0, combatState.enemy.health - damage);
+                    turnLog.push(`적에게 ${damage}의 피해를 입혔습니다! (적 HP: ${combatState.enemy.health})`);
+                }
+
+                if (combatState.enemy.health <= 0) {
+                    combatState.status = 'won';
+                    turnLog.push(...[
+                        combatState.script.finishers[Math.floor(Math.random() * combatState.script.finishers.length)],
+                        `전투에서 승리했습니다!`
+                    ]);
+                    combatState.log.push(...turnLog);
+                    await adventureRef.update({ combatState });
+                    return res.json({ ok: true, data: { combatState } });
+                }
             }
 
-            // 적 턴
-            if (!isBattleOver) {
-                 const enemyDifficulty = combatState.enemy.difficulty || 'normal';
-                 const enemyDamageRoll = Math.random();
-                 let enemyDamageIndex = (enemyDamageRoll < 0.2) ? 0 : (enemyDamageRoll > 0.8) ? 2 : 1;
-                 turnLog.push(`적의 차례: ${damageLevels.enemy[enemyDifficulty][enemyDamageIndex]}`);
+            // --- 적 턴 ---
+            const enemyDifficulty = combatState.enemy.difficulty || 'normal';
+            const damageRanges = { easy: 15, normal: 20, hard: 25, miniboss: 35 };
+            const enemyBaseDamage = damageRanges[enemyDifficulty] || 20;
+            const enemyDamage = Math.floor(Math.random() * enemyBaseDamage) + 5; // 5 ~ (base+4) 데미지
+
+            combatState.player.health = Math.max(0, combatState.player.health - enemyDamage);
+            turnLog.push(`[${combatState.enemy.name}]의 반격! ${enemyDamage}의 피해를 받았습니다. (현재 HP: ${combatState.player.health})`);
+
+            if (combatState.player.health <= 0) {
+                combatState.status = 'lost';
+                turnLog.push('치명상을 입고 정신을 잃었습니다... 전투 패배.');
+                combatState.log.push(...turnLog);
+                await adventureRef.update({ combatState });
+                return res.json({ ok: true, data: { combatState } });
             }
             
             combatState.log.push(...turnLog);
