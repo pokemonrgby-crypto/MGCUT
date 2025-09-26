@@ -4,7 +4,7 @@ import { ui, withBlocker, handleCooldown } from '../ui/frame.js';
 
 const ROOT_SELECTOR = '[data-view="adventure-detail"]';
 let currentAdventure = null;
-let isProcessingNext = false; // 변수명 변경: isLoadingNext -> isProcessingNext
+let isProcessingNext = false;
 
 function loadingTemplate() {
     return `
@@ -29,7 +29,6 @@ function resultTemplate(result, staminaState) {
 }
 
 function situationTemplate(node, characterState) {
-    // node.choices가 배열이 아니거나 비어있는 경우를 방어
     const choices = Array.isArray(node.choices) ? node.choices : [];
     return `
     <div class="adventure-view">
@@ -38,12 +37,11 @@ function situationTemplate(node, characterState) {
         <div class="choices-list" style="margin-top: 16px; display:flex; flex-direction:column; gap:8px;">
             ${choices.map(choice => {
                 const action = choice.action || '';
-                const enemyData = action === 'enter_battle' ? JSON.stringify(node.enemy || {}) : '';
+                // [수정] data-enemy 속성을 제거하여 JSON 파싱 오류 원천 차단
                 const btnClass = action === 'enter_battle' ? 'btn choice-btn btn-danger' : 'btn choice-btn';
                 const icon = action === 'enter_battle' ? '⚔️ ' : '';
 
-                // data-choice 속성에 선택지 텍스트(text)를 저장합니다.
-                return `<button class="${btnClass}" data-choice="${choice.text}" data-action="${action}" data-enemy='${enemyData}'>${icon}${choice.text}</button>`;
+                return `<button class="${btnClass}" data-choice="${choice.text}" data-action="${action}">${icon}${choice.text}</button>`;
             }).join('')}
         </div>
         <div style="margin-top: 24px;">
@@ -68,7 +66,6 @@ async function renderCurrentState() {
         return;
     }
     
-    // isProcessingNext 플래그를 확인하여 로딩 중일 때는 렌더링하지 않도록 수정
     if (isProcessingNext) {
          root.innerHTML = loadingTemplate();
     } else if (currentAdventure.lastResult) {
@@ -83,30 +80,25 @@ async function renderCurrentState() {
 async function proceedToNextStep(choiceText) {
     if (isProcessingNext) return;
     isProcessingNext = true;
-    await renderCurrentState(); // 로딩 화면을 먼저 표시
+    await renderCurrentState();
 
     try {
-        // [수정] API 호출 후 전체 모험 상태를 다시 불러오는 대신, 반환된 결과로 바로 업데이트합니다.
         const res = await api.proceedAdventure(currentAdventure.id, { choice: choiceText });
-
-        const { newItem, result } = res.data;
+        const { newItem } = res.data;
         if (newItem) alert(`아이템 획득: ${newItem.name} (${newItem.grade})`);
         
-        // 서버에서 선택 결과와 다음 노드를 모두 처리했으므로, 최신 모험 정보를 다시 불러옵니다.
         const updatedAdventureRes = await api.getAdventure(currentAdventure.id);
         currentAdventure = updatedAdventureRes.data;
 
     } catch (e) {
         alert(`진행 실패: ${e.message}`);
-        // [수정] 오류 발생 시 버튼 쿨다운 처리
         const choiceBtn = document.querySelector(`[data-choice="${choiceText}"]`);
         if(choiceBtn) handleCooldown(e, choiceBtn);
-        // 오류가 발생했으므로, 이전 상태로 되돌리기 위해 다시 adventure 정보를 불러옵니다.
         const updatedAdventureRes = await api.getAdventure(currentAdventure.id);
         currentAdventure = updatedAdventureRes.data;
     } finally {
         isProcessingNext = false;
-        await renderCurrentState(); // 최종 상태 렌더링
+        await renderCurrentState();
     }
 }
 
@@ -116,7 +108,6 @@ export function mount(adventureId) {
         return;
     }
     
-    // 초기 로딩
     isProcessingNext = true;
     withBlocker(async () => {
         const res = await api.getAdventure(adventureId);
@@ -139,10 +130,15 @@ export function mount(adventureId) {
 
         if (choiceBtn) {
             const choiceAction = choiceBtn.dataset.action;
-            // 전투 시작 처리
+            
             if (choiceAction === 'enter_battle') {
                 try {
-                    const enemyData = JSON.parse(choiceBtn.dataset.enemy);
+                    // [수정] DOM의 data 속성을 파싱하는 대신, 메모리의 'currentAdventure' 객체에서 직접 enemy 데이터를 가져옴
+                    const enemyData = currentAdventure?.currentNode?.enemy;
+                    if (!enemyData) {
+                        throw new Error("현재 모험 정보에서 적 데이터를 찾을 수 없습니다.");
+                    }
+
                     await withBlocker(async () => {
                         await api.startAdventureCombat(currentAdventure.id, enemyData);
                         ui.navTo(`adventure-combat/${currentAdventure.id}`);
@@ -152,24 +148,24 @@ export function mount(adventureId) {
                 }
                 return;
             }
-            // 일반 선택지 처리
+
             const choiceText = choiceBtn.dataset.choice;
+            // [수정] choiceText가 비어있지 않은지 확인하는 방어 로직 추가
             if (choiceText) {
                 await proceedToNextStep(choiceText);
             }
 
         } else if (nextBtn) {
-            // "다음으로" 버튼 클릭 처리
-            isProcessingNext = true; // 로딩 시작
+            isProcessingNext = true;
             await renderCurrentState();
             try {
-                await api.postAdventureNext(currentAdventure.id); // 서버의 lastResult를 null로
-                const res = await api.getAdventure(currentAdventure.id); // 최신 상태 가져오기
+                await api.postAdventureNext(currentAdventure.id);
+                const res = await api.getAdventure(currentAdventure.id);
                 currentAdventure = res.data;
             } catch(err) {
                  alert(`오류: ${err.message}`);
             } finally {
-                 isProcessingNext = false; // 로딩 끝
+                 isProcessingNext = false;
                  await renderCurrentState();
             }
 
