@@ -141,6 +141,7 @@ async function renderView(viewName, ...args) {
                 content = adventureHubTemplate();
                 break;
             case 'explore-char-select':
+                selectedCharacter = null; // [수정] 캐릭터 선택 화면으로 돌아올 때 선택 초기화
                 // [수정] getOngoingAdventure API를 사용하도록 변경
                 const ongoingAdventures = await Promise.all(
                     myCharacters.map(c => api.getOngoingAdventure(c.id))
@@ -238,6 +239,16 @@ export function mount() {
             }
             return;
         }
+        
+        // [수정] '모험 이어하기' 버튼 클릭 시 이벤트 전파 중단
+        const resumeBtn = target.closest('.resume-btn');
+        if (resumeBtn) {
+            e.stopPropagation(); // 이벤트 버블링 중단
+            const adventureId = resumeBtn.dataset.adventureId;
+            if (adventureId) ui.navTo(`adventure-detail/${adventureId}`);
+            else alert('진행 중인 모험 정보를 찾을 수 없습니다.');
+            return;
+        }
 
         const charCard = target.closest('.character-select-card');
         if (charCard) {
@@ -247,14 +258,6 @@ export function mount() {
                  await withBlocker(() => renderView('world-type-select', charId));
             }
             // [삭제] inventory purpose 관련 로직 제거
-            return;
-        }
-
-        const resumeBtn = target.closest('.resume-btn');
-        if (resumeBtn) {
-            const adventureId = resumeBtn.dataset.adventureId;
-            if (adventureId) ui.navTo(`adventure-detail/${adventureId}`);
-            else alert('진행 중인 모험 정보를 찾을 수 없습니다.');
             return;
         }
 
