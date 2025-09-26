@@ -100,7 +100,7 @@ function combatTemplate(state) {
             </div>
             <div class="action-panels">
                 <div class="action-panel skills active">
-                    ${player.skills.length > 0 ? player.skills.map(s => `<button class="btn full combat-action-btn" data-action-type="skill" data-action-id="${s.id}">${s.name} <small>(${s.type})</small></button>`).join('') : '<div class="small-text">사용할 스킬이 없습니다.</div>'}
+                    ${player.skills.length > 0 ? player.skills.map(s => `<button class="btn full combat-action-btn" data-action-type="skill" data-action-id="${s.id}">${s.name}</button>`).join('') : '<div class="small-text">사용할 스킬이 없습니다.</div>'}
                 </div>
                 <div class="action-panel items">
                      ${player.items.length > 0 ? player.items.map(i => `<button class="btn full combat-action-btn" data-action-type="item" data-action-id="${i.id}">${i.name} <small>(${i.grade})</small></button>`).join('') : '<div class="small-text">사용할 아이템이 없습니다.</div>'}
@@ -141,26 +141,25 @@ function render(state) {
 async function takeTurn(action) {
     if (isProcessingTurn) return;
     isProcessingTurn = true;
-    ui.busy(true); 
     
-    // 기존 로그를 지우고 "처리 중..." 메시지 추가
+    // [수정] 전체 로딩창(blocker) 대신 버튼들만 비활성화
+    const root = document.querySelector(ROOT_SELECTOR);
+    root.querySelectorAll('.combat-action-btn, .tabs .tab').forEach(el => el.disabled = true);
+    
     const logArea = document.querySelector('.combat-log-container');
     logArea.innerHTML = '<p class="small combat-log-line"><i>처리 중...</i></p>';
 
     try {
         const res = await api.takeCombatTurn(currentAdventureId, action);
         if (res.ok) {
-            // 서버로부터 받은 새 로그 목록
             const newLogs = res.data.turnLog || [];
             currentCombatState = res.data.combatState;
 
-            // 로그를 순차적으로 표시
             logArea.innerHTML = ''; // "처리 중..." 메시지 제거
             showLogsSequentially(logArea, newLogs, () => {
-                // 모든 로그가 표시된 후 최종 상태로 UI를 다시 렌더링
+                // 모든 로그가 표시된 후 최종 상태로 UI를 다시 렌더링 (이때 버튼도 새로 그려지므로 활성화됨)
                 render(currentCombatState);
                 isProcessingTurn = false;
-                ui.busy(false);
             });
 
         } else {
@@ -169,8 +168,7 @@ async function takeTurn(action) {
     } catch (e) {
         alert(`오류: ${e.message}`);
         isProcessingTurn = false;
-        ui.busy(false);
-        // 에러 발생 시 UI를 마지막으로 성공한 상태로 복구
+        // [수정] 에러 발생 시 UI를 마지막으로 성공한 상태로 복구하고 버튼 활성화
         render(currentCombatState);
     }
 }
