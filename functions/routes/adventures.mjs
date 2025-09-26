@@ -121,7 +121,7 @@ function getCombatTurnPrompt(combatState, action) {
 
 
 // [신규] AI가 생성한 효과를 combatState에 적용하는 헬퍼 함수
-function applyEffects(combatState, effects, log, sourceName) {
+function applyEffects(combatState, effects, turnLog, sourceName) { // log -> turnLog로 변경
     if (!Array.isArray(effects)) return;
 
     for (const effect of effects) {
@@ -135,7 +135,7 @@ function applyEffects(combatState, effects, log, sourceName) {
                 const defUp = target.status.find(s => s.type === 'def_up' && s.duration > 0);
                 if (defUp) {
                     finalDamage = Math.round(finalDamage * defUp.multiplier);
-                    log.push(`  L ${target.name}의 방어력 증가 효과로 피해가 ${finalDamage}로 감소했다!`);
+                    turnLog.push(`  L ${target.name}의 방어력 증가 효과로 피해가 ${finalDamage}로 감소했다!`);
                 }
                 // 보호막 효과 적용
                 const barrier = target.status.find(s => s.type === 'barrier' && s.duration > 0 && s.amount > 0);
@@ -143,16 +143,16 @@ function applyEffects(combatState, effects, log, sourceName) {
                     const absorbed = Math.min(barrier.amount, finalDamage);
                     barrier.amount -= absorbed;
                     finalDamage -= absorbed;
-                    log.push(`  L ${target.name}의 보호막이 ${absorbed}의 피해를 흡수했다! (남은 보호막: ${barrier.amount})`);
+                    turnLog.push(`  L ${target.name}의 보호막이 ${absorbed}의 피해를 흡수했다! (남은 보호막: ${barrier.amount})`);
                 }
                 target.health = Math.max(0, target.health - finalDamage);
-                log.push(`  L ${target.name}은(는) ${finalDamage}의 피해를 입었다. (HP: ${target.health})`);
+                turnLog.push(`  L ${target.name}은(는) ${finalDamage}의 피해를 입었다. (HP: ${target.health})`);
                 break;
 
             case 'heal':
                 const healAmount = effect.value || 0;
                 target.health = Math.min(target.maxHealth, target.health + healAmount);
-                log.push(`  L ${target.name}의 체력이 ${healAmount}만큼 회복되었다. (HP: ${target.health})`);
+                turnLog.push(`  L ${target.name}의 체력이 ${healAmount}만큼 회복되었다. (HP: ${target.health})`);
                 break;
             
             case 'shield':
@@ -164,7 +164,7 @@ function applyEffects(combatState, effects, log, sourceName) {
                 } else {
                     target.status.push({ ...combatEffects.barrier, amount: shieldAmount, duration: effect.duration || 2 });
                 }
-                log.push(`  L ${target.name}에게 ${shieldAmount}의 보호막이 생겼다.`);
+                turnLog.push(`  L ${target.name}에게 ${shieldAmount}의 보호막이 생겼다.`);
                 break;
 
             case 'status':
@@ -176,13 +176,13 @@ function applyEffects(combatState, effects, log, sourceName) {
                     if (existingEffect.stack < (effectTemplate.maxStack || 3)) {
                         existingEffect.stack = (existingEffect.stack || 1) + 1;
                         existingEffect.duration = Math.max(existingEffect.duration, effect.duration);
-                        log.push(`  L ${target.name}의 ${effectTemplate.name} 효과가 중첩되었다! (x${existingEffect.stack})`);
+                        turnLog.push(`  L ${target.name}의 ${effectTemplate.name} 효과가 중첩되었다! (x${existingEffect.stack})`);
                     } else {
-                         log.push(`  L ${target.name}의 ${effectTemplate.name} 효과가 최대 중첩 상태다.`);
+                         turnLog.push(`  L ${target.name}의 ${effectTemplate.name} 효과가 최대 중첩 상태다.`);
                     }
                 } else if (!existingEffect) {
                     target.status.push({ ...effectTemplate, type: effect.effectType, duration: effect.duration, stack: 1 });
-                    log.push(`  L ${target.name}은(는) ${effectTemplate.name} 효과에 걸렸다!`);
+                    turnLog.push(`  L ${target.name}은(는) ${effectTemplate.name} 효과에 걸렸다!`);
                 }
                 break;
         }
@@ -382,12 +382,12 @@ export function mountAdventures(app) {
                     if (effect.type === 'dot' || effect.type === 'hot') {
                         const amount = effect.type === 'dot' ? -(effect.damage * (effect.stack || 1)) : (effect.heal * (effect.stack || 1));
                         entity.health += amount;
-                        if(amount > 0) log.push(`  L [효과] ${entity.name}은(는) ${effect.name}으로 체력을 ${amount} 회복했다.`);
-                        else log.push(`  L [효과] ${entity.name}은(는) ${effect.name}으로 ${-amount}의 피해를 입었다.`);
+                        if(amount > 0) turnLog.push(`  L [효과] ${entity.name}은(는) ${effect.name}으로 체력을 ${amount} 회복했다.`);
+                        else turnLog.push(`  L [효과] ${entity.name}은(는) ${effect.name}으로 ${-amount}의 피해를 입었다.`);
                     }
                     effect.duration--;
                     if (effect.duration > 0) stillActiveEffects.push(effect);
-                    else log.push(`  L [효과] ${entity.name}의 ${effect.name} 효과가 사라졌다.`);
+                    else turnLog.push(`  L [효과] ${entity.name}의 ${effect.name} 효과가 사라졌다.`);
                 }
                 entity.status = stillActiveEffects;
                 entity.health = Math.max(0, Math.min(entity.maxHealth, entity.health));
