@@ -18,7 +18,6 @@ async function getApiKeyForUser(uid) {
 
 // --- 프롬프트 생성 함수 ---
 
-// [수정] 단일 노드(상황) 생성을 위한 프롬프트
 function getNextNodePrompt(context, site, history) {
     const historyLog = history.length > 0 ? `# 이전 기록\n${history.map(h => `- ${h}`).join('\n')}` : '';
     const preRolledEvent = preRollEvent(site.difficulty);
@@ -69,7 +68,6 @@ ${historyLog}
    - 설명이나 코드 펜스 없이 순수 JSON 객체만 출력하세요.`;
 }
 
-// [수정] 선택에 대한 '결과'를 생성하기 위한 프롬프트
 function getResultPrompt(context, site, history, choice) {
     const historyLog = history.length > 0 ? `# 이전 기록\n${history.map(h => `- ${h}`).join('\n')}` : '';
 
@@ -85,7 +83,6 @@ ${historyLog}
 # 임무: 캐릭터의 직전 행동에 대한 **결과**를 1~2문장의 간결하고 흥미로운 서술로 작성해줘. 다른 말은 붙이지 말고, 결과 서술 텍스트만 출력해줘.`;
 }
 
-// [신규] 전투 대사 스크립트 생성을 위한 프롬프트
 function getCombatScriptPrompt(character, enemy, world) {
     const skills = (character.abilities || []).filter(a => (character.chosen || []).includes(a.id));
     const items = (character.items || []).filter(i => (character.equipped || []).includes(i.id));
@@ -177,40 +174,45 @@ export function mountAdventures(app) {
             const worldSnap = await db.collection('worlds').doc(adventure.worldId).get();
             const context = { character: charSnap.data(), world: worldSnap.data(), characterState: adventure.characterState };
 
-            // 1. 결과 생성
+            // 1. 결과 생성 (모델 순환)
             const resultModel = MODEL_POOL[adventure.modelIndex % MODEL_POOL.length];
             const resultPrompt = getResultPrompt(context, adventure.site, adventure.history, choice);
             const { text: resultText } = await callGemini({ key: geminiKey, model: resultModel, user: resultPrompt, responseMimeType: "text/plain" });
 
-            // 2. 다음 상황 생성
+            // 2. 다음 상황 생성 (모델 순환)
             const nextNodeModel = MODEL_POOL[(adventure.modelIndex + 1) % MODEL_POOL.length];
             const newHistoryEntry = `[선택: ${choice}] -> [결과: ${resultText}]`;
             const updatedHistory = [...adventure.history, newHistoryEntry];
-            const nextNodePrompt = getNextNodePrompt(context, adventure.site, updatedHistory);
-            const { json: nextNode } = await callGemini({ key: geminiKey, model: nextNodeModel, user: nextNodePrompt });
-            if (!nextNode || !nextNode.situation) throw new Error("Failed to generate next node.");
+            let updatedCharacterState = { ...adventure.characterState };
             
             // 3. 상태 업데이트 (아이템, 페널티 등)
-            let newCharacterState = { ...adventure.characterState };
             let newItem = null;
             const lastNode = adventure.currentNode;
-            if (lastNode.type === 'trap' && lastNode.penalty) newCharacterState.stamina = Math.max(0, newCharacterState.stamina + (lastNode.penalty.value || 0));
+            if (lastNode.type === 'trap' && lastNode.penalty) {
+                updatedCharacterState.stamina = Math.max(0, updatedCharacterState.stamina + (lastNode.penalty.value || 0));
+            }
             if (lastNode.type === 'item' && lastNode.item) {
                 newItem = { ...lastNode.item, id: randomUUID() };
                 await db.collection('characters').doc(adventure.characterId).update({ items: FieldValue.arrayUnion(newItem) });
             }
 
+            // 업데이트된 상태로 다음 노드 생성 요청
+            const nextNodeContext = { ...context, characterState: updatedCharacterState };
+            const nextNodePrompt = getNextNodePrompt(nextNodeContext, adventure.site, updatedHistory);
+            const { json: nextNode } = await callGemini({ key: geminiKey, model: nextNodeModel, user: nextNodePrompt });
+            if (!nextNode || !nextNode.situation) throw new Error("Failed to generate next node.");
+            
             // 4. DB 업데이트
             await ref.update({
                 currentNode: nextNode,
-                characterState: newCharacterState,
+                characterState: updatedCharacterState,
                 history: updatedHistory,
                 lastResult: resultText, // 결과를 임시 저장
-                modelIndex: adventure.modelIndex + 2,
+                modelIndex: adventure.modelIndex + 2, // 2개의 모델을 사용했으므로 +2
                 updatedAt: FieldValue.serverTimestamp(),
             });
 
-            res.json({ ok: true, data: { newItem, newCharacterState, result: resultText } });
+            res.json({ ok: true, data: { newItem, newCharacterState: updatedCharacterState, result: resultText } });
         } catch (e) {
             console.error('Adventure proceed error:', e);
             res.status(500).json({ ok: false, error: e.message });
@@ -219,11 +221,15 @@ export function mountAdventures(app) {
 
     // "다음으로" 버튼 클릭 시, 임시 결과(lastResult)를 지우는 역할
     app.post('/api/adventures/:id/next', async(req, res) => {
-        const user = await getUserFromReq(req);
-        if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
-        const ref = db.collection('adventures').doc(req.params.id);
-        await ref.update({ lastResult: null });
-        res.json({ ok: true });
+        try {
+            const user = await getUserFromReq(req);
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+            const ref = db.collection('adventures').doc(req.params.id);
+            await ref.update({ lastResult: FieldValue.delete() }); // null 대신 delete 사용
+            res.json({ ok: true });
+        } catch (e) {
+            res.status(500).json({ ok: false, error: String(e) });
+        }
     });
 
     // 전투 시작
@@ -299,7 +305,7 @@ export function mountAdventures(app) {
                 const source = isSkill ? combatState.player.skills.find(s => s.id === action.id) : combatState.player.items.find(i => i.id === action.id);
                 if (!source) return res.status(404).json({ ok: false, error: 'ACTION_SOURCE_NOT_FOUND' });
                 
-                const dialogues = isSkill ? combatState.script.skill_dialogues[source.name] : combatState.script.item_dialogues[source.name];
+                const dialogues = (isSkill ? combatState.script.skill_dialogues[source.name] : combatState.script.item_dialogues[source.name]) || ["정해진 대사가 없어, 임기응변으로 대처했다."];
                 turnLog.push(dialogues[Math.floor(Math.random() * dialogues.length)]);
                 
                 const damageRoll = Math.random();
