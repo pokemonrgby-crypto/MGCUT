@@ -38,20 +38,18 @@ function formatDate(date) {
 function battleLogCard(log, currentCharId) {
   const isMeA = String(log.meId) === String(currentCharId);
 
-  // 이름/이미지 안전 기본값
   const meName = String(log.meName || '나의 캐릭터');
   const opName = String(log.opName || '상대 캐릭터');
   const opponentName = isMeA ? opName : meName;
+  const opponentImageUrl = isMeA ? (log.opImageUrl || '') : (log.meImageUrl || '');
 
-  // Elo 안전 숫자화
   const myEloBefore = Number(isMeA ? log.eloMe : log.eloOp);
-  const myEloAfter  = Number(isMeA ? log.eloMeAfter : log.eloOpAfter);
+  const myEloAfter = Number(isMeA ? log.eloMeAfter : log.eloOpAfter);
   const safeEloBefore = Number.isFinite(myEloBefore) ? myEloBefore : 1000;
-  const safeEloAfter  = Number.isFinite(myEloAfter)  ? myEloAfter  : safeEloBefore;
+  const safeEloAfter = Number.isFinite(myEloAfter) ? myEloAfter : safeEloBefore;
   const eloChange = safeEloAfter - safeEloBefore;
   const eloChangeStr = (eloChange >= 0 ? `+${eloChange}` : `${eloChange}`);
 
-  // 승패 표시
   let result = '무승부';
   let resultClass = '';
   if (log.winner === 'A' || log.winner === 'B') {
@@ -60,23 +58,21 @@ function battleLogCard(log, currentCharId) {
     resultClass = didIWin ? 'win' : 'lose';
   }
 
-  // 날짜 안전 처리
   const tsSec = (log.createdAt?.seconds ?? log.updatedAt?.seconds ?? 0);
   const date = new Date(tsSec * 1000);
   const dateStr = Number.isFinite(date.getTime()) ? formatDate(date) : '';
 
   return `
-  <div class="card info-card battle-log-char-card" data-log-id="${esc(log.id)}" style="cursor:pointer;">
-    <div class="row">
-      <img class="avatar" src="${esc(isMeA ? (log.opImageUrl||'') : (log.meImageUrl||''))}" alt="" onerror="this.style.display='none'">
-      <div class="col">
+  <div class="card battle-log-char-card" data-log-id="${esc(log.id)}" style="cursor:pointer;">
+    <div class="bg" style="background-image:url('${esc(opponentImageUrl)}')"></div>
+    <div class="grad"></div>
+    <div class="info-overlay">
         <div class="opponent-name">vs ${esc(opponentName)}</div>
         <div class="result-line">
           <span class="${resultClass}">${result}</span>
-          (Elo ${safeEloAfter} <span class="small ${resultClass}">(${eloChangeStr})</span>)
+          <span style="opacity:0.9;">(Elo ${safeEloAfter} <span class="small ${resultClass}">(${eloChangeStr})</span>)</span>
         </div>
         <div class="date">${esc(dateStr)}</div>
-      </div>
     </div>
   </div>`;
 }
