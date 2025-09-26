@@ -1,10 +1,6 @@
 // public/js/api.js
 import {
   getAuth,
-  onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
 } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.3/firebase-storage.js';
 
@@ -95,7 +91,7 @@ export const api = {
   // adventures
   startAdventure: (payload) => call('POST', '/api/adventures/start', payload),
   proceedAdventure: (adventureId, payload) => call('POST', `/api/adventures/${adventureId}/proceed`, payload),
-  continueAdventure: (adventureId) => call('POST', `/api/adventures/${adventureId}/continue`),
+  postAdventureNext: (adventureId) => call('POST', `/api/adventures/${adventureId}/next`),
   getCharacterAdventures: (id) => call('GET', `/api/characters/${id}/adventures`),
   getOngoingAdventure: (id) => call('GET', `/api/characters/${id}/adventures/ongoing`),
   getAdventure: (id) => call('GET', `/api/adventures/${id}`),
