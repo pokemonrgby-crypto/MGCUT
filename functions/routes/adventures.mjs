@@ -22,8 +22,10 @@ function getRandomInRange(min, max) {
 
 // --- 프롬프트 생성 함수 ---
 
+/**
+ * [수정] 선택지와 그 결과를 한 번에 생성하는 프롬프트
+ */
 function getNextNodePrompt(context, site, history) {
-    // (기존 코드와 동일)
     const historyLog = history.length > 0 ? `# 이전 기록\n${history.map(h => `- ${h}`).join('\n')}` : '';
     const preRolledEvent = preRollEvent(site.difficulty);
     let eventInstruction = '';
@@ -37,7 +39,7 @@ function getNextNodePrompt(context, site, history) {
         case 'ENCOUNTER_ENEMY_HARD':
         case 'ENCOUNTER_MINIBOSS':
             const difficulty = preRolledEvent.type.split('_').pop();
-            eventInstruction = `[전투] 이벤트: 현재 세계관 컨셉에 어울리는 '${difficulty}' 난이도의 적(enemy)을 구체적으로 설정하고, 그 적과 조우하는 상황을 묘사하세요. 이 이벤트의 "choices" 배열에는 반드시 {"text": "전투 시작", "action": "enter_battle"} 객체 하나만 포함해야 합니다.`;
+            eventInstruction = `[전투] 이벤트: 현재 세계관 컨셉에 어울리는 '${difficulty}' 난이도의 적(enemy)을 구체적으로 설정하고, 그 적과 조우하는 상황을 묘사하세요. 이 이벤트의 "choices" 배열에는 반드시 {"text": "전투 시작", "result": "전투를 준비합니다.", "action": "enter_battle"} 객체 하나만 포함해야 합니다.`;
             break;
         case 'TRIGGER_TRAP':
             eventInstruction = `[함정] 이벤트: 캐릭터가 스태미나를 잃는 함정을 발동시킵니다.`;
@@ -59,17 +61,21 @@ ${historyLog}
 
 # 규칙
 1. 'situation'은 최소 3문장 이상으로 감각적인 묘사를 풍부하게 사용하세요.
-2. 전투가 아니라면, 'choices'는 2~3개의 흥미로운 선택지를 제공하세요.
+2. 'choices'는 2~3개의 흥미로운 선택지를 제공하고, 각 선택지에 대한 'result'를 1~2문장으로 작성하세요.
 3. JSON 구조:
    {
      "type": "이벤트 타입 (item, combat, trap, narrative)",
      "situation": "현재 상황에 대한 상세한 묘사",
-     "choices": [ { "text": "선택지 1" }, ... ],
+     "choices": [
+       { "text": "선택지 1의 내용", "result": "선택지 1을 골랐을 때의 결과 서술" },
+       { "text": "선택지 2의 내용", "result": "선택지 2를 골랐을 때의 결과 서술" }
+     ],
      "enemy": { "name": "...", "description": "...", "difficulty": "${preRolledEvent.type.split('_').pop()?.toLowerCase() || 'normal'}" },
      "item": { "name": "...", "description": "...", "grade": "..." },
      "penalty": { "stat": "stamina", "value": -15 }
    }
    - 'enemy', 'item', 'penalty' 필드는 해당 타입일 때만 포함하세요.
+   - 'action' 필드는 'enter_battle'과 같이 특별한 동작이 필요할 때만 choices 객체에 포함시키세요.
    - 설명이나 코드 펜스 없이 순수 JSON 객체만 출력하세요.`;
 }
 
@@ -241,7 +247,11 @@ export function mountAdventures(app) {
         }
     });
 
-    // 선택지 진행
+    /**
+     * [수정] 선택지 진행 로직 변경
+     * - AI 호출을 한 번으로 줄여서 다음 노드를 미리 생성합니다.
+     * - 더 이상 선택에 대한 결과를 생성하기 위해 AI를 호출하지 않습니다.
+     */
     app.post('/api/adventures/:id/proceed', async (req, res) => {
         try {
             const user = await getUserFromReq(req);
@@ -255,24 +265,19 @@ export function mountAdventures(app) {
             if (!snap.exists) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
             
             const adventure = snap.data();
-            const geminiKey = await getApiKeyForUser(user.uid);
+            const lastNode = adventure.currentNode;
             
-            const charSnap = await db.collection('characters').doc(adventure.characterId).get();
-            const worldSnap = await db.collection('worlds').doc(adventure.worldId).get();
-            const worldData = worldSnap.data();
-            const context = { character: charSnap.data(), world: {name: worldData.name, introShort: worldData.introShort }, characterState: adventure.characterState };
-
-            const resultModel = MODEL_POOL[adventure.modelIndex % MODEL_POOL.length];
-            const resultPrompt = getResultPrompt(context, adventure.site, adventure.history, choice);
-            const { text: resultText } = await callGemini({ key: geminiKey, model: resultModel, user: resultPrompt, responseMimeType: "text/plain" });
-
-            const nextNodeModel = MODEL_POOL[(adventure.modelIndex + 1) % MODEL_POOL.length];
+            // 사용자가 선택한 choice 객체를 찾고, 미리 생성된 result를 가져옵니다.
+            const chosenOption = lastNode.choices.find(c => c.text === choice);
+            if (!chosenOption) throw new Error("Invalid choice selected.");
+            const resultText = chosenOption.result;
+            
             const newHistoryEntry = `[선택: ${choice}] -> [결과: ${resultText}]`;
             const updatedHistory = [...adventure.history, newHistoryEntry];
             let updatedCharacterState = { ...adventure.characterState };
             
+            // 이전 노드의 이벤트 타입에 따라 캐릭터 상태 변경
             let newItem = null;
-            const lastNode = adventure.currentNode;
             if (lastNode.type === 'trap' && lastNode.penalty) {
                 updatedCharacterState.stamina = Math.max(0, updatedCharacterState.stamina + (lastNode.penalty.value || 0));
             }
@@ -281,17 +286,30 @@ export function mountAdventures(app) {
                 await db.collection('characters').doc(adventure.characterId).update({ items: FieldValue.arrayUnion(newItem) });
             }
 
-            const nextNodeContext = { ...context, characterState: updatedCharacterState };
+            // 다음 노드를 생성하기 위해 AI 호출
+            const geminiKey = await getApiKeyForUser(user.uid);
+            const charSnap = await db.collection('characters').doc(adventure.characterId).get();
+            const worldSnap = await db.collection('worlds').doc(adventure.worldId).get();
+            const worldData = worldSnap.data();
+
+            const nextNodeContext = { 
+                character: charSnap.data(), 
+                world: {name: worldData.name, introShort: worldData.introShort }, 
+                characterState: updatedCharacterState 
+            };
+
+            const nextModel = MODEL_POOL[adventure.modelIndex % MODEL_POOL.length];
             const nextNodePrompt = getNextNodePrompt(nextNodeContext, adventure.site, updatedHistory);
-            const { json: nextNode } = await callGemini({ key: geminiKey, model: nextNodeModel, user: nextNodePrompt });
+            const { json: nextNode } = await callGemini({ key: geminiKey, model: nextModel, user: nextNodePrompt });
             if (!nextNode || !nextNode.situation) throw new Error("Failed to generate next node.");
             
+            // DB 업데이트: 현재 선택 결과(lastResult)와 미리 생성된 다음 노드(currentNode)를 함께 저장
             await ref.update({
                 currentNode: nextNode,
                 characterState: updatedCharacterState,
                 history: updatedHistory,
                 lastResult: resultText,
-                modelIndex: adventure.modelIndex + 2,
+                modelIndex: adventure.modelIndex + 1,
                 updatedAt: FieldValue.serverTimestamp(),
             });
 
