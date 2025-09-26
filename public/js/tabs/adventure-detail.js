@@ -1,47 +1,44 @@
 // public/js/tabs/adventure-detail.js
 import { api } from '../api.js';
-import { withBlocker, ui } from '../ui/frame.js';
+import { ui, withBlocker, handleCooldown } from '../ui/frame.js';
 
 const ROOT_SELECTOR = '[data-view="adventure-detail"]';
-let currentAdventure = {
-    id: null,
-    graph: null,
-    characterState: null,
-};
+let currentAdventure = null;
+let isLoadingNext = false;
 
-function adventurePlayTemplate(node, characterState) {
-    const staminaBar = `
-        <div class="stamina-bar">
-            <div class="label">STAMINA</div>
-            <div class="bar-bg"><div class="bar-fill" style="width: ${characterState.stamina}%;"></div></div>
-            <div class="value">${characterState.stamina} / 100</div>
-        </div>`;
+function loadingTemplate() {
+    return `
+    <div class="sim-loading" style="min-height: 300px;">
+      <div class="spinner"></div>
+      <div class="dots" style="margin-top: 12px; font-size: 16px;">이야기를 준비중입니다<span>.</span><span>.</span><span>.</span></div>
+    </div>`;
+}
 
-    if (node.isEndpoint) {
-        return `
-            <div class="adventure-view" style="padding: 0 16px;">
-                ${staminaBar}
-                <div class="situation-card">
-                    <h3>에피소드 종료</h3>
-                    <p>${node.outcome.replace(/\n/g, '<br>')}</p>
-                </div>
-                <div class="choices-list" style="margin-top: 16px; display:flex; flex-direction:column; gap:8px;">
-                    <button class="btn continue-btn">다음 모험 계속하기</button>
-                    <button class="btn secondary leave-btn">모험 종료</button>
-                </div>
-            </div>`;
-    }
-
+function resultTemplate(result, staminaState) {
     return `
     <div class="adventure-view" style="padding: 0 16px;">
-        ${staminaBar}
+        ${staminaBarTemplate(staminaState)}
+        <div class="situation-card">
+            <h3>선택 결과</h3>
+            <p>${result.replace(/\n/g, '<br>')}</p>
+        </div>
+        <div class="choices-list" style="margin-top: 16px;">
+            <button class="btn full" id="btn-adventure-next">다음으로</button>
+        </div>
+    </div>`;
+}
+
+function situationTemplate(node, characterState) {
+    return `
+    <div class="adventure-view" style="padding: 0 16px;">
+        ${staminaBarTemplate(characterState)}
         <div class="situation-card"><p>${node.situation.replace(/\n/g, '<br>')}</p></div>
         <div class="choices-list" style="margin-top: 16px; display:flex; flex-direction:column; gap:8px;">
             ${(node.choices || []).map(choice => {
                 if (choice.action === 'enter_battle') {
                     return `<button class="btn choice-btn btn-danger" data-action="enter_battle" data-enemy='${JSON.stringify(node.enemy || {})}'>⚔️ ${choice.text}</button>`;
                 }
-                return `<button class="btn choice-btn" data-next-node="${choice.nextNode}" data-choice-text="${choice.text}">${choice.text}</button>`;
+                return `<button class="btn choice-btn" data-choice="${choice.text}">${choice.text}</button>`;
             }).join('')}
         </div>
         <div style="margin-top: 24px;">
@@ -50,23 +47,56 @@ function adventurePlayTemplate(node, characterState) {
     </div>`;
 }
 
-async function render(adventureId) {
+function staminaBarTemplate(state) {
+     return `
+        <div class="stamina-bar">
+            <div class="label">STAMINA</div>
+            <div class="bar-bg"><div class="bar-fill" style="width: ${state.stamina}%;"></div></div>
+            <div class="value">${state.stamina} / 100</div>
+        </div>`;
+}
+
+async function renderCurrentState() {
     const root = document.querySelector(ROOT_SELECTOR);
-    root.innerHTML = `<div class="spinner"></div>`;
+    if (!currentAdventure) {
+        root.innerHTML = `<div class="card pad err">모험 정보를 불러올 수 없습니다.</div>`;
+        return;
+    }
+    
+    if (currentAdventure.lastResult && !isLoadingNext) {
+        root.innerHTML = resultTemplate(currentAdventure.lastResult, currentAdventure.characterState);
+    } else {
+        root.innerHTML = situationTemplate(currentAdventure.currentNode, currentAdventure.characterState);
+    }
+}
+
+async function proceedToNextStep(choiceText) {
+    const root = document.querySelector(ROOT_SELECTOR);
+    root.innerHTML = loadingTemplate();
+    isLoadingNext = true;
+
     try {
-        const res = await api.getAdventure(adventureId);
-        if (!res.ok) throw new Error('진행 중인 모험 정보를 가져올 수 없습니다.');
+        const timer = new Promise(resolve => setTimeout(resolve, 10000));
+        const apiCall = api.proceedAdventure(currentAdventure.id, { choice: choiceText });
         
-        const adventure = res.data;
-        currentAdventure.id = adventure.id;
-        currentAdventure.graph = adventure.storyGraph;
-        currentAdventure.characterState = adventure.characterState;
+        const [, res] = await Promise.all([timer, apiCall]);
 
-        const node = adventure.storyGraph.nodes[adventure.currentNodeKey];
-        root.innerHTML = adventurePlayTemplate(node, adventure.characterState);
+        const { newItem, newCharacterState, result } = res.data;
+        if (newItem) alert(`아이템 획득: ${newItem.name} (${newItem.grade})`);
+        
+        // 최신 모험 정보 다시 불러오기
+        const updatedAdventureRes = await api.getAdventure(currentAdventure.id);
+        currentAdventure = updatedAdventureRes.data;
 
-    } catch(e) {
-        root.innerHTML = `<div class="card pad err" style="margin: 16px;">오류: ${e.message}</div>`;
+        await renderCurrentState();
+
+    } catch (e) {
+        alert(`진행 실패: ${e.message}`);
+        await renderCurrentState(); // 에러 발생 시 원래 화면으로 복구
+        const proceedBtn = root.querySelector('.choice-btn');
+        if (proceedBtn) handleCooldown(e, proceedBtn);
+    } finally {
+        isLoadingNext = false;
     }
 }
 
@@ -75,15 +105,23 @@ export function mount(adventureId) {
         document.querySelector(ROOT_SELECTOR).innerHTML = `<div class="card pad err" style="margin:16px;">잘못된 접근입니다.</div>`;
         return;
     }
-    render(adventureId);
+    
+    withBlocker(async () => {
+        const res = await api.getAdventure(adventureId);
+        if (!res.ok) throw new Error('진행 중인 모험 정보를 가져올 수 없습니다.');
+        currentAdventure = res.data;
+        await renderCurrentState();
+    });
 
     const root = document.querySelector(ROOT_SELECTOR);
     if (root.dataset.listener) return;
     root.dataset.listener = 'true';
 
     root.addEventListener('click', async (e) => {
+        if (isLoadingNext) return;
+
         const choiceBtn = e.target.closest('.choice-btn');
-        const continueBtn = e.target.closest('.continue-btn');
+        const nextBtn = e.target.closest('#btn-adventure-next');
         const leaveBtn = e.target.closest('.leave-btn');
 
         if (choiceBtn) {
@@ -100,24 +138,19 @@ export function mount(adventureId) {
                 }
                 return;
             }
+            const choiceText = choiceBtn.dataset.choice;
+            await proceedToNextStep(choiceText);
 
-            const nextNodeKey = choiceBtn.dataset.nextNode;
-            const choiceText = choiceBtn.dataset.choiceText;
+        } else if (nextBtn) {
             await withBlocker(async () => {
-                const res = await api.proceedAdventure(currentAdventure.id, { nextNodeKey, choiceText });
-                const { newCharacterState, newItem } = res.data;
-                currentAdventure.characterState = newCharacterState;
-                if (newItem) alert(`아이템 획득: ${newItem.name} (${newItem.grade})`);
-                await render(currentAdventure.id);
-            });
-
-        } else if (continueBtn) {
-            await withBlocker(async () => {
-                await api.continueAdventure(currentAdventure.id);
-                await render(currentAdventure.id);
+                await api.postAdventureNext(currentAdventure.id); // 서버의 lastResult를 null로
+                const res = await api.getAdventure(currentAdventure.id);
+                currentAdventure = res.data;
+                await renderCurrentState();
             });
         } else if (leaveBtn) {
             if (confirm('정말로 모험을 중단하시겠습니까?')) {
+                // TODO: 모험 포기 API 호출
                 ui.navTo('adventure');
             }
         }
