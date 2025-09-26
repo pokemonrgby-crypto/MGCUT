@@ -781,3 +781,119 @@ span.err { color: var(--err); }
     flex-direction: column;
     gap: 8px;
 }
+
+/* (기존 app-ui.css 내용 하단에 이어서 추가) */
+
+/* --- [수정] 모험 전투 UI 스타일 --- */
+.combat-view {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 110px); /* 전체 화면 높이 사용 */
+}
+
+.combat-entity-card {
+    background: rgba(20, 25, 35, 0.7);
+    border-radius: 12px;
+    padding: 12px;
+    border: 1px solid rgba(170, 183, 255, 0.15);
+}
+.combat-entity-card.enemy {
+    margin-bottom: auto; /* 상단에 고정 */
+}
+.combat-entity-card.player {
+    margin-top: auto; /* 하단에 고정 */
+}
+
+.combat-entity-card .name {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    text-align: center;
+}
+.combat-entity-card .hp-bar {
+    position: relative;
+}
+.combat-entity-card .bar-bg {
+    width: 100%;
+    height: 18px;
+    background: #111;
+    border-radius: 9px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+.combat-entity-card .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #52d29a, #7ddea8);
+    border-radius: 9px;
+    transition: width 0.5s ease;
+}
+.combat-entity-card.enemy .bar-fill {
+    background: linear-gradient(90deg, #ff6b6b, #ff8e8e);
+}
+.combat-entity-card .value {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+}
+.combat-entity-card .status-effects {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    min-height: 24px;
+    justify-content: center;
+}
+.effect-badge {
+    background: rgba(0,0,0,0.3);
+    border-radius: 8px;
+    padding: 2px 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+}
+.effect-badge .icon {
+    font-size: 14px;
+}
+.effect-badge .duration {
+    font-weight: 700;
+}
+
+.combat-log-container {
+    flex-grow: 1; /* 남는 공간을 모두 차지 */
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+.combat-log-line {
+    animation: fadeIn 0.5s ease;
+}
+
+.combat-actions-container {
+    flex-shrink: 0; /* 높이가 줄어들지 않도록 */
+}
+
+.action-panels {
+    padding-top: 12px;
+}
+.action-panel {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+}
+.action-panel.active {
+    display: flex;
+}
+.action-panel .small-text {
+    text-align: center;
+    padding: 12px 0;
+    color: var(--muted);
+}
+.combat-action-btn small {
+    opacity: 0.7;
+}
