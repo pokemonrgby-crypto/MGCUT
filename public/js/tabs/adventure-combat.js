@@ -198,10 +198,18 @@ async function takeTurn(action) {
     try {
         const res = await api.takeCombatTurn(currentAdventureId, action);
         if (res.ok) {
-            const newLogs = res.data.turnLog || [];
-            currentCombatState = res.data.combatState;
+            const { turnLog, combatState, droppedItem } = res.data;
+            currentCombatState = combatState;
             logArea.removeChild(processingMsg);
-            showLogsSequentially(logArea, newLogs, () => {
+
+            // [추가] 아이템 획득 시 알림 표시
+            if (droppedItem) {
+                setTimeout(() => {
+                    alert(`전리품 획득: ${droppedItem.name} (${droppedItem.grade})`);
+                }, (turnLog.length + 1) * 700); // 로그 표시가 끝난 후에 알림
+            }
+
+            showLogsSequentially(logArea, turnLog || [], () => {
                 isProcessingTurn = false;
                 if (currentCombatState.status !== 'ongoing') {
                     render(currentCombatState);
