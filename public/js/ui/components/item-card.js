@@ -1,7 +1,7 @@
 // public/js/ui/components/item-card.js
 
 /**
- * 아이템 정보를 받아 카드 UI의 HTML 문자열을 생성합니다.
+ * 아이템 정보를 받아 전체 카드 UI의 HTML 문자열을 생성합니다.
  * @param {object} item - 아이템 객체 (id, name, description, grade 필수)
  * @param {string} extraClass - 추가할 CSS 클래스
  * @returns {string} HTML 문자열
@@ -26,6 +26,26 @@ export function itemCard(item, extraClass = '') {
         <div class="item-card-footer">
             ${type === 'consumable' ? '소비 아이템' : '장비 아이템'}
         </div>
+    </div>
+    `;
+}
+
+/**
+ * 아이템 정보를 받아 이름과 등급만 표시하는 간소화된 카드 UI의 HTML 문자열을 생성합니다.
+ * @param {object} item - 아이템 객체 (id, name, grade 필수)
+ * @param {string} extraClass - 추가할 CSS 클래스
+ * @returns {string} HTML 문자열
+ */
+export function simpleItemCard(item, extraClass = '') {
+    const id = item?.id || '';
+    const name = item?.name || '(알 수 없는 아이템)';
+    const grade = item?.grade || 'Common';
+    const gradeClass = `grade-${grade.toLowerCase()}`;
+
+    return `
+    <div class="simple-item-card ${gradeClass} ${extraClass}" data-item-id="${id}">
+        <div class="simple-item-card-name">${name}</div>
+        <div class="simple-item-card-grade">${grade}</div>
     </div>
     `;
 }
