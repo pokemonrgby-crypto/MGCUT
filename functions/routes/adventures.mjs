@@ -23,6 +23,7 @@ function getRandomInRange(min, max) {
 // --- 프롬프트 생성 함수 ---
 
 function getNextNodePrompt(context, site, history) {
+    // (기존 코드와 동일)
     const historyLog = history.length > 0 ? `# 이전 기록\n${history.map(h => `- ${h}`).join('\n')}` : '';
     const preRolledEvent = preRollEvent(site.difficulty);
     let eventInstruction = '';
@@ -72,8 +73,9 @@ ${historyLog}
    - 설명이나 코드 펜스 없이 순수 JSON 객체만 출력하세요.`;
 }
 
-// [신규] 전투 턴 AI 프롬프트 생성 함수
+
 function getCombatTurnPrompt(combatState, action) {
+    // (기존 코드와 동일)
     const { player, enemy, log } = combatState;
     const actionSource = action.type === 'skill' ? player.skills.find(s => s.id === action.id) : player.items.find(i => i.id === action.id);
     const lastLogs = log.slice(-5).join('\n');
@@ -109,10 +111,10 @@ function getCombatTurnPrompt(combatState, action) {
 # 규칙
 1.  **결과 생성**: 행동의 이름과 설명, 현재 상황을 종합적으로 고려하여 결과를 창의적으로 생성해줘. (예: '화염구' 스킬을 물의 정령에게 쓰면 데미지가 감소하고 '증기 발생' 같은 특수 효과를 부여)
 2.  **효과 적용**:
-    * `effects`: 플레이어 행동의 직접적인 결과.
-    * `enemyEffects`: 적의 반격 결과.
-    * `damage`는 항상 음수, `heal`과 `shield`는 항상 양수로 표현.
-    * `status` 타입의 경우, `effectType`에 아래 목록 중 하나를 명시하고 `duration`을 설정.
+    * \`effects\`: 플레이어 행동의 직접적인 결과.
+    * \`enemyEffects\`: 적의 반격 결과.
+    * \`damage\`는 항상 음수, \`heal\`과 \`shield\`는 항상 양수로 표현.
+    * \`status\` 타입의 경우, \`effectType\`에 아래 목록 중 하나를 명시하고 \`duration\`을 설정.
 3.  **밸런스**: 플레이어가 너무 강력하거나 약해지지 않도록 효과 수치를 적절히 조절. 적의 난이도(${enemy.difficulty})를 고려할 것.
 4.  **효과 목록**: ${effectList}
 5.  **출력**: 설명이나 코드 펜스 없이 순수 JSON 객체만 출력.
@@ -120,8 +122,7 @@ function getCombatTurnPrompt(combatState, action) {
 }
 
 
-// [신규] AI가 생성한 효과를 combatState에 적용하는 헬퍼 함수
-function applyEffects(combatState, effects, turnLog, sourceName) { // log -> turnLog로 변경
+function applyEffects(combatState, effects, turnLog, sourceName) {
     if (!Array.isArray(effects)) return;
 
     for (const effect of effects) {
@@ -193,6 +194,7 @@ function applyEffects(combatState, effects, turnLog, sourceName) { // log -> tur
 // --- API 엔드포인트 ---
 export function mountAdventures(app) {
 
+    // ... (다른 엔드포인트들은 기존 코드와 동일)
     // 모험 시작
     app.post('/api/adventures/start', async (req, res) => {
         try {
