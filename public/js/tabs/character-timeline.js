@@ -3,20 +3,20 @@
 import { api } from '../api.js';
 import { ui } from '../ui/frame.js';
 
-const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'gt;','"':'&quot;',"'":'&#39;'}[m]));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
 function parseRichText(text) {
   if (!text) return '';
   // HTML 태그가 변환되기 전에 리치 텍스트를 먼저 처리하도록 순서 변경
-  return text.replace(/<대사>/g, '<div class="dialogue"></div>')
+  return text.replace(/<대사>/g, '<div class="dialogue">')
     .replace(/<\/대사>/g, '</div>')
-    .replace(/<서술>/g, '<div class="narrative"></div>')
+    .replace(/<서술>/g, '<div class="narrative">')
     .replace(/<\/서술>/g, '</div>')
-    .replace(/<강조>/g, '<strong class="emphasis"></strong>')
+    .replace(/<강조>/g, '<strong class="emphasis">')
     .replace(/<\/강조>/g, '</strong>')
-    .replace(/<생각>/g, '<div class="thought"></div>')
+    .replace(/<생각>/g, '<div class="thought">')
     .replace(/<\/생각>/g, '</div>')
-    .replace(/<시스템>/g, '<div class="system"></div>')
+    .replace(/<시스템>/g, '<div class="system">')
     .replace(/<\/시스템>/g, '</div>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -34,53 +34,42 @@ function formatDate(date) {
 }
 
 // --- 카드 템플릿 ---
-// === 교체 시작 ===
 function battleLogCard(log, currentCharId) {
   const isMeA = String(log.meId) === String(currentCharId);
 
-  // 이름/이미지 안전 기본값
-  const meName = String(log.meName || '나의 캐릭터');
-  const opName = String(log.opName || '상대 캐릭터');
-  const opponentName = isMeA ? opName : meName;
+  const opponentName = isMeA ? (log.opName || '상대') : (log.meName || '나');
   const opponentImageUrl = isMeA ? (log.opImageUrl || '') : (log.meImageUrl || '');
 
-  // Elo 안전 숫자화
+  const myEloAfter = Number(isMeA ? log.eloMeAfter : log.eloOpAfter);
   const myEloBefore = Number(isMeA ? log.eloMe : log.eloOp);
-  const myEloAfter  = Number(isMeA ? log.eloMeAfter : log.eloOpAfter);
-  const safeEloBefore = Number.isFinite(myEloBefore) ? myEloBefore : 1000;
-  const safeEloAfter  = Number.isFinite(myEloAfter)  ? myEloAfter  : safeEloBefore;
-  const eloChange = safeEloAfter - safeEloBefore;
-  const eloChangeStr = (eloChange >= 0 ? `+${eloChange}` : `${eloChange}`);
+  const eloChange = myEloAfter - myEloBefore;
+  const eloChangeStr = eloChange >= 0 ? `+${eloChange}` : `${eloChange}`;
 
-  // 승패 표시
-  let result = '무승부';
+  let resultText = '무승부';
   let resultClass = '';
-  if (log.winner === 'A' || log.winner === 'B') {
+  if (log.winner) {
     const didIWin = (isMeA && log.winner === 'A') || (!isMeA && log.winner === 'B');
-    result = didIWin ? '승리' : '패배';
+    resultText = didIWin ? '승리' : '패배';
     resultClass = didIWin ? 'ok' : 'err';
   }
 
-  // 날짜 안전 처리
-  const tsSec = (log.createdAt?.seconds ?? log.updatedAt?.seconds ?? 0);
-  const date = new Date(tsSec * 1000);
-  const dateStr = Number.isFinite(date.getTime()) ? formatDate(date) : '';
+  const date = new Date((log.createdAt?.seconds ?? 0) * 1000);
+  const dateStr = formatDate(date);
 
   return `
   <div class="card battle-log-char-card" data-log-id="${esc(log.id)}" style="cursor:pointer;">
     <div class="bg" style="background-image:url('${esc(opponentImageUrl)}')"></div>
     <div class="grad"></div>
     <div class="info-overlay">
-        <div class="opponent-name">vs ${esc(opponentName)}</div>
-        <div class="result-line">
-          <span class="${resultClass}">${result}</span>
-          <span style="opacity:0.9;">(Elo ${safeEloAfter} <span class="small ${resultClass}">(${eloChangeStr})</span>)</span>
-        </div>
-        <div class="date">${esc(dateStr)}</div>
+      <div class="opponent-name">vs ${esc(opponentName)}</div>
+      <div class="result-line">
+        <span class="${resultClass}">${resultText}</span>
+        (Elo ${myEloAfter} <span class="small ${resultClass}">(${eloChangeStr})</span>)
+      </div>
+      <div class="date">${dateStr}</div>
     </div>
   </div>`;
 }
-// === 교체 끝 ===
 
 
 function adventureLogCard(log) {
@@ -104,26 +93,16 @@ let battleLogsCache = [];
 async function renderBattleLogs(container, characterId) {
     container.innerHTML = `<div class="spinner"></div>`;
     try {
-        // 1. API 호출
         const res = await api.getCharacterBattleLogs(characterId);
-        
-        // 2. 데이터 유효성 검사
         if (!res.ok || !Array.isArray(res.data)) {
             throw new Error(res.error || 'API로부터 유효한 데이터를 받지 못했습니다.');
         }
         
         battleLogsCache = res.data; 
 
-        // 3. 렌더링 또는 빈 화면 표시
         if (battleLogsCache.length > 0) {
-            try {
-                const cardsHtml = battleLogsCache.map(log => battleLogCard(log, characterId)).join('');
-                // [수정] 애니메이션이 적용되도록 'v-list' 클래스를 추가합니다.
-                container.innerHTML = '<div class="list v-list">' + cardsHtml + '</div>';
-            } catch (renderError) {
-                console.error('Timeline battle log rendering failed:', renderError);
-                container.innerHTML = `<div class="card pad err">전투 기록을 화면에 표시하는 중 오류가 발생했습니다: ${renderError.message}</div>`;
-            }
+            const cardsHtml = battleLogsCache.map(log => battleLogCard(log, characterId)).join('');
+            container.innerHTML = `<div class="list v-list" style="display: flex; flex-direction: column; gap: 12px;">${cardsHtml}</div>`;
         } else {
             container.innerHTML = '<div class="card pad small">아직 전투 기록이 없습니다.</div>';
         }
