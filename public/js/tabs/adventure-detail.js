@@ -16,7 +16,7 @@ function loadingTemplate() {
 
 function resultTemplate(result, staminaState) {
     return `
-    <div class="adventure-view" style="padding: 0 16px;">
+    <div class="adventure-view">
         ${staminaBarTemplate(staminaState)}
         <div class="situation-card">
             <h3>선택 결과</h3>
@@ -30,9 +30,9 @@ function resultTemplate(result, staminaState) {
 
 function situationTemplate(node, characterState) {
     return `
-    <div class="adventure-view" style="padding: 0 16px;">
+    <div class="adventure-view">
         ${staminaBarTemplate(characterState)}
-        <div class="situation-card"><p>${node.situation.replace(/\n/g, '<br>')}</p></div>
+        <div class="situation-card"><p>${(node.situation || '').replace(/\n/g, '<br>')}</p></div>
         <div class="choices-list" style="margin-top: 16px; display:flex; flex-direction:column; gap:8px;">
             ${(node.choices || []).map(choice => {
                 if (choice.action === 'enter_battle') {
@@ -51,8 +51,8 @@ function staminaBarTemplate(state) {
      return `
         <div class="stamina-bar">
             <div class="label">STAMINA</div>
-            <div class="bar-bg"><div class="bar-fill" style="width: ${state.stamina}%;"></div></div>
-            <div class="value">${state.stamina} / 100</div>
+            <div class="bar-bg"><div class="bar-fill" style="width: ${state.stamina || 100}%;"></div></div>
+            <div class="value">${state.stamina || 100} / 100</div>
         </div>`;
 }
 
@@ -65,8 +65,10 @@ async function renderCurrentState() {
     
     if (currentAdventure.lastResult && !isLoadingNext) {
         root.innerHTML = resultTemplate(currentAdventure.lastResult, currentAdventure.characterState);
-    } else {
+    } else if (currentAdventure.currentNode) {
         root.innerHTML = situationTemplate(currentAdventure.currentNode, currentAdventure.characterState);
+    } else {
+        root.innerHTML = loadingTemplate();
     }
 }
 
@@ -81,7 +83,7 @@ async function proceedToNextStep(choiceText) {
         
         const [, res] = await Promise.all([timer, apiCall]);
 
-        const { newItem, newCharacterState, result } = res.data;
+        const { newItem } = res.data;
         if (newItem) alert(`아이템 획득: ${newItem.name} (${newItem.grade})`);
         
         // 최신 모험 정보 다시 불러오기
@@ -92,9 +94,12 @@ async function proceedToNextStep(choiceText) {
 
     } catch (e) {
         alert(`진행 실패: ${e.message}`);
-        await renderCurrentState(); // 에러 발생 시 원래 화면으로 복구
         const proceedBtn = root.querySelector('.choice-btn');
         if (proceedBtn) handleCooldown(e, proceedBtn);
+        // 에러 발생 시 모험 상세 정보 다시 로드
+        const updatedAdventureRes = await api.getAdventure(currentAdventure.id);
+        currentAdventure = updatedAdventureRes.data;
+        await renderCurrentState();
     } finally {
         isLoadingNext = false;
     }
@@ -144,13 +149,14 @@ export function mount(adventureId) {
         } else if (nextBtn) {
             await withBlocker(async () => {
                 await api.postAdventureNext(currentAdventure.id); // 서버의 lastResult를 null로
-                const res = await api.getAdventure(currentAdventure.id);
+                const res = await api.getAdventure(currentAdventure.id); // 최신 상태 가져오기
                 currentAdventure = res.data;
                 await renderCurrentState();
             });
         } else if (leaveBtn) {
-            if (confirm('정말로 모험을 중단하시겠습니까?')) {
-                // TODO: 모험 포기 API 호출
+            if (confirm('정말로 모험을 중단하시겠습니까? 현재까지의 진행 상황은 사라집니다.')) {
+                // TODO: 모험 포기(삭제) API 호출 구현
+                alert('모험이 중단되었습니다.');
                 ui.navTo('adventure');
             }
         }
