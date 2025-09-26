@@ -722,3 +722,62 @@ span.err { color: var(--err); }
 .simple-item-card.grade-legendary { --grade-bg: #d28e4a; }
 .simple-item-card.grade-mythic { --grade-bg: #d24a4a; }
 .simple-item-card.grade-exotic { --grade-bg: #d24ac0; }
+
+
+/* (기존 app-ui.css 내용 하단에 이어서 추가) */
+
+/* --- [추가] 모험 전투 UI 스타일 --- */
+.combat-view {
+    padding: 16px 0;
+    animation: cardFadeIn 0.5s ease forwards;
+}
+.combat-entities {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0 16px;
+    margin-bottom: 16px;
+}
+.combat-entity-bar .name {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+.combat-entity-bar .hp-bar {
+    position: relative;
+}
+.combat-entity-bar .bar-bg {
+    width: 100%;
+    height: 18px;
+    background: #111;
+    border-radius: 9px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+.combat-entity-bar .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #52d29a, #7ddea8);
+    border-radius: 9px;
+    transition: width 0.5s ease;
+}
+.combat-entity-bar .value {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+}
+.action-panels {
+    padding-top: 12px;
+}
+.action-panel {
+    display: none; /* 기본적으로 숨김 */
+}
+.action-panel.active {
+    display: flex; /* 활성화된 패널만 보임 */
+    flex-direction: column;
+    gap: 8px;
+}
