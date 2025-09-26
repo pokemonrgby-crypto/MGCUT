@@ -165,6 +165,40 @@ async function generateStoryGraph(geminiKey, context, site, previousOutcome, his
     throw lastError || new Error('AI_GENERATION_FAILED_AFTER_RETRIES');
 }
 
+function getCombatScriptPrompt(character, enemy, world) {
+    const skills = (character.abilities || []).filter(a => (character.chosen || []).includes(a.id));
+    const items = (character.items || []).filter(i => (character.equipped || []).includes(i.id));
+
+    return `
+# 역할: 당신은 전투 묘사에 매우 능숙한 TRPG 마스터(GM)입니다.
+# 정보
+- 세계관: ${world.name} - ${world.summary}
+- 플레이어 캐릭터: ${character.name} - ${character.summary}
+- 적: ${enemy.name} - ${enemy.description}
+
+# 임무
+위 정보를 바탕으로, 플레이어가 아래의 스킬/아이템을 사용했을 때 나올 법한 전투 묘사 대사를 **총 60개** 생성해줘.
+각 묘사는 <서술>, <대사>, <강조> 등의 태그를 활용하여 1~2 문장으로 매우 생생하고 역동적으로 표현해야 합니다.
+결과는 반드시 아래 JSON 형식에 맞춰, 설명이나 코드 펜스 없이 순수 JSON 객체만 출력해야 합니다.
+
+{
+  "skill_dialogues": {
+    ${skills.map(s => `"${s.name}": ["${s.name} 사용 시 묘사 1", "${s.name} 사용 시 묘사 2", ... (총 5개)]`).join(',\n    ') || ''}
+  },
+  "item_dialogues": {
+     ${items.map(i => `"${i.name}": ["${i.name} 사용 시 묘사 1", "${i.name} 사용 시 묘사 2", ... (총 5개)]`).join(',\n    ') || ''}
+  },
+  "finishers": [
+    "결정타 묘사 1 (예: <서술>마지막 일격이 적의 심장을 꿰뚫었다.</서술>)",
+    "결정타 묘사 2",
+    "결정타 묘사 3",
+    "결정타 묘사 4",
+    "결정타 묘사 5"
+  ]
+}
+`;
+}
+
 
 export function mountAdventures(app) {
     app.post('/api/adventures/start', async (req, res) => {
@@ -367,4 +401,143 @@ app.get('/api/characters/:id/adventures', async (req, res) => {
             res.status(500).json({ ok: false, error: e.message });
         }
     });
+
+
+    app.post('/api/adventures/:id/start-combat', async (req, res) => {
+        try {
+            const user = await getUserFromReq(req);
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+            const adventureId = req.params.id;
+            const { enemy } = req.body;
+            if (!enemy) return res.status(400).json({ ok: false, error: 'ENEMY_DATA_REQUIRED' });
+
+            const adventureRef = db.collection('adventures').doc(adventureId);
+            const snap = await adventureRef.get();
+            if (!snap.exists || snap.data().ownerUid !== user.uid) {
+                return res.status(404).json({ ok: false, error: 'ADVENTURE_NOT_FOUND' });
+            }
+            const adventure = snap.data();
+
+            // 1. 캐릭터 정보에서 전투에 사용할 스킬, 아이템 스냅샷 생성
+            const charSnap = await db.collection('characters').doc(adventure.characterId).get();
+            const character = charSnap.data();
+            const worldSnap = await db.collection('worlds').doc(adventure.worldId).get();
+            const world = worldSnap.data();
+
+            const combatSkills = (character.abilities || []).filter(a => (character.chosen || []).includes(a.id));
+            const combatItems = (character.items || []).filter(i => (character.equipped || []).includes(i.id));
+
+            // 2. AI를 호출하여 전투 스크립트 생성
+            const geminiKey = await getApiKeyForUser(user.uid);
+            const scriptPrompt = getCombatScriptPrompt(character, enemy, world);
+            const { json: combatScript } = await callGemini({ key: geminiKey, model: pickModels().primary, user: scriptPrompt });
+
+            if (!combatScript || !combatScript.finishers) {
+                throw new Error("AI failed to generate combat script.");
+            }
+
+            // 3. 전투 상태(combatState) 객체 생성 및 저장
+            const combatState = {
+                status: 'ongoing',
+                player: {
+                    name: character.name,
+                    healthState: '온전함', // 텍스트 기반 체력
+                    skills: combatSkills,
+                    items: combatItems,
+                },
+                enemy: {
+                    ...enemy,
+                    healthState: '온전함',
+                },
+                turn: 'player',
+                log: ['전투가 시작되었다!'],
+                script: combatScript,
+            };
+
+            await adventureRef.update({ combatState });
+            res.json({ ok: true, data: { combatState } });
+
+        } catch (e) {
+            console.error('Error starting combat:', e);
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+    // [신규] 전투 턴 진행 API
+    app.post('/api/adventures/:id/combat-turn', async (req, res) => {
+        try {
+            const user = await getUserFromReq(req);
+            if (!user) return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' });
+
+            const adventureId = req.params.id;
+            const { action } = req.body; // { type: 'skill' | 'item' | 'flee', id: '...' }
+            
+            const adventureRef = db.collection('adventures').doc(adventureId);
+            const snap = await adventureRef.get();
+            const combatState = snap.data()?.combatState;
+
+            if (!combatState || combatState.status !== 'ongoing' || combatState.turn !== 'player') {
+                return res.status(400).json({ ok: false, error: 'INVALID_TURN' });
+            }
+
+            let turnLog = [];
+            let isBattleOver = false;
+
+            // --- 플레이어 턴 ---
+            if (action.type === 'flee') {
+                if (Math.random() < FLEE_CHANCE) {
+                    combatState.status = 'fled';
+                    turnLog.push('성공적으로 도망쳤다!');
+                    isBattleOver = true;
+                } else {
+                    turnLog.push('도망에 실패했다! 빈틈을 보이고 말았다.');
+                }
+            } else {
+                // 스킬 또는 아이템 사용
+                const isSkill = action.type === 'skill';
+                const source = isSkill ? combatState.player.skills.find(s => s.id === action.id) : combatState.player.items.find(i => i.id === action.id);
+                if (!source) return res.status(404).json({ ok: false, error: 'ACTION_SOURCE_NOT_FOUND' });
+                
+                // 1. 대사 선택
+                const dialogues = isSkill ? combatState.script.skill_dialogues[source.name] : combatState.script.item_dialogues[source.name];
+                turnLog.push(dialogues[Math.floor(Math.random() * dialogues.length)]);
+
+                // 2. 피해량 텍스트 선택
+                const damageRoll = Math.random(); // 0 ~ 1
+                let damageIndex = 1; // 보통
+                if (damageRoll < 0.2) damageIndex = 0; // 최소
+                else if (damageRoll > 0.8) damageIndex = 2; // 최대
+                
+                const damageText = isSkill ? damageLevels.player.skill[damageIndex] : damageLevels.player.item[damageIndex];
+                turnLog.push(damageText);
+                
+                // TODO: 실제 healthState 변경 로직 추가 (예: '온전함' -> '약간 다침')
+            }
+
+            // --- 적 턴 (전투가 끝나지 않았다면) ---
+            if (!isBattleOver) {
+                 const enemyDifficulty = combatState.enemy.difficulty || 'normal';
+                 const enemyDamageRoll = Math.random();
+                 let enemyDamageIndex = 1;
+                 if (enemyDamageRoll < 0.2) enemyDamageIndex = 0;
+                 else if (enemyDamageRoll > 0.8) enemyDamageIndex = 2;
+
+                 const enemyAttackText = damageLevels.enemy[enemyDifficulty][enemyDamageIndex];
+                 turnLog.push(`적의 차례: ${enemyAttackText}`);
+                 
+                 // TODO: 플레이어 healthState 변경 로직 추가
+            }
+            
+            combatState.log.push(...turnLog);
+            await adventureRef.update({ combatState });
+            res.json({ ok: true, data: { combatState } });
+
+        } catch(e) {
+            console.error('Error processing combat turn:', e);
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
+
+    
 }
