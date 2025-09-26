@@ -4,7 +4,7 @@ import { ui, withBlocker, handleCooldown } from '../ui/frame.js';
 
 const ROOT_SELECTOR = '[data-view="adventure-detail"]';
 let currentAdventure = null;
-let isLoadingNext = false;
+let isProcessingNext = false; // 변수명 변경: isLoadingNext -> isProcessingNext
 
 function loadingTemplate() {
     return `
@@ -29,16 +29,21 @@ function resultTemplate(result, staminaState) {
 }
 
 function situationTemplate(node, characterState) {
+    // node.choices가 배열이 아니거나 비어있는 경우를 방어
+    const choices = Array.isArray(node.choices) ? node.choices : [];
     return `
     <div class="adventure-view">
         ${staminaBarTemplate(characterState)}
         <div class="situation-card"><p>${(node.situation || '').replace(/\n/g, '<br>')}</p></div>
         <div class="choices-list" style="margin-top: 16px; display:flex; flex-direction:column; gap:8px;">
-            ${(node.choices || []).map(choice => {
-                if (choice.action === 'enter_battle') {
-                    return `<button class="btn choice-btn btn-danger" data-action="enter_battle" data-enemy='${JSON.stringify(node.enemy || {})}'>⚔️ ${choice.text}</button>`;
-                }
-                return `<button class="btn choice-btn" data-choice="${choice.text}">${choice.text}</button>`;
+            ${choices.map(choice => {
+                const action = choice.action || '';
+                const enemyData = action === 'enter_battle' ? JSON.stringify(node.enemy || {}) : '';
+                const btnClass = action === 'enter_battle' ? 'btn choice-btn btn-danger' : 'btn choice-btn';
+                const icon = action === 'enter_battle' ? '⚔️ ' : '';
+
+                // data-choice 속성에 선택지 텍스트(text)를 저장합니다.
+                return `<button class="${btnClass}" data-choice="${choice.text}" data-action="${action}" data-enemy='${enemyData}'>${icon}${choice.text}</button>`;
             }).join('')}
         </div>
         <div style="margin-top: 24px;">
@@ -63,7 +68,10 @@ async function renderCurrentState() {
         return;
     }
     
-    if (currentAdventure.lastResult && !isLoadingNext) {
+    // isProcessingNext 플래그를 확인하여 로딩 중일 때는 렌더링하지 않도록 수정
+    if (isProcessingNext) {
+         root.innerHTML = loadingTemplate();
+    } else if (currentAdventure.lastResult) {
         root.innerHTML = resultTemplate(currentAdventure.lastResult, currentAdventure.characterState);
     } else if (currentAdventure.currentNode) {
         root.innerHTML = situationTemplate(currentAdventure.currentNode, currentAdventure.characterState);
@@ -73,35 +81,32 @@ async function renderCurrentState() {
 }
 
 async function proceedToNextStep(choiceText) {
-    const root = document.querySelector(ROOT_SELECTOR);
-    root.innerHTML = loadingTemplate();
-    isLoadingNext = true;
+    if (isProcessingNext) return;
+    isProcessingNext = true;
+    await renderCurrentState(); // 로딩 화면을 먼저 표시
 
     try {
-        const timer = new Promise(resolve => setTimeout(resolve, 10000));
-        const apiCall = api.proceedAdventure(currentAdventure.id, { choice: choiceText });
-        
-        const [, res] = await Promise.all([timer, apiCall]);
+        // [수정] API 호출 후 전체 모험 상태를 다시 불러오는 대신, 반환된 결과로 바로 업데이트합니다.
+        const res = await api.proceedAdventure(currentAdventure.id, { choice: choiceText });
 
-        const { newItem } = res.data;
+        const { newItem, result } = res.data;
         if (newItem) alert(`아이템 획득: ${newItem.name} (${newItem.grade})`);
         
-        // 최신 모험 정보 다시 불러오기
+        // 서버에서 선택 결과와 다음 노드를 모두 처리했으므로, 최신 모험 정보를 다시 불러옵니다.
         const updatedAdventureRes = await api.getAdventure(currentAdventure.id);
         currentAdventure = updatedAdventureRes.data;
-
-        await renderCurrentState();
 
     } catch (e) {
         alert(`진행 실패: ${e.message}`);
-        const proceedBtn = root.querySelector('.choice-btn');
-        if (proceedBtn) handleCooldown(e, proceedBtn);
-        // 에러 발생 시 모험 상세 정보 다시 로드
+        // [수정] 오류 발생 시 버튼 쿨다운 처리
+        const choiceBtn = document.querySelector(`[data-choice="${choiceText}"]`);
+        if(choiceBtn) handleCooldown(e, choiceBtn);
+        // 오류가 발생했으므로, 이전 상태로 되돌리기 위해 다시 adventure 정보를 불러옵니다.
         const updatedAdventureRes = await api.getAdventure(currentAdventure.id);
         currentAdventure = updatedAdventureRes.data;
-        await renderCurrentState();
     } finally {
-        isLoadingNext = false;
+        isProcessingNext = false;
+        await renderCurrentState(); // 최종 상태 렌더링
     }
 }
 
@@ -111,10 +116,13 @@ export function mount(adventureId) {
         return;
     }
     
+    // 초기 로딩
+    isProcessingNext = true;
     withBlocker(async () => {
         const res = await api.getAdventure(adventureId);
         if (!res.ok) throw new Error('진행 중인 모험 정보를 가져올 수 없습니다.');
         currentAdventure = res.data;
+        isProcessingNext = false;
         await renderCurrentState();
     });
 
@@ -123,7 +131,7 @@ export function mount(adventureId) {
     root.dataset.listener = 'true';
 
     root.addEventListener('click', async (e) => {
-        if (isLoadingNext) return;
+        if (isProcessingNext) return;
 
         const choiceBtn = e.target.closest('.choice-btn');
         const nextBtn = e.target.closest('#btn-adventure-next');
@@ -131,6 +139,7 @@ export function mount(adventureId) {
 
         if (choiceBtn) {
             const choiceAction = choiceBtn.dataset.action;
+            // 전투 시작 처리
             if (choiceAction === 'enter_battle') {
                 try {
                     const enemyData = JSON.parse(choiceBtn.dataset.enemy);
@@ -143,16 +152,27 @@ export function mount(adventureId) {
                 }
                 return;
             }
+            // 일반 선택지 처리
             const choiceText = choiceBtn.dataset.choice;
-            await proceedToNextStep(choiceText);
+            if (choiceText) {
+                await proceedToNextStep(choiceText);
+            }
 
         } else if (nextBtn) {
-            await withBlocker(async () => {
+            // "다음으로" 버튼 클릭 처리
+            isProcessingNext = true; // 로딩 시작
+            await renderCurrentState();
+            try {
                 await api.postAdventureNext(currentAdventure.id); // 서버의 lastResult를 null로
                 const res = await api.getAdventure(currentAdventure.id); // 최신 상태 가져오기
                 currentAdventure = res.data;
-                await renderCurrentState();
-            });
+            } catch(err) {
+                 alert(`오류: ${err.message}`);
+            } finally {
+                 isProcessingNext = false; // 로딩 끝
+                 await renderCurrentState();
+            }
+
         } else if (leaveBtn) {
             if (confirm('정말로 모험을 중단하시겠습니까? 현재까지의 진행 상황은 사라집니다.')) {
                 // TODO: 모험 포기(삭제) API 호출 구현
