@@ -641,3 +641,84 @@ span.err { color: var(--err); }
     line-height: 1.6;
     opacity: 0.9;
 }
+
+/* (기존 app-ui.css 내용 하단에 이어서 추가) */
+
+/* --- [추가] 캐릭터 상세 - 아이템 탭 개선 --- */
+.equipment-slots {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.equipment-slot {
+  height: 80px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
+}
+
+.equipment-slot.empty {
+  background: #0b0f1a;
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+}
+.equipment-slot.empty:hover {
+  background: #12172a;
+}
+.equipment-slot.equipped {
+  padding: 0;
+  border: none;
+}
+/* 자식 요소인 simple-item-card가 부모의 크기를 100% 채우도록 함 */
+.equipment-slot.equipped .simple-item-card {
+    width: 100%;
+    height: 100%;
+}
+
+
+/* --- [추가] 심플 아이템 카드 --- */
+.simple-item-card {
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid rgba(170, 183, 255, 0.15);
+  background-color: #141922;
+  cursor: pointer;
+  min-height: 80px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.simple-item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+}
+
+.simple-item-card-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+}
+
+.simple-item-card-grade {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background-color: var(--grade-bg, #333);
+  color: var(--grade-text, #fff);
+  align-self: flex-start; /* 등급 뱃지가 왼쪽 정렬되도록 */
+}
+
+/* 등급별 색상 적용 (기존 item-card와 동일한 변수 사용) */
+.simple-item-card.grade-common { --grade-bg: #5a647e; }
+.simple-item-card.grade-uncommon { --grade-bg: #4a8a5d; }
+.simple-item-card.grade-rare { --grade-bg: #4a7fd2; }
+.simple-item-card.grade-epic { --grade-bg: #8e4ed2; }
+.simple-item-card.grade-legendary { --grade-bg: #d28e4a; }
+.simple-item-card.grade-mythic { --grade-bg: #d24a4a; }
+.simple-item-card.grade-exotic { --grade-bg: #d24ac0; }
