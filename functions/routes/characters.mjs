@@ -1,3 +1,4 @@
+// (수정된 결과)
 // functions/routes/characters.mjs
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../lib/firebase.mjs';
@@ -8,6 +9,8 @@ import { checkAndUpdateCooldown } from '../lib/cooldown.mjs';
 import { getApiKeySecret } from '../lib/secret-manager.mjs';
 import { preRollEvent } from '../lib/adventure-events.mjs';
 import { randomUUID } from 'crypto';
+// [추가] 아이템 등급별 가중치 텍스트를 import 합니다.
+import { itemGradeWeights } from '../lib/adventure-combat-rules.mjs';
 
 // 헬퍼 함수: UID로 API 키를 가져옵니다.
 async function getApiKeyForUser(uid) {
@@ -53,36 +56,51 @@ function buildOneShotBattlePrompt({ me, op, world }) {
     const equippedIds = new Set(Array.isArray(c.equipped) ? c.equipped : []);
     const items = (Array.isArray(c.items) ? c.items : []).filter(i => equippedIds.has(i.id));
     const narrative = (Array.isArray(c.narratives) && c.narratives.length > 0) ? c.narratives[0].long : (c.introShort || c.description || '');
+
+    // [수정] 가장 높은 등급의 아이템을 기준으로 장비 수준을 결정합니다.
+    let equipmentLevel = itemGradeWeights.Common; // 기본값
+    if (items.length > 0) {
+        const gradeOrder = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Exotic'];
+        const highestGradeItem = items.sort((a, b) => gradeOrder.indexOf(b.grade) - gradeOrder.indexOf(a.grade))[0];
+        equipmentLevel = itemGradeWeights[highestGradeItem.grade] || itemGradeWeights.Common;
+    }
+    
     return {
       name: c.name || '',
       elo: Number(c.elo ?? 1000),
       narrative: String(narrative).slice(0, 500),
       skills: skills.map(s => ({ name: s.name, description: s.description })),
-      items: items.map(i => ({ name: i.name, description: i.description })),
+      items: items.map(i => ({ name: i.name, description: i.description, grade: i.grade })),
+      equipmentLevel: equipmentLevel, // [추가] 장비 수준 설명 텍스트
     };
   };
   const A = pick(me);
   const B = pick(op);
   const worldName = world?.name || me?.worldName || op?.worldName || '-';
   const worldDesc = String(world?.description || world?.introShort || '').slice(0, 800);
+  
+  // [수정] 프롬프트에 '장비 수준' 항목 추가 및 지시사항 강화
   return [
     `# 세계관 정보`,
     `- 이름: ${worldName}`,
     `- 개요: ${worldDesc}`,
     ``,
     `# A측 캐릭터: ${A.name} (Elo: ${A.elo})`,
+    `## 장비 수준: ${A.equipmentLevel}`,
     `## 서사`, `${A.narrative}`,
     `## 장착 스킬`, ...A.skills.map(s => `- ${s.name}: ${s.description}`),
-    `## 장착 아이템`, ...A.items.map(i => `- ${i.name}: ${i.description}`),
+    `## 장착 아이템`, ...A.items.map(i => `- ${i.name} (${i.grade}): ${i.description}`),
     ``,
     `# B측 캐릭터: ${B.name} (Elo: ${B.elo})`,
+    `## 장비 수준: ${B.equipmentLevel}`,
     `## 서사`, `${B.narrative}`,
     `## 장착 스킬`, ...B.skills.map(s => `- ${s.name}: ${s.description}`),
-    `## 장착 아이템`, ...B.items.map(i => `- ${i.name}: ${i.description}`),
+    `## 장착 아이템`, ...B.items.map(i => `- ${i.name} (${i.grade}): ${i.description}`),
     ``,
     `# 지시사항`,
     `위 정보를 바탕으로 두 캐릭터의 전투를 <서술>, <대사>, <생각>, <강조> 태그를 활용하여 3~6문단의 흥미진진한 이야기로 묘사해줘. (예시: <서술>그녀는 사과를 먹는다</서술>)`,
     `전투 과정에서 각 캐릭터의 서사, 스킬, 아이템 특징이 잘 드러나야 해.`,
+    `[매우 중요] '장비 수준' 설명이 더 강력한 쪽이 전투에서 확실한 우위를 점하도록 묘사하고, 승패를 결정하는 가장 중요한 요소로 반영해야 해. (예: '전설적인 장비' > '평범한 장비')`,
     `마지막 줄에는 반드시 '승자: A' 또는 '승자: B' 중 하나만 단독으로 출력해야 해.`,
   ].join('\n');
 }
