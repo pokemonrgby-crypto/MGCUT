@@ -213,7 +213,7 @@ export function mountAdventures(app) {
             let updatedCharacterState = { ...adventure.characterState };
             let newItem = null;
             if (lastNode.type === 'trap' && lastNode.penalty) {
-                updatedCharacterState.stamina = Math.max(0, updatedCharacterState.stamina + (lastNode.penalty.value || 0));
+                updatedCharacterState.stamina = Math.max(0, (updatedCharacterState.stamina || 100) + (lastNode.penalty.value || 0));
             }
             if (lastNode.type === 'item' && lastNode.item) {
                 newItem = { ...lastNode.item, id: randomUUID() };
@@ -259,15 +259,18 @@ export function mountAdventures(app) {
             const snap = await adventureRef.get();
             if (!snap.exists) return res.status(404).json({ ok: false, error: 'ADVENTURE_NOT_FOUND' });
             const adventure = snap.data();
-            const charSnap = await db.collection('characters').doc(adventure.characterId).get();
-            const character = charSnap.data();
+            const character = (await db.collection('characters').doc(adventure.characterId).get()).data();
             const combatSkills = (character.abilities || []).filter(a => (character.chosen || []).includes(a.id));
             const combatItems = (character.items || []).filter(i => (character.equipped || []).includes(i.id));
             const healthRange = enemyHealthRanges[enemy.difficulty] || enemyHealthRanges.normal;
             const enemyMaxHealth = getRandomInRange(healthRange[0], healthRange[1]);
+            
+            // [수정] 플레이어의 전투 시작 체력을 모험의 현재 체력(stamina)으로 설정
+            const playerHealth = adventure.characterState?.stamina || 100;
+
             const combatState = {
                 status: 'ongoing',
-                player: { name: character.name, health: 100, maxHealth: 100, skills: combatSkills, items: combatItems, status: [] },
+                player: { name: character.name, health: playerHealth, maxHealth: 100, skills: combatSkills, items: combatItems, status: [] },
                 enemy: { ...enemy, health: enemyMaxHealth, maxHealth: enemyMaxHealth, status: [] },
                 turn: 'player',
                 log: [`${enemy.name}(이)가 나타났다!`],
@@ -293,19 +296,20 @@ export function mountAdventures(app) {
             combatState.turn = 'processing';
             [combatState.player, combatState.enemy].forEach(entity => {
                 let stillActiveEffects = [];
-                for (const effect of entity.status) {
+                (entity.status || []).forEach(effect => {
                     if (effect.type === 'dot' || effect.type === 'hot') {
                         const amount = effect.type === 'dot' ? -(effect.damage * (effect.stack || 1)) : (effect.heal * (effect.stack || 1));
                         entity.health += amount;
-                        turnLog.push(`  L [효과] ${entity.name}이(가) ${effect.name}으로 ${amount > 0 ? `${amount} 회복` : `${-amount} 피해`}.`);
+                        turnLog.push(`  L [효과] ${entity.name}은(는) ${effect.name}으로 ${amount > 0 ? `체력을 ${amount} 회복했다.` : `${-amount}의 피해를 입었다.`}`);
                     }
                     effect.duration--;
                     if (effect.duration > 0) stillActiveEffects.push(effect);
                     else turnLog.push(`  L [효과] ${entity.name}의 ${effect.name} 효과가 사라졌다.`);
-                }
+                });
                 entity.status = stillActiveEffects;
                 entity.health = Math.max(0, Math.min(entity.maxHealth, entity.health));
             });
+            if (combatState.player.health <= 0 || combatState.enemy.health <= 0) {}
             const isStunned = combatState.player.status.some(s => s.type === 'control' && s.duration > 0);
             if (isStunned) {
                 turnLog.push(`[플레이어] 기절해서 움직일 수 없다!`);
@@ -334,31 +338,31 @@ export function mountAdventures(app) {
                 else if (combatState.enemy.health <= 0) combatState.status = 'won';
             }
             combatState.log.push(...turnLog);
-            
-            // [수정] 전투 종료 시 처리 로직 변경
             if (combatState.status !== 'ongoing') {
                 turnLog.push(`--- 전투 종료: ${combatState.status} ---`);
+                
+                // [수정] 전투 종료 후 캐릭터의 최종 체력을 모험의 characterState에 반영
+                const finalPlayerHealth = combatState.player.health;
+                let updatedCharacterState = { ...adventure.characterState, stamina: finalPlayerHealth };
+
                 if (combatState.status === 'lost') {
-                    await adventureRef.update({ combatState, status: 'failed', updatedAt: FieldValue.serverTimestamp() });
-                } else { // 승리 또는 후퇴 시
+                    await adventureRef.update({ combatState, status: 'failed', characterState: updatedCharacterState, updatedAt: FieldValue.serverTimestamp() });
+                } else {
                     const geminiKey = await getApiKeyForUser(user.uid);
                     const charSnap = await db.collection('characters').doc(adventure.characterId).get();
                     const worldSnap = await db.collection('worlds').doc(adventure.worldId).get();
                     const worldData = worldSnap.data();
-                    const nextNodeContext = { character: charSnap.data(), world: { name: worldData.name, introShort: worldData.introShort }, characterState: adventure.characterState };
+                    const nextNodeContext = { character: charSnap.data(), world: { name: worldData.name, introShort: worldData.introShort }, characterState: updatedCharacterState };
                     const nextNodePrompt = getNextNodePrompt(nextNodeContext, adventure.site, adventure.history);
                     const { json: nextNode } = await callGemini({ key: geminiKey, model: MODEL_POOL[0], user: nextNodePrompt });
                     
-                    if (!nextNode || !nextNode.situation) {
-                        await adventureRef.update({ status: 'finished', combatState, lastResult: '전투 후 다음 상황을 생성하는데 실패하여 모험이 종료됩니다.' });
-                    } else {
-                        await adventureRef.update({
-                            status: 'ongoing',
-                            combatState: null, // 전투 상태 종료
-                            currentNode: nextNode, // 다음 노드 설정
-                            updatedAt: FieldValue.serverTimestamp()
-                        });
-                    }
+                    await adventureRef.update({
+                        status: 'ongoing',
+                        combatState: null,
+                        currentNode: nextNode,
+                        characterState: updatedCharacterState, // [수정] 업데이트된 체력 정보 저장
+                        updatedAt: FieldValue.serverTimestamp()
+                    });
                 }
             } else {
                 combatState.turn = 'player';
